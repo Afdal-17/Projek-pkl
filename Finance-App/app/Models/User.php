@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -15,29 +14,34 @@ class User extends Authenticatable
 
     protected $table = 'user';
 
+    protected $primaryKey = 'id_user';
+
+    public $timestamps = false;
+
     /**
      * The attributes that are mass assignable.
      *
      * @var list<string>
      */
-    protected $primaryKey = 'id_user';
     protected $fillable = [
-        'name',
+        'nama',
         'email',
         'password',
         'role',
-        'status_aktif'
+        'status',
     ];
 
-    public function getStatusAktifAttribute()
-    {
-        return $this->attributes['status_aktif'] ?? $this->attributes['status'] ?? null;
-    }
+    protected $hidden = [
+        'password',
+        'remember_token',
+    ];
 
-    public function setStatusAktifAttribute($value): void
+    protected function casts(): array
     {
-        $this->attributes['status_aktif'] = $value;
-        $this->attributes['status'] = $value;
+        return [
+            'password' => 'hashed',
+            'status' => 'boolean',
+        ];
     }
 
     public function isAdmin(): bool
@@ -50,26 +54,18 @@ class User extends Authenticatable
         return $this->role === 'user';
     }
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
-     */
-    protected $hidden = [
-        'password',
-        'remember_token',
-    ];
-
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
-    protected function casts(): array
+    public function dompet()
     {
-        return [
-            'email_verified_at' => 'datetime',
-            'password' => 'hashed',
-        ];
+        return $this->hasMany(Dompet::class, 'id_user', 'id_user');
+    }
+
+    public function targetTabungan()
+    {
+        return $this->hasMany(TargetTabungan::class, 'id_user', 'id_user');
+    }
+
+    public function transfer()
+    {
+        return $this->hasMany(Transfer::class, 'id_user', 'id_user');
     }
 }
