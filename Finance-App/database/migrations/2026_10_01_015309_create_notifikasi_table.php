@@ -12,8 +12,10 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('notifikasi', function (Blueprint $table) {
-            $table->id();
-            $table->timestamps();
+            $table->id('id_notifikasi');
+            $table->enum('tipe',['transaksi','target']);
+            $table->boolean('sudah_dibaca');
+            $table->timestamp('tanggal');
         });
     }
 

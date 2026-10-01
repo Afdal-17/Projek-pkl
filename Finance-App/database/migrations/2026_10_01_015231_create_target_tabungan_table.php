@@ -12,8 +12,13 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('target_tabungan', function (Blueprint $table) {
-            $table->id();
-            $table->timestamps();
+            $table->id('id_target');
+            $table->foreignId('id_user');
+            $table->foreignId('id_dompet');
+            $table->string('nama_target');
+            $table->decimal('nominal_target');
+            $table->decimal('nomimal_tekumpul');
+            $table->enum('status', ['belum_tercapai', 'tercapai'])->default('belum_tercapai');
         });
     }
 

@@ -12,8 +12,13 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('transfer', function (Blueprint $table) {
-            $table->id();
-            $table->timestamps();
+            $table->id('id_transfer');
+            $table->foreignId('id_user');
+            $table->foreignId('id_dompet_asal');
+            $table->foreignId('id_dompet_tujuan');
+            $table->decimal('jumlah');
+            $table->text('catatan');
+            $table->timestamp('tanggal_tranfer');
         });
     }
 

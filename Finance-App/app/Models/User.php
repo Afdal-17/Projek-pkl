@@ -13,16 +13,42 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
+    protected $table = 'user';
+
     /**
      * The attributes that are mass assignable.
      *
      * @var list<string>
      */
+    protected $primaryKey = 'id_user';
     protected $fillable = [
         'name',
         'email',
         'password',
+        'role',
+        'status_aktif'
     ];
+
+    public function getStatusAktifAttribute()
+    {
+        return $this->attributes['status_aktif'] ?? $this->attributes['status'] ?? null;
+    }
+
+    public function setStatusAktifAttribute($value): void
+    {
+        $this->attributes['status_aktif'] = $value;
+        $this->attributes['status'] = $value;
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->role === 'admin';
+    }
+
+    public function isUser(): bool
+    {
+        return $this->role === 'user';
+    }
 
     /**
      * The attributes that should be hidden for serialization.
