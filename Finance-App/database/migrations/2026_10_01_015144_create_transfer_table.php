@@ -13,12 +13,12 @@ return new class extends Migration
     {
         Schema::create('transfer', function (Blueprint $table) {
             $table->id('id_transfer');
-            $table->foreignId('id_user');
-            $table->foreignId('id_dompet_asal');
-            $table->foreignId('id_dompet_tujuan');
-            $table->decimal('jumlah');
-            $table->text('catatan');
-            $table->timestamp('tanggal_tranfer');
+            $table->foreignId('id_user')->constrained('user', 'id_user')->cascadeOnDelete();
+            $table->foreignId('id_dompet_asal')->constrained('dompet', 'id_dompet')->restrictOnDelete();
+            $table->foreignId('id_dompet_tujuan')->constrained('dompet', 'id_dompet')->restrictOnDelete();
+            $table->decimal('jumlah', 15, 2);
+            $table->text('catatan')->nullable();
+            $table->timestamp('tanggal_transfer');
         });
     }
 

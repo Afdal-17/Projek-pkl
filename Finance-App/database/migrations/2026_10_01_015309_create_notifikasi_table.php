@@ -13,8 +13,10 @@ return new class extends Migration
     {
         Schema::create('notifikasi', function (Blueprint $table) {
             $table->id('id_notifikasi');
-            $table->enum('tipe',['transaksi','target']);
-            $table->boolean('sudah_dibaca');
+            $table->foreignId('id_user')->constrained('user', 'id_user')->cascadeOnDelete();
+            $table->enum('tipe', ['transaksi', 'target']);
+            $table->text('pesan');
+            $table->boolean('sudah_dibaca')->default(false);
             $table->timestamp('tanggal');
         });
     }

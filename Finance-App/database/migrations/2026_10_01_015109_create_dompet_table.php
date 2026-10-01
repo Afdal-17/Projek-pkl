@@ -13,14 +13,12 @@ return new class extends Migration
     {
         Schema::create('dompet', function (Blueprint $table) {
             $table->id('id_dompet');
-            $table->foreignId('id_user');
+            $table->foreignId('id_user')->constrained('user', 'id_user')->cascadeOnDelete();
             $table->string('nama_dompet');
-            $table->text('deskripsi');
-            $table->decimal('saldo_awal');
-            $table->decimal('saldo');
-            $table->timestamp('created_at');
-            $table->timestamp('updated_at');
-
+            $table->text('deskripsi')->nullable();
+            $table->decimal('saldo_awal', 15, 2)->default(0);
+            $table->decimal('saldo', 15, 2)->default(0);
+            $table->timestamps();
         });
     }
 

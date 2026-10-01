@@ -13,8 +13,10 @@ return new class extends Migration
     {
         Schema::create('kategori', function (Blueprint $table) {
             $table->id('id_kategori');
+            $table->foreignId('id_user')->constrained('user', 'id_user')->cascadeOnDelete();
             $table->string('nama_kategori');
-            $table->enum('jenis',['makan','gajih','transportasi']);
+            $table->enum('jenis', ['pemasukan', 'pengeluaran']);
+            $table->timestamps();
         });
     }
 

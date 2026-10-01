@@ -13,11 +13,11 @@ return new class extends Migration
     {
         Schema::create('target_tabungan', function (Blueprint $table) {
             $table->id('id_target');
-            $table->foreignId('id_user');
-            $table->foreignId('id_dompet');
+            $table->foreignId('id_user')->constrained('user', 'id_user')->cascadeOnDelete();
+            $table->foreignId('id_dompet')->constrained('dompet', 'id_dompet')->cascadeOnDelete();
             $table->string('nama_target');
-            $table->decimal('nominal_target');
-            $table->decimal('nomimal_tekumpul');
+            $table->decimal('nominal_target', 15, 2);
+            $table->decimal('nominal_terkumpul', 15, 2)->default(0);
             $table->enum('status', ['belum_tercapai', 'tercapai'])->default('belum_tercapai');
         });
     }

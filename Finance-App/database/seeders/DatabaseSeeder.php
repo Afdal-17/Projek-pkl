@@ -50,21 +50,23 @@ class DatabaseSeeder extends Seeder
             'saldo' => 0,
         ]);
 
-        $gaji = Kategori::create([
-            'nama_kategori' => 'Gaji',
-            'jenis' => 'pemasukan',
-        ]);
+       $gaji = Kategori::create([
+    'id_user' => $user->id_user,
+    'nama_kategori' => 'Gaji',
+    'jenis' => 'pemasukan',
+]);
 
-        $makan = Kategori::create([
-            'nama_kategori' => 'Makan',
-            'jenis' => 'pengeluaran',
-        ]);
+$makan = Kategori::create([
+    'id_user' => $user->id_user,
+    'nama_kategori' => 'Makan',
+    'jenis' => 'pengeluaran',
+]);
 
-        $transportasi = Kategori::create([
-            'nama_kategori' => 'Transportasi',
-            'jenis' => 'pengeluaran',
-        ]);
-
+$transportasi = Kategori::create([
+    'id_user' => $user->id_user,
+    'nama_kategori' => 'Transportasi',
+    'jenis' => 'pengeluaran',
+]);
         Transaksi::create([
             'id_kategori' => $gaji->id_kategori,
             'id_dompet' => $dompetUtama->id_dompet,
