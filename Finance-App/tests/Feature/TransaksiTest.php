@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Dompet;
 use App\Models\Kategori;
 use App\Models\User;
+use App\Models\Transaksi;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -48,7 +49,7 @@ class TransaksiTest extends TestCase
         ])->assertRedirect(route('transaksi.index'));
 
         $this->assertDatabaseHas('dompet', ['id_dompet' => $dompet->id_dompet, 'saldo' => 75000]);
-        $transaksi = $user->fresh()->dompet()->first()->transaksi()->first();
+        $transaksi = Transaksi::where('id_dompet', $dompet->id_dompet)->firstOrFail();
 
         $this->actingAs($user)->put(route('transaksi.update', $transaksi), [
             'id_dompet' => $dompet->id_dompet,

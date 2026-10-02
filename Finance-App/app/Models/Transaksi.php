@@ -18,6 +18,7 @@ class Transaksi extends Model
 
     protected $fillable = [
         'id_kategori',
+        'id_transfer',
         'id_dompet',
         'nama_transaksi',
         'jumlah',
@@ -41,5 +42,10 @@ class Transaksi extends Model
     public function dompet(): BelongsTo
     {
         return $this->belongsTo(Dompet::class, 'id_dompet', 'id_dompet');
+    }
+
+    public function transfer(): BelongsTo
+    {
+        return $this->belongsTo(Transfer::class, 'id_transfer', 'id_transfer');
     }
 }

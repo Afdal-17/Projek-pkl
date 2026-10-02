@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Transfer extends Model
 {
@@ -46,5 +47,10 @@ class Transfer extends Model
     public function dompetTujuan(): BelongsTo
     {
         return $this->belongsTo(Dompet::class, 'id_dompet_tujuan', 'id_dompet');
+    }
+
+    public function transaksi(): HasMany
+    {
+        return $this->hasMany(Transaksi::class, 'id_transfer', 'id_transfer');
     }
 }

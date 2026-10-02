@@ -8,6 +8,8 @@ use App\Http\Requests\FilterTransaksiRequest;
 use App\Models\Dompet;
 use App\Models\Kategori;
 use App\Models\Transaksi;
+use App\Models\TargetTabungan;
+use App\Services\NotifikasiService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -47,19 +49,21 @@ class TransaksiController extends Controller
         ]);
     }
 
-    public function store(StoreTransaksiRequest $request): RedirectResponse
+    public function store(StoreTransaksiRequest $request, NotifikasiService $notifikasiService): RedirectResponse
     {
         $data = $request->validated();
         $userId = (int) Auth::id();
 
-        DB::transaction(function () use ($data, $userId): void {
+        DB::transaction(function () use ($data, $userId, $notifikasiService): void {
             $dompet = Dompet::where('id_user', $userId)
                 ->whereKey($data['id_dompet'])
                 ->lockForUpdate()
                 ->firstOrFail();
+            $saldoSebelumnya = (float) $dompet->saldo;
 
             $this->applyBalanceChange($dompet, $data['jenis'], (float) $data['jumlah']);
             Transaksi::create($data);
+            $this->notifyReachedTargets($dompet, $saldoSebelumnya, $notifikasiService);
         });
 
         return redirect()->route('transaksi.index');
@@ -74,6 +78,7 @@ class TransaksiController extends Controller
     public function edit(Transaksi $transaksi): View
     {
         $transaksi = $this->ownedTransaction($transaksi);
+        abort_if($transaksi->id_transfer !== null, 405, 'Transaksi transfer tidak dapat diubah.');
 
         return view('transaksi.edit', [
             'transaksi' => $transaksi,
@@ -82,51 +87,61 @@ class TransaksiController extends Controller
         ]);
     }
 
-    public function update(UpdateTransaksiRequest $request, Transaksi $transaksi): RedirectResponse
+    public function update(UpdateTransaksiRequest $request, Transaksi $transaksi, NotifikasiService $notifikasiService): RedirectResponse
     {
         $data = $request->validated();
         $userId = (int) Auth::id();
 
-        DB::transaction(function () use ($data, $transaksi, $userId): void {
+        DB::transaction(function () use ($data, $transaksi, $userId, $notifikasiService): void {
             $current = Transaksi::whereHas('dompet', fn ($query) => $query->where('id_user', $userId))
                 ->whereKey($transaksi->getKey())
                 ->lockForUpdate()
                 ->firstOrFail();
+            abort_if($current->id_transfer !== null, 405, 'Transaksi transfer tidak dapat diubah.');
             $oldDompet = Dompet::where('id_user', $userId)
                 ->whereKey($current->id_dompet)
                 ->lockForUpdate()
                 ->firstOrFail();
+            $saldoLama = (float) $oldDompet->saldo;
             $newDompet = $current->id_dompet === (int) $data['id_dompet']
                 ? $oldDompet
                 : Dompet::where('id_user', $userId)
                     ->whereKey($data['id_dompet'])
                     ->lockForUpdate()
                     ->firstOrFail();
+                    $saldoDompetBaru = (float) $newDompet->saldo;
 
             $this->applyBalanceChange($oldDompet, $current->jenis === 'pemasukan' ? 'pengeluaran' : 'pemasukan', (float) $current->jumlah);
             $this->applyBalanceChange($newDompet, $data['jenis'], (float) $data['jumlah']);
             $current->update($data);
+            $this->notifyReachedTargets($oldDompet, $saldoLama, $notifikasiService);
+            if ($newDompet->id_dompet !== $oldDompet->id_dompet) {
+                $this->notifyReachedTargets($newDompet, $saldoDompetBaru, $notifikasiService);
+            }
         });
 
         return redirect()->route('transaksi.index');
     }
 
-    public function destroy(Transaksi $transaksi): RedirectResponse
+    public function destroy(Transaksi $transaksi, NotifikasiService $notifikasiService): RedirectResponse
     {
         $userId = (int) Auth::id();
 
-        DB::transaction(function () use ($transaksi, $userId): void {
+        DB::transaction(function () use ($transaksi, $userId, $notifikasiService): void {
             $current = Transaksi::whereHas('dompet', fn ($query) => $query->where('id_user', $userId))
                 ->whereKey($transaksi->getKey())
                 ->lockForUpdate()
                 ->firstOrFail();
+            abort_if($current->id_transfer !== null, 405, 'Transaksi transfer tidak dapat dihapus.');
             $dompet = Dompet::where('id_user', $userId)
                 ->whereKey($current->id_dompet)
                 ->lockForUpdate()
                 ->firstOrFail();
+            $saldoSebelumnya = (float) $dompet->saldo;
 
             $this->applyBalanceChange($dompet, $current->jenis === 'pemasukan' ? 'pengeluaran' : 'pemasukan', (float) $current->jumlah);
             $current->delete();
+            $this->notifyReachedTargets($dompet, $saldoSebelumnya, $notifikasiService);
         });
 
         return redirect()->route('transaksi.index');
@@ -154,5 +169,13 @@ class TransaksiController extends Controller
         }
 
         $dompet->update(['saldo' => $newBalance]);
+    }
+
+    private function notifyReachedTargets(Dompet $dompet, float $saldoSebelumnya, NotifikasiService $notifikasiService): void
+    {
+        TargetTabungan::where('id_user', $dompet->id_user)
+            ->where('id_dompet', $dompet->id_dompet)
+            ->get()
+            ->each(fn (TargetTabungan $target) => $notifikasiService->targetBaruTercapai($target, $saldoSebelumnya));
     }
 }

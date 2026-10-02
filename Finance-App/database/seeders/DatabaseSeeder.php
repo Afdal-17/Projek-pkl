@@ -75,6 +75,7 @@ $transportasi = Kategori::create([
             'jenis' => 'pemasukan',
             'tanggal' => now(),
         ]);
+        $dompetUtama->update(['saldo' => 1500000]);
 
         Transaksi::create([
             'id_kategori' => $makan->id_kategori,
@@ -84,23 +85,43 @@ $transportasi = Kategori::create([
             'jenis' => 'pengeluaran',
             'tanggal' => now(),
         ]);
+        $dompetUtama->update(['saldo' => 1475000]);
 
         TargetTabungan::create([
             'id_user' => $user->id_user,
             'id_dompet' => $dompetTabungan->id_dompet,
             'nama_target' => 'Beli Laptop',
             'nominal_target' => 15000000,
-            'nominal_terkumpul' => 0,
+            'nominal_terkumpul' => 100000,
             'status' => 'belum_tercapai',
         ]);
 
-        Transfer::create([
+        $transfer = Transfer::create([
             'id_user' => $user->id_user,
             'id_dompet_asal' => $dompetUtama->id_dompet,
             'id_dompet_tujuan' => $dompetTabungan->id_dompet,
             'jumlah' => 100000,
             'catatan' => 'Menabung untuk laptop',
             'tanggal_transfer' => now(),
+        ]);
+        $dompetUtama->update(['saldo' => 1375000]);
+        $dompetTabungan->update(['saldo' => 100000]);
+
+        $transfer->transaksi()->createMany([
+            [
+                'id_dompet' => $dompetUtama->id_dompet,
+                'nama_transaksi' => 'Transfer ke '.$dompetTabungan->nama_dompet,
+                'jumlah' => 100000,
+                'jenis' => 'pengeluaran',
+                'tanggal' => $transfer->tanggal_transfer,
+            ],
+            [
+                'id_dompet' => $dompetTabungan->id_dompet,
+                'nama_transaksi' => 'Transfer dari '.$dompetUtama->nama_dompet,
+                'jumlah' => 100000,
+                'jenis' => 'pemasukan',
+                'tanggal' => $transfer->tanggal_transfer,
+            ],
         ]);
     }
 }

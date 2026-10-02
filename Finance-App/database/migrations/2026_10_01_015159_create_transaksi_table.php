@@ -14,6 +14,7 @@ return new class extends Migration
         Schema::create('transaksi', function (Blueprint $table) {
             $table->id('id_transaksi');
             $table->unsignedBigInteger('id_kategori')->nullable();
+            $table->foreignId('id_transfer')->nullable()->constrained('transfer', 'id_transfer')->nullOnDelete();
             $table->foreignId('id_dompet')->constrained('dompet', 'id_dompet')->cascadeOnDelete();
             $table->string('nama_transaksi');
             $table->decimal('jumlah', 15, 2);

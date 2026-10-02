@@ -45,8 +45,7 @@ class TargetTabungan extends Model
     }
 
     /**
-     * Progress menuju target (0-100). Dihitung dari saldo dompet saat ini,
-     * bukan kolom nominal_terkumpul, agar selalu sinkron dengan transaksi.
+    * Progress menuju target (0-100) mengikuti saldo dompet yang dipilih.
      */
     public function progress(): Attribute
     {
@@ -57,7 +56,7 @@ class TargetTabungan extends Model
                     return 0.0;
                 }
 
-                $terkumpul = (float) ($this->dompet?->saldo ?? $this->nominal_terkumpul);
+                $terkumpul = (float) $this->dompet->saldo;
                 $persen = ($terkumpul / $target) * 100;
 
                 return round(min(max($persen, 0.0), 100.0), 2);
@@ -71,7 +70,7 @@ class TargetTabungan extends Model
     public function tercapai(): Attribute
     {
         return Attribute::make(
-            get: fn () => (float) ($this->dompet?->saldo ?? $this->nominal_terkumpul) >= (float) $this->nominal_target
+            get: fn () => (float) $this->dompet->saldo >= (float) $this->nominal_target
         );
     }
 }
