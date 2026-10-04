@@ -1,29 +1,47 @@
-@extends('layouts.auth')
+<x-guest-layout>
+    <!-- Session Status -->
+    <x-auth-session-status class="mb-4" :status="session('status')" />
 
-@section('title', 'Sign in')
+    <form method="POST" action="{{ route('login') }}">
+        @csrf
 
-@section('content')
-    <div class="text-center">
-        @if (file_exists(public_path('images/welcome.png')))
-            <img src="/images/welcome.png" alt="" class="mx-auto mb-2 h-16">
-        @endif
-        <h1 class="text-2xl font-bold">Welcome back</h1>
-        <p class="mt-2 text-sm text-muted">Sign in to continue to your finances.</p>
-    </div>
-
-    {{-- Sementara tombol Sign in hanya link ke dashboard. Backend: ganti jadi <form method="POST"> + @csrf + type="submit" --}}
-    <form class="mt-6 space-y-4">
-        <x-input label="Email" name="email" type="email" placeholder="alex@example.com" />
-        <x-input label="Password" name="password" type="password" placeholder="Enter your password" />
-        <div class="text-right">
-            <a href="#" class="text-sm text-brand hover:underline">Forgot password?</a>
+        <!-- Email Address -->
+        <div>
+            <x-input-label for="email" :value="__('Email')" />
+            <x-text-input id="email" class="block mt-1 w-full" type="email" name="email" :value="old('email')" required autofocus autocomplete="username" />
+            <x-input-error :messages="$errors->get('email')" class="mt-2" />
         </div>
-        <x-button href="/dashboard" class="w-full">Sign in</x-button>
+
+        <!-- Password -->
+        <div class="mt-4">
+            <x-input-label for="password" :value="__('Password')" />
+
+            <x-text-input id="password" class="block mt-1 w-full"
+                            type="password"
+                            name="password"
+                            required autocomplete="current-password" />
+
+            <x-input-error :messages="$errors->get('password')" class="mt-2" />
+        </div>
+
+        <!-- Remember Me -->
+        <div class="block mt-4">
+            <label for="remember_me" class="inline-flex items-center">
+                <input id="remember_me" type="checkbox" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500" name="remember">
+                <span class="ms-2 text-sm text-gray-600">{{ __('Remember me') }}</span>
+            </label>
+        </div>
+
+        <div class="flex items-center justify-end mt-4">
+            @if (Route::has('password.request'))
+                <a class="underline text-sm text-gray-600 hover:text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500" href="{{ route('password.request') }}">
+                    {{ __('Forgot your password?') }}
+                </a>
+            @endif
+
+            <x-primary-button class="ms-3">
+                {{ __('Log in') }}
+            </x-primary-button>
+        </div>
     </form>
-
-    @include('auth._social')
-
-    <p class="mt-5 text-center text-sm text-muted">
-        New to Finance App? <a href="/register" class="font-medium text-ink ">Create an account</a>
-    </p>
-@endsection
+</x-guest-layout>

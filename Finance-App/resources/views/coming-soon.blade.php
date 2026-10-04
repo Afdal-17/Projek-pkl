@@ -1,4 +1,4 @@
-@extends('layouts.app')
+@extends('layouts.main')
 @section('title', $title)
 @section('content')
     <h1 class="text-3xl font-bold">{{ $title }}</h1>
