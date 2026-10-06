@@ -21,8 +21,10 @@ class TargetTabungan extends Model
         'id_user',
         'id_dompet',
         'nama_target',
+        'deskripsi',
         'nominal_target',
         'nominal_terkumpul',
+        'saldo_awal_dompet',
         'status',
     ];
 
@@ -31,6 +33,7 @@ class TargetTabungan extends Model
         return [
             'nominal_target' => 'decimal:2',
             'nominal_terkumpul' => 'decimal:2',
+            'saldo_awal_dompet' => 'decimal:2',
         ];
     }
 
@@ -56,7 +59,7 @@ class TargetTabungan extends Model
                     return 0.0;
                 }
 
-                $terkumpul = (float) $this->dompet->saldo;
+                $terkumpul = (float) $this->jumlah_terkumpul;
                 $persen = ($terkumpul / $target) * 100;
 
                 return round(min(max($persen, 0.0), 100.0), 2);
@@ -70,7 +73,19 @@ class TargetTabungan extends Model
     public function tercapai(): Attribute
     {
         return Attribute::make(
-            get: fn () => (float) $this->dompet->saldo >= (float) $this->nominal_target
+            get: fn () => (float) $this->jumlah_terkumpul >= (float) $this->nominal_target
+        );
+    }
+
+    protected function jumlahTerkumpul(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => max(
+                0,
+                (float) $this->nominal_terkumpul
+                    + (float) $this->dompet->saldo
+                    - (float) $this->saldo_awal_dompet
+            )
         );
     }
 }

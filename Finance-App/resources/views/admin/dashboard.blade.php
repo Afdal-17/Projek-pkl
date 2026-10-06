@@ -5,26 +5,30 @@
 @section('content')
 
 @php
-    // DATA DUMMY: nanti diganti data dari backend
-    $users = [
-        ['id' => 1, 'name' => 'Maya Putri',     'email' => 'maya.putri@financeapp.id',     'status' => 'Active'],
-        ['id' => 2, 'name' => 'Rizky Pratama',  'email' => 'rizky.pratama@financeapp.id',  'status' => 'Active'],
-        ['id' => 3, 'name' => 'Siti Aisyah',    'email' => 'siti.aisyah@financeapp.id',    'status' => 'Inactive'],
-        ['id' => 4, 'name' => 'Budi Santoso',   'email' => 'budi.santoso@financeapp.id',   'status' => 'Active'],
-        ['id' => 5, 'name' => 'Lestari Wijaya', 'email' => 'lestari.wijaya@financeapp.id', 'status' => 'Active'],
-    ];
-    $days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    $chartMaximum = max(1, ...$chart['total'], ...$chart['fresh']);
+    $chartMaximum = (int) (ceil($chartMaximum / 5) * 5);
+    $chartTicks = array_unique(array_map(fn ($step) => max(1, (int) round($chartMaximum * $step / 4)), [1, 2, 3, 4]));
+    $userRows = $users->map(fn ($user) => [
+        'id' => $user->id_user,
+        'name' => $user->nama,
+        'email' => $user->email,
+        'status' => $user->status ? 'Active' : 'Inactive',
+        'canToggle' => ! $user->isAdmin() && ! $user->is(auth()->user()),
+        'canDelete' => ! $user->isAdmin() && ! $user->is(auth()->user()),
+    ])->values();
 @endphp
 
 <div
     x-data="{
-        users: @js($users),
+        users: @js($userRows),
+        total: @js($chart['total']),
+        fresh: @js($chart['fresh']),
+        days: @js($days),
+        csrfToken: @js(csrf_token()),
+        statusUrl: @js(route('admin.users.status', ['user' => '__USER__'])),
+        deleteUrl: @js(route('admin.users.destroy', ['user' => '__USER__'])),
 
-        {{-- Data grafik: nilai per hari --}}
-        total: [320, 430, 560, 780, 980, 1100, 1200],
-        fresh: [330, 460, 610, 800, 1010, 1120, 1200],
-
-        W: 800, H: 240, padL: 48, padR: 16, padT: 16, padB: 28, max: 1300,
+        W: 800, H: 240, padL: 48, padR: 16, padT: 16, padB: 28, max: {{ $chartMaximum }},
 
         px(i) { return this.padL + i * (this.W - this.padL - this.padR) / 6; },
         py(v) { return this.padT + (1 - v / this.max) * (this.H - this.padT - this.padB); },
@@ -43,11 +47,35 @@
             return d;
         },
 
-        setStatus(u, status) { u.status = status; },
+        async setStatus(user, status) {
+            if (!user.canToggle) return;
+            if (user.status === status) return;
 
-        remove(id) {
+            const response = await fetch(this.statusUrl.replace('__USER__', user.id), {
+                method: 'PATCH',
+                headers: { 'X-CSRF-TOKEN': this.csrfToken, 'Accept': 'application/json' },
+            });
+
+            if (response.ok) user.status = status;
+        },
+
+        async remove(id) {
             if (!confirm('Delete this user?')) return;
-            this.users = this.users.filter(u => u.id !== id);
+
+            const user = this.users.find(u => u.id === id);
+            if (!user?.canDelete) return;
+
+            const response = await fetch(this.deleteUrl.replace('__USER__', id), {
+                method: 'DELETE',
+                headers: { 'X-CSRF-TOKEN': this.csrfToken, 'Accept': 'application/json' },
+            });
+
+            if (response.ok) {
+                this.users = this.users.filter(u => u.id !== id);
+            } else {
+                const result = await response.json();
+                alert(result.message ?? 'User could not be deleted.');
+            }
         }
     }"
 >
@@ -64,7 +92,7 @@
 
         <x-card class="p-6">
             <p class="text-sm text-muted">Total Users</p>
-            <p class="mt-3 text-4xl font-bold">1,248</p>
+            <p class="mt-3 text-4xl font-bold">{{ number_format($summary['total_user']) }}</p>
             <p class="mt-3 text-sm text-muted">Across all platforms</p>
         </x-card>
 
@@ -75,7 +103,7 @@
                     <span class="h-2.5 w-2.5 rounded-full bg-income"></span>
                 </span>
             </div>
-            <p class="mt-3 text-4xl font-bold">312</p>
+            <p class="mt-3 text-4xl font-bold">{{ number_format($summary['user_online']) }}</p>
             <p class="mt-3 text-sm text-muted">Currently active</p>
         </x-card>
 
@@ -86,8 +114,8 @@
                     <x-icon name="trending-up" size="h-4 w-4" />
                 </span>
             </div>
-            <p class="mt-3 text-4xl font-bold">56</p>
-            <p class="mt-3 text-sm text-muted">+12% vs last week</p>
+            <p class="mt-3 text-4xl font-bold">{{ number_format($summary['user_baru_minggu_ini']) }}</p>
+            <p class="mt-3 text-sm text-muted">Created in the last 7 days</p>
         </x-card>
 
     </div>
@@ -111,9 +139,9 @@
         <svg viewBox="0 0 800 240" class="mt-4 w-full rounded-lg border border-line" role="img" aria-label="User activity for the last 7 days">
 
             {{-- Garis bantu + label sumbu Y --}}
-            @foreach ([300, 600, 900, 1200] as $v)
-                <line x1="48" x2="784" :y1="py({{ $v }})" :y2="py({{ $v }})" stroke="#e5e7eb" />
-                <text x="8" :y="py({{ $v }}) - 4" font-size="11" fill="#6b7280">{{ $v >= 1000 ? number_format($v / 1000, 1) . 'k' : $v }}</text>
+            @foreach ($chartTicks as $tick)
+                <line x1="48" x2="784" :y1="py({{ $tick }})" :y2="py({{ $tick }})" stroke="#e5e7eb" />
+                <text x="8" :y="py({{ $tick }}) - 4" font-size="11" fill="#6b7280">{{ $tick }}</text>
             @endforeach
 
             {{-- Dua garis data --}}

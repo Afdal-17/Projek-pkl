@@ -4,40 +4,20 @@
 
 @section('content')
 
-@php
-    // DATA DUMMY: nanti diganti data dari backend
-    $categories = [
-        ['id' => 1, 'name' => 'Food',          'type' => 'expense', 'icon' => 'utensils'],
-        ['id' => 2, 'name' => 'Transport',     'type' => 'expense', 'icon' => 'car'],
-        ['id' => 3, 'name' => 'Entertainment', 'type' => 'expense', 'icon' => 'film'],
-        ['id' => 4, 'name' => 'Bills',         'type' => 'expense', 'icon' => 'landmark'],
-        ['id' => 5, 'name' => 'Dining',        'type' => 'expense', 'icon' => 'utensils'],
-        ['id' => 6, 'name' => 'Salary',        'type' => 'income',  'icon' => 'landmark'],
-        ['id' => 7, 'name' => 'Freelance',     'type' => 'income',  'icon' => 'briefcase'],
-    ];
-
-    $wallets = [
-        ['name' => 'Cash',  'balance' => 3250000],
-        ['name' => 'DANA',  'balance' => 4500000],
-        ['name' => 'GoPay', 'balance' => 4250000],
-    ];
-@endphp
-
 <div
     x-data="{
         type: 'expense',
         amount: 245000,
         transactionName: 'Grocery shopping',
         category: '',
-        wallet: 'DANA',
+        wallet: @js($wallets->first()['name'] ?? ''),
         date: new Date().toLocaleDateString('en-CA'),
         error: '',
 
         /* Kategori dibaca dari data yang sama dengan halaman Manage Kategori */
-        allCategories: JSON.parse(localStorage.getItem('categories') || 'null') ?? @js($categories),
+        allCategories: @js($categories),
         wallets: @js($wallets),
-
-        savedTransactions: JSON.parse(localStorage.getItem('transactions') || '[]'),
+        csrfToken: @js(csrf_token()),
 
         init() {
             this.pickCategory();
@@ -70,10 +50,10 @@
         get formattedBalance() {
             const n = this.newBalance;
 
-            return (n < 0 ? '-' : '') + 'Rp ' + new Intl.NumberFormat('id-ID').format(Math.abs(n));
+            return (n < 0 ? '-' : '') + window.financeMoney.format(Math.abs(n));
         },
 
-        saveTransaction() {
+        async saveTransaction() {
             this.error = '';
 
             if (!this.amount || Number(this.amount) <= 0) {
@@ -97,17 +77,35 @@
                 return;
             }
 
-            this.savedTransactions.push({
-                id: Date.now(),
-                type: this.type,
-                amount: Number(this.amount),
-                name: this.transactionName.trim(),
-                category: this.category,
-                wallet: this.wallet,
-                date: this.date,
+            const selectedCategory = this.allCategories.find(item => item.name === this.category);
+            const selectedWallet = this.wallets.find(item => item.name === this.wallet);
+
+            if (!selectedCategory || !selectedWallet) {
+                this.error = 'Choose a valid category and wallet.';
+                return;
+            }
+
+            const payload = new URLSearchParams({
+                _token: this.csrfToken,
+                id_dompet: String(selectedWallet.id),
+                id_kategori: String(selectedCategory.id),
+                nama_transaksi: this.transactionName.trim(),
+                jumlah: String(Number(this.amount)),
+                jenis: this.type === 'income' ? 'pemasukan' : 'pengeluaran',
+                tanggal: this.date,
             });
 
-            localStorage.setItem('transactions', JSON.stringify(this.savedTransactions));
+            const response = await fetch(@js(route('transactions.store')), {
+                method: 'POST',
+                headers: { 'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: payload,
+            });
+
+            if (!response.ok) {
+                const result = await response.json();
+                this.error = Object.values(result.errors ?? {}).flat()[0] ?? 'Transaction could not be saved.';
+                return;
+            }
 
             window.location.href = '/transactions';
         }
@@ -179,7 +177,7 @@
                 <div class="relative">
 
                     <span class="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-semibold text-muted">
-                        Rp
+                        <span x-text="window.financeMoney.symbol"></span>
                     </span>
 
                     <input

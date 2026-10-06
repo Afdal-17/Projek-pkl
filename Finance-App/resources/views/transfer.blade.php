@@ -4,51 +4,60 @@
 
 @section('content')
 
-@php
-    // DATA DUMMY: nanti diganti data dari backend
-    $wallets = [
-        ['name' => 'Cash', 'balance' => 3250000],
-        ['name' => 'DANA', 'balance' => 4500000],
-        ['name' => 'GoPay', 'balance' => 4250000],
-    ];
-@endphp
-
 <div
     x-data="{
         mode: 'wallet',
-        from: 'DANA',
-        to: 'GoPay',
+        from: @js((string) ($wallets->first()['id'] ?? '')),
+        to: @js((string) ($wallets->skip(1)->first()['id'] ?? $wallets->first()['id'] ?? '')),
         userQuery: '',
-        amount: 245000,
+        amount: '',
         wallets: @js($wallets),
+        csrfToken: @js(csrf_token()),
+
+        get fromWallet() {
+            return this.wallets.find(w => String(w.id) === String(this.from));
+        },
 
         get fromBalance() {
-            return this.wallets.find(w => w.name === this.from)?.balance ?? 0;
+            return Number(this.fromWallet?.balance ?? 0);
+        },
+
+        get fromLabel() {
+            return this.fromWallet?.name ?? '-';
+        },
+
+        get toLabel() {
+            return this.wallets.find(w => String(w.id) === String(this.to))?.name ?? '-';
         },
 
         get formattedAmount() {
-            return new Intl.NumberFormat('id-ID').format(Number(this.amount) || 0);
+            return window.financeMoney.format(Number(this.amount) || 0);
         },
 
         toggleMode() {
             this.mode = this.mode === 'wallet' ? 'user' : 'wallet';
         },
 
-        saveTransfer() {
+        async saveTransfer() {
             const amount = Number(this.amount);
-            const target = this.mode === 'wallet' ? this.to : this.userQuery.trim();
+            let targetWalletId = this.to;
 
             if (!amount || amount <= 0) {
                 alert('Amount harus lebih dari 0.');
                 return;
             }
 
-            if (!target) {
+            if (this.mode === 'wallet' && !targetWalletId) {
                 alert('Pilih tujuan transfer.');
                 return;
             }
 
-            if (this.mode === 'wallet' && this.from === this.to) {
+            if (this.mode === 'user' && !this.userQuery.trim()) {
+                alert('Pilih tujuan transfer.');
+                return;
+            }
+
+            if (this.mode === 'wallet' && String(this.from) === String(this.to)) {
                 alert('Wallet asal dan tujuan tidak boleh sama.');
                 return;
             }
@@ -58,20 +67,39 @@
                 return;
             }
 
-            const saved = JSON.parse(localStorage.getItem('transactions') || '[]');
+            if (this.mode === 'user') {
+                const recipientResponse = await fetch(@js(route('transfer.recipients')) + '?query=' + encodeURIComponent(this.userQuery.trim()), {
+                    headers: { 'Accept': 'application/json' },
+                });
 
-            saved.push({
-                id: Date.now(),
-                type: 'transfer',
-                amount: amount,
-                name: this.mode === 'wallet' ? 'Transfer wallets' : 'Transfer to ' + target,
-                category: 'Transfer',
-                wallet: this.from,
-                to: target,
-                date: new Date().toLocaleDateString('en-CA'),
+                if (!recipientResponse.ok) {
+                    const result = await recipientResponse.json();
+                    alert(result.message ?? 'User tidak ditemukan.');
+                    return;
+                }
+
+                targetWalletId = (await recipientResponse.json()).id_dompet_tujuan;
+            }
+
+            const payload = new URLSearchParams({
+                _token: this.csrfToken,
+                id_dompet_asal: String(this.from),
+                id_dompet_tujuan: String(targetWalletId),
+                jumlah: String(amount),
+                tanggal_transfer: new Date().toLocaleDateString('en-CA'),
             });
 
-            localStorage.setItem('transactions', JSON.stringify(saved));
+            const response = await fetch(@js(route('transfer.store')), {
+                method: 'POST',
+                headers: { 'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: payload,
+            });
+
+            if (!response.ok) {
+                const result = await response.json();
+                alert(Object.values(result.errors ?? {}).flat()[0] ?? 'Transfer tidak dapat diproses.');
+                return;
+            }
 
             window.location.href = '/transactions';
         }
@@ -123,7 +151,7 @@
                         class="w-full appearance-none rounded-lg border border-line bg-white py-2.5 pl-9 pr-9 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
                     >
                         <template x-for="item in wallets" :key="item.name">
-                            <option :value="item.name" :selected="item.name === from" x-text="item.name"></option>
+                            <option :value="item.id" :selected="String(item.id) === String(from)" x-text="item.name"></option>
                         </template>
                     </select>
 
@@ -149,7 +177,7 @@
                         class="w-full appearance-none rounded-lg border border-line bg-white py-2.5 pl-9 pr-9 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
                     >
                         <template x-for="item in wallets" :key="item.name">
-                            <option :value="item.name" :selected="item.name === to" x-text="item.name"></option>
+                            <option :value="item.id" :selected="String(item.id) === String(to)" x-text="item.name"></option>
                         </template>
                     </select>
 
@@ -181,7 +209,7 @@
                 <label for="amount" class="mb-2 block text-sm font-medium">Amount</label>
 
                 <div class="relative">
-                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-semibold text-muted">Rp</span>
+                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-semibold text-muted" x-text="window.financeMoney.symbol"></span>
 
                     <input
                         id="amount"
@@ -224,20 +252,20 @@
 
                     <div class="flex items-center justify-between">
                         <span class="text-muted">From Wallet</span>
-                        <span class="rounded-full bg-expense-soft px-3 py-1 text-xs font-medium" x-text="from"></span>
+                        <span class="rounded-full bg-expense-soft px-3 py-1 text-xs font-medium" x-text="fromLabel"></span>
                     </div>
 
                     <div class="flex items-center justify-between">
                         <span class="text-muted" x-text="mode === 'wallet' ? 'To Wallet' : 'To User'"></span>
                         <span
                             class="rounded-full bg-expense-soft px-3 py-1 text-xs font-medium"
-                            x-text="mode === 'wallet' ? to : (userQuery || '-')"
+                            x-text="mode === 'wallet' ? toLabel : (userQuery || '-')"
                         ></span>
                     </div>
 
                     <div class="flex items-center justify-between">
                         <span class="text-muted">Amount</span>
-                        <span class="text-base font-bold">Rp <span x-text="formattedAmount"></span></span>
+                        <span class="text-base font-bold" x-text="formattedAmount"></span>
                     </div>
 
                 </div>

@@ -4,10 +4,38 @@ namespace App\Services;
 
 use App\Models\Notifikasi;
 use App\Models\TargetTabungan;
+use App\Models\Transaksi;
 use App\Models\Transfer;
 
 class NotifikasiService
 {
+    public function transaksiDicatat(Transaksi $transaksi, int $userId): void
+    {
+        $jenisLabel = $transaksi->jenis === 'pemasukan' ? 'Pemasukan' : 'Pengeluaran';
+        $this->catatTransaksi($userId, "{$jenisLabel} \"{$transaksi->nama_transaksi}\" sebesar Rp ".number_format((float) $transaksi->jumlah, 2, ',', '.').' berhasil dicatat.', $transaksi->tanggal);
+    }
+
+    public function transaksiDiubah(Transaksi $transaksi, int $userId): void
+    {
+        $this->catatTransaksi($userId, "Transaksi \"{$transaksi->nama_transaksi}\" telah diperbarui.", now());
+    }
+
+    public function transaksiDihapus(string $namaTransaksi, float $jumlah, int $userId): void
+    {
+        $this->catatTransaksi($userId, "Transaksi \"{$namaTransaksi}\" sebesar Rp ".number_format($jumlah, 2, ',', '.').' telah dihapus.', now());
+    }
+
+    private function catatTransaksi(int $userId, string $pesan, mixed $tanggal): void
+    {
+        Notifikasi::create([
+            'id_user' => $userId,
+            'tipe' => 'transaksi',
+            'pesan' => $pesan,
+            'sudah_dibaca' => false,
+            'tanggal' => $tanggal,
+        ]);
+    }
+
     public function transferBerhasil(Transfer $transfer): void
     {
         $transfer->loadMissing(['dompetAsal', 'dompetTujuan']);
@@ -44,8 +72,14 @@ class NotifikasiService
     public function targetBaruTercapai(TargetTabungan $target, float $saldoSebelumnya): void
     {
         $target->loadMissing('dompet');
-        if ($saldoSebelumnya < (float) $target->nominal_target
-            && (float) $target->dompet->saldo >= (float) $target->nominal_target) {
+        $savedBefore = max(
+            0,
+            (float) $target->nominal_terkumpul
+                + $saldoSebelumnya
+                - (float) $target->saldo_awal_dompet
+        );
+
+        if ($savedBefore < (float) $target->nominal_target && $target->tercapai) {
             $this->targetTercapai($target);
         }
     }

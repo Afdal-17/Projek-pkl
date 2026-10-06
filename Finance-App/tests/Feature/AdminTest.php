@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Models\Dompet;
+use App\Models\Transfer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -18,7 +20,8 @@ class AdminTest extends TestCase
         $this->actingAs($admin)->get(route('admin.dashboard'))
             ->assertOk()
             ->assertViewHas('summary', fn (array $summary) => $summary['total_user'] === 2
-                && $summary['total_transaksi'] === 0);
+                && $summary['total_transaksi'] === 0
+                && $summary['user_online'] === 1);
         $this->actingAs($admin)->get(route('admin.users'))
             ->assertOk()
             ->assertSee($user->email);
@@ -38,6 +41,41 @@ class AdminTest extends TestCase
 
         $this->actingAs($admin)->patch(route('admin.users.status', $user))->assertRedirect();
         $this->assertDatabaseHas('user', ['id_user' => $user->id_user, 'status' => true]);
+    }
+
+    public function test_admin_can_edit_and_delete_a_user_without_transfer_history(): void
+    {
+        $admin = $this->user('admin-manage@example.com', 'admin');
+        $user = $this->user('managed@example.com', 'user');
+
+        $this->actingAs($admin)->patchJson(route('admin.users.update', $user), [
+            'name' => 'Updated User',
+            'email' => 'updated@example.com',
+        ])->assertOk()->assertJsonPath('name', 'Updated User');
+
+        $this->assertDatabaseHas('user', ['id_user' => $user->id_user, 'nama' => 'Updated User']);
+        $this->actingAs($admin)->deleteJson(route('admin.users.destroy', $user))->assertNoContent();
+        $this->assertDatabaseMissing('user', ['id_user' => $user->id_user]);
+    }
+
+    public function test_admin_cannot_delete_a_user_with_wallet_transfer_history(): void
+    {
+        $admin = $this->user('admin-protect@example.com', 'admin');
+        $sender = $this->user('sender-protect@example.com', 'user');
+        $recipient = $this->user('recipient-protect@example.com', 'user');
+        $source = Dompet::create(['id_user' => $sender->id_user, 'nama_dompet' => 'Source', 'saldo_awal' => 100, 'saldo' => 100]);
+        $target = Dompet::create(['id_user' => $recipient->id_user, 'nama_dompet' => 'Target', 'saldo_awal' => 0, 'saldo' => 0]);
+        Transfer::create([
+            'id_user' => $sender->id_user,
+            'id_dompet_asal' => $source->id_dompet,
+            'id_dompet_tujuan' => $target->id_dompet,
+            'jumlah' => 10,
+            'tanggal_transfer' => now(),
+        ]);
+
+        $this->actingAs($admin)->deleteJson(route('admin.users.destroy', $recipient))
+            ->assertStatus(409);
+        $this->assertDatabaseHas('user', ['id_user' => $recipient->id_user]);
     }
 
     private function user(string $email, string $role): User

@@ -5,15 +5,6 @@
 @section('content')
 
 @php
-    // DATA DUMMY: nanti diganti data dari backend
-    $dummy = [
-        ['id' => 1, 'name' => 'Entertainment', 'type' => 'expense', 'icon' => 'film',      'count' => 4],
-        ['id' => 2, 'name' => 'Food',          'type' => 'expense', 'icon' => 'utensils',  'count' => 12],
-        ['id' => 3, 'name' => 'Freelance',     'type' => 'income',  'icon' => 'briefcase', 'count' => 3],
-        ['id' => 4, 'name' => 'Salary',        'type' => 'income',  'icon' => 'landmark',  'count' => 2],
-        ['id' => 5, 'name' => 'Transport',     'type' => 'expense', 'icon' => 'car',       'count' => 7],
-    ];
-
     // Pilihan ikon: kunci ikon => nama yang tampil
     $icons = [
         'utensils' => 'Food', 'landmark' => 'Bank', 'car' => 'Transport',
@@ -23,8 +14,12 @@
 
 <div
     x-data="{
-        list: JSON.parse(localStorage.getItem('categories') || 'null') ?? @js($dummy),
+        list: @js($categories),
         labels: @js($icons),
+        csrfToken: @js(csrf_token()),
+        storeUrl: @js(route('categories.store')),
+        updateUrl: @js(route('categories.update', ['kategori' => '__ID__'])),
+        deleteUrl: @js(route('categories.destroy', ['kategori' => '__ID__'])),
 
         search: '', type: 'all', sort: 'name', sortOpen: false,
         page: 1, perPage: 5,
@@ -37,8 +32,6 @@
             this.$watch('search', () => this.page = 1);
             this.$watch('type', () => this.page = 1);
         },
-
-        persist() { localStorage.setItem('categories', JSON.stringify(this.list)); },
 
         get filtered() {
             const k = this.search.toLowerCase().trim();
@@ -75,26 +68,41 @@
         openDelete(c) { this.deleting = c; this.modal = 'delete'; },
         close() { this.modal = null; },
 
-        save() {
+        async save() {
             if (!this.canSave) return;
 
-            const data = { icon: this.form.icon, name: this.form.name.trim(), type: this.form.type };
+            const data = new URLSearchParams({
+                _token: this.csrfToken,
+                nama_kategori: this.form.name.trim(),
+                jenis: this.form.type === 'income' ? 'pemasukan' : 'pengeluaran',
+            });
+            const url = this.isEdit ? this.updateUrl.replace('__ID__', this.editingId) : this.storeUrl;
+            const response = await fetch(url, {
+                method: this.isEdit ? 'PATCH' : 'POST',
+                headers: { 'X-CSRF-TOKEN': this.csrfToken, 'Accept': 'application/json' },
+                body: data,
+            });
 
-            if (this.isEdit) {
-                Object.assign(this.list.find(c => c.id === this.editingId), data);
-            } else {
-                this.list.push({ id: Date.now(), count: 0, ...data });
+            if (!response.ok) {
+                alert('Category could not be saved. Check the name and try again.');
+                return;
             }
 
-            this.persist();
-            this.close();
+            window.location.reload();
         },
 
-        confirmDelete() {
-            this.list = this.list.filter(c => c.id !== this.deleting.id);
-            this.persist();
-            this.page = Math.min(this.page, this.totalPages);
-            this.close();
+        async confirmDelete() {
+            const response = await fetch(this.deleteUrl.replace('__ID__', this.deleting.id), {
+                method: 'DELETE',
+                headers: { 'X-CSRF-TOKEN': this.csrfToken, 'Accept': 'application/json' },
+            });
+
+            if (!response.ok) {
+                alert('Category could not be deleted.');
+                return;
+            }
+
+            window.location.reload();
         }
     }"
 >

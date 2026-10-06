@@ -8,18 +8,70 @@
     x-data="{
         active: 'profile',
         saved: false,
+        form: {
+            name: @js($user->nama),
+            email: @js($user->email),
+            phone: @js($user->nomor_telepon),
+            location: @js($user->lokasi),
+            currency: @js($user->mata_uang),
+            startOfWeek: @js($user->awal_minggu),
+        },
+        avatarUrl: @js($avatarUrl),
+        csrfToken: @js(csrf_token()),
 
-        form: Object.assign({
-            name: 'Alex Morgan',
-            email: 'alex@example.com',
-            phone: '+62 812 3456 7890',
-            location: 'Jakarta, Indonesia',
-        }, JSON.parse(localStorage.getItem('profile') || '{}')),
+        async save() {
+            const response = await fetch(@js(route('account.update')), {
+                method: 'PATCH',
+                headers: { 'X-CSRF-TOKEN': this.csrfToken, 'Accept': 'application/json' },
+                body: new URLSearchParams({
+                    name: this.form.name,
+                    email: this.form.email,
+                    phone: this.form.phone,
+                    location: this.form.location,
+                    currency: this.form.currency,
+                    start_of_week: this.form.startOfWeek,
+                }),
+            });
 
-        save() {
-            localStorage.setItem('profile', JSON.stringify(this.form));
-            this.saved = true;
-            setTimeout(() => this.saved = false, 2000);
+            if (response.ok) {
+                this.saved = true;
+                setTimeout(() => window.location.reload(), 700);
+            } else {
+                const result = await response.json();
+                alert(Object.values(result.errors ?? {}).flat()[0] ?? 'Profile could not be saved.');
+            }
+        },
+
+        async uploadAvatar(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const data = new FormData();
+            data.append('avatar', file);
+
+            const response = await fetch(@js(route('account.avatar.update')), {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': this.csrfToken, 'Accept': 'application/json' },
+                body: data,
+            });
+
+            if (response.ok) {
+                this.avatarUrl = (await response.json()).avatar_url;
+            } else {
+                const result = await response.json();
+                alert(Object.values(result.errors ?? {}).flat()[0] ?? 'Photo could not be uploaded.');
+            }
+
+            event.target.value = '';
+        },
+
+        async removeAvatar() {
+            const response = await fetch(@js(route('account.avatar.destroy')), {
+                method: 'DELETE',
+                headers: { 'X-CSRF-TOKEN': this.csrfToken, 'Accept': 'application/json' },
+            });
+
+            if (response.ok) this.avatarUrl = null;
         }
     }"
 >
@@ -62,11 +114,13 @@
                     Notifications
                 </a>
 
-                {{-- Backend: ganti jadi form POST logout + @csrf --}}
-                <a href="/login" class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-expense transition hover:bg-page">
-                    <x-icon name="logout" size="h-4 w-4" />
-                    Sign out
-                </a>
+                <form method="POST" action="{{ route('logout') }}">
+                    @csrf
+                    <button type="submit" class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-expense transition hover:bg-page">
+                        <x-icon name="logout" size="h-4 w-4" />
+                        Sign out
+                    </button>
+                </form>
 
             </nav>
         </x-card>
@@ -84,15 +138,17 @@
                 </div>
 
                 <div class="mt-5 flex items-center gap-5">
-                    <span class="h-20 w-20 rounded-full bg-brand-soft"></span>
+                    <img x-cloak x-show="avatarUrl" :src="avatarUrl" alt="Profile photo" class="h-20 w-20 rounded-full bg-brand-soft object-cover">
+                    <span x-show="!avatarUrl" class="h-20 w-20 rounded-full bg-brand-soft"></span>
 
                     <div>
                         <p class="font-semibold" x-text="form.name"></p>
                         <p class="mt-1 text-xs text-muted">JPG or PNG. Maximum file size 2 MB.</p>
 
                         <div class="mt-3 flex items-center gap-3">
-                            <x-button variant="outline">Change photo</x-button>
-                            <button type="button" class="text-xs font-medium text-expense hover:underline">Remove</button>
+                            <input x-ref="avatarInput" type="file" accept="image/jpeg,image/png" class="hidden" x-on:change="uploadAvatar($event)">
+                            <x-button type="button" variant="outline" x-on:click="$refs.avatarInput.click()">Change photo</x-button>
+                            <button type="button" x-on:click="removeAvatar()" class="text-xs font-medium text-expense hover:underline">Remove</button>
                         </div>
                     </div>
                 </div>
@@ -131,7 +187,7 @@
                     </p>
 
                     {{-- Backend: arahkan ke form ganti password --}}
-                    <x-button variant="outline" class="mt-4">Update password</x-button>
+                    <x-button :href="route('profile.edit')" variant="outline" class="mt-4">Update password</x-button>
 
                 </x-card>
 
@@ -147,11 +203,22 @@
                     <dl class="mt-4 space-y-3 text-sm">
                         <div class="flex items-center justify-between">
                             <dt class="text-muted">Default currency</dt>
-                            <dd class="font-semibold">IDR (Rp)</dd>
+                            <dd>
+                                <select x-model="form.currency" class="border-0 bg-transparent py-0 pl-0 pr-6 text-right text-sm font-semibold focus:ring-0">
+                                    <option value="IDR">IDR (Rp)</option>
+                                    <option value="USD">USD ($)</option>
+                                    <option value="EUR">EUR (€)</option>
+                                </select>
+                            </dd>
                         </div>
                         <div class="flex items-center justify-between">
                             <dt class="text-muted">Start of week</dt>
-                            <dd class="font-semibold">Monday</dd>
+                            <dd>
+                                <select x-model="form.startOfWeek" class="border-0 bg-transparent py-0 pl-0 pr-6 text-right text-sm font-semibold focus:ring-0">
+                                    <option value="monday">Monday</option>
+                                    <option value="sunday">Sunday</option>
+                                </select>
+                            </dd>
                         </div>
                     </dl>
 

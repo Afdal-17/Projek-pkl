@@ -6,6 +6,7 @@ use App\Http\Requests\StoreTransferRequest;
 use App\Models\Dompet;
 use App\Models\TargetTabungan;
 use App\Models\Transfer;
+use App\Models\User;
 use App\Services\NotifikasiService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -18,16 +19,43 @@ class TransferController extends Controller
 {
     public function index(): View
     {
-        $userId = (int) Auth::id();
+        $wallets = Dompet::where('id_user', Auth::id())
+            ->orderBy('nama_dompet')
+            ->get()
+            ->map(fn (Dompet $wallet): array => [
+                'id' => $wallet->id_dompet,
+                'name' => $wallet->nama_dompet,
+                'balance' => (float) $wallet->saldo,
+            ]);
 
-        return view('transfer.index', [
-            'transfer' => Transfer::with(['dompetAsal.user', 'dompetTujuan.user'])
-                ->where(function (Builder $query) use ($userId): void {
-                    $query->where('id_user', $userId)
-                        ->orWhereHas('dompetTujuan', fn (Builder $wallet) => $wallet->where('id_user', $userId));
-                })
-                ->latest('tanggal_transfer')
-                ->paginate(10),
+        return view('transfer', compact('wallets'));
+    }
+
+    public function frontendRecipients(): \Illuminate\Http\JsonResponse
+    {
+        $query = trim((string) request('query'));
+        abort_if($query === '', 422, 'Masukkan nama, email, atau ID penerima.');
+
+        $recipient = User::query()
+            ->where('status', true)
+            ->where('role', 'user')
+            ->where(function (Builder $queryBuilder) use ($query): void {
+                $queryBuilder->where('email', $query)
+                    ->orWhere('nama', $query)
+                    ->orWhere('id_user', ctype_digit($query) ? (int) $query : 0);
+            })
+            ->whereHas('dompet')
+            ->with(['dompet' => fn ($wallets) => $wallets->orderBy('nama_dompet')])
+            ->first();
+
+        abort_if($recipient === null, 404, 'User tidak ditemukan atau belum memiliki dompet.');
+
+        $wallet = $recipient->dompet->first();
+
+        return response()->json([
+            'id_dompet_tujuan' => $wallet->id_dompet,
+            'penerima' => $recipient->nama,
+            'dompet' => $wallet->nama_dompet,
         ]);
     }
 

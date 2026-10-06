@@ -1,8 +1,15 @@
+@php
+    $currentUser = auth()->user();
+    $headerAvatarUrl = $currentUser && $currentUser->avatar_path ? asset('storage/' . $currentUser->avatar_path) : null;
+    $headerInitials = $currentUser && $currentUser->nama ? strtoupper(substr(trim($currentUser->nama), 0, 1)) : '?';
+@endphp
+
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ $currentUser?->awal_minggu === 'sunday' ? 'en-US' : 'en-GB' }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="finance-currency" content="{{ $currentUser?->mata_uang ?? 'IDR' }}">
     <title>@yield('title', 'Finance App')</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
@@ -30,15 +37,12 @@
                 {{-- Lonceng + titik merah berkedip --}}
                 <a href="/notifications"
                    x-data="{
-                       unread: 0,
-                       total: 7, {{-- Backend: ganti dengan jumlah notifikasi belum dibaca --}}
-                       refresh() {
-                           const read = JSON.parse(localStorage.getItem('readNotifications') || '[]');
-                           this.unread = Math.max(0, this.total - read.length);
+                       unread: {{ auth()->user()->notifikasi()->where('sudah_dibaca', false)->count() }},
+                       refresh(event) {
+                           this.unread = event?.detail?.unread ?? this.unread;
                        },
-                       init() { this.refresh(); }
                    }"
-                   x-on:notifications-updated.window="refresh()"
+                   x-on:notifications-updated.window="refresh($event)"
                    class="relative flex h-10 w-10 items-center justify-center rounded-lg bg-page text-ink">
 
                     <x-icon name="bell" />
@@ -51,18 +55,24 @@
 
                 <div class="relative" x-data="{ open: false }">
                     <button type="button" x-on:click="open = !open" class="flex items-center gap-3">
-                        <span class="h-10 w-10 rounded-full bg-brand-soft"></span>
+                        @if ($headerAvatarUrl)
+                            <img src="{{ $headerAvatarUrl }}" alt="{{ $currentUser->nama }}" class="h-10 w-10 rounded-full object-cover ring-1 ring-line" />
+                        @else
+                            <span class="flex h-10 w-10 items-center justify-center rounded-full bg-brand-soft text-sm font-semibold text-brand">{{ $headerInitials }}</span>
+                        @endif
                         <span class="text-left leading-tight">
-                            <span class="block text-sm font-semibold">Alex Morgan</span>
-                            <span class="block text-xs text-muted">Personal account</span>
+                               <span class="block text-sm font-semibold">{{ $currentUser?->nama }}</span>
+                               <span class="block text-xs text-muted">{{ $currentUser?->email }}</span>
                         </span>
                         <svg class="h-4 w-4 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
                     </button>
                     <div x-cloak x-show="open" x-on:click.outside="open = false"
                          class="absolute right-0 z-20 mt-2 w-44 rounded-xl border border-line bg-white p-1 text-sm shadow-lg">
                         <a href="/account" class="block rounded-lg px-3 py-2 hover:bg-page">Account</a>
-                        {{-- Backend: ganti jadi form POST logout + @csrf --}}
-                        <a href="/login" class="block rounded-lg px-3 py-2 text-expense hover:bg-page">Sign out</a>
+                        <form method="POST" action="{{ route('logout') }}">
+                            @csrf
+                            <button type="submit" class="block w-full rounded-lg px-3 py-2 text-left text-expense hover:bg-page">Sign out</button>
+                        </form>
                     </div>
                 </div>
             </div>

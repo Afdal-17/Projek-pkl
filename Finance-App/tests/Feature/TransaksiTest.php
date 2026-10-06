@@ -107,4 +107,49 @@ class TransaksiTest extends TestCase
         $response->assertOk()->assertViewHas('transaksi', fn ($items) => $items->total() === 1
             && $items->first()->nama_transaksi === 'Kedua');
     }
+
+    public function test_merged_transaction_pages_render_owned_backend_data(): void
+    {
+        $user = User::create([
+            'nama' => 'Frontend User',
+            'email' => 'frontend@example.com',
+            'password' => 'password',
+            'role' => 'user',
+            'status' => true,
+        ]);
+        $wallet = Dompet::create([
+            'id_user' => $user->id_user,
+            'nama_dompet' => 'Frontend Wallet',
+            'saldo_awal' => 100000,
+            'saldo' => 100000,
+        ]);
+        $category = Kategori::create([
+            'id_user' => $user->id_user,
+            'nama_kategori' => 'Frontend Category',
+            'jenis' => 'pengeluaran',
+        ]);
+        Transaksi::create([
+            'id_dompet' => $wallet->id_dompet,
+            'id_kategori' => $category->id_kategori,
+            'nama_transaksi' => 'Frontend Transaction',
+            'jumlah' => 5000,
+            'jenis' => 'pengeluaran',
+            'tanggal' => now(),
+        ]);
+
+        $this->actingAs($user)->get(route('transactions.index'))
+            ->assertOk()
+            ->assertSee('Frontend Transaction')
+            ->assertSee('Frontend Wallet')
+            ->assertSee('Frontend Category');
+
+        $this->actingAs($user)->get(route('transactions.create'))
+            ->assertOk()
+            ->assertSee('Frontend Wallet')
+            ->assertSee('Frontend Category');
+
+        $this->actingAs($user)->get(route('categories.index'))
+            ->assertOk()
+            ->assertSee('Frontend Category');
+    }
 }

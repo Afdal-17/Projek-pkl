@@ -4,25 +4,14 @@
 
 @section('content')
 
-@php
-    // DATA DUMMY: nanti diganti data dari backend
-    $targets = [
-        ['id' => 1, 'name' => 'Emergency Fund', 'note' => 'Financial safety net', 'saved' => 9000000,  'target' => 12000000],
-        ['id' => 2, 'name' => 'Japan Vacation', 'note' => 'March 2027',           'saved' => 7000000,  'target' => 12500000],
-        ['id' => 3, 'name' => 'New Laptop',     'note' => 'Work equipment',       'saved' => 6000000,  'target' => 15000000],
-        ['id' => 4, 'name' => 'Home Deposit',   'note' => 'Long-term goal',       'saved' => 12000000, 'target' => 50000000],
-    ];
-@endphp
-
 <div
     x-data="{
-        targets: [
-            ...@js($targets),
-            ...JSON.parse(localStorage.getItem('savingTargets') || '[]'),
-        ],
+        targets: @js($targets),
+        csrfToken: @js(csrf_token()),
+        deleteUrl: @js(route('saving.destroy', ['targetTabungan' => '__ID__'])),
 
         rp(amount) {
-            return 'Rp ' + new Intl.NumberFormat('id-ID').format(amount);
+            return window.financeMoney.format(amount);
         },
 
         pct(t) {
@@ -51,15 +40,15 @@
             return open[0] ?? null;
         },
 
-        removeTarget(id) {
+        async removeTarget(id) {
             if (!confirm('Delete this saving target?')) return;
 
-            this.targets = this.targets.filter(t => t.id !== id);
+            const response = await fetch(this.deleteUrl.replace('__ID__', id), {
+                method: 'DELETE',
+                headers: { 'X-CSRF-TOKEN': this.csrfToken, 'Accept': 'application/json' },
+            });
 
-            const stored = JSON.parse(localStorage.getItem('savingTargets') || '[]')
-                .filter(t => t.id !== id);
-
-            localStorage.setItem('savingTargets', JSON.stringify(stored));
+            if (response.ok) window.location.reload();
         }
     }"
 >

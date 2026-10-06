@@ -32,6 +32,14 @@ class NotifikasiTest extends TestCase
         $notification = Notifikasi::where('id_user', $penerima->id_user)->firstOrFail();
         $this->actingAs($penerima)->patch(route('notifikasi.read', $notification))->assertRedirect();
         $this->assertTrue((bool) $notification->fresh()->sudah_dibaca);
+
+        $notification->update(['sudah_dibaca' => false]);
+        $this->actingAs($penerima)->get(route('notifications.index'))
+            ->assertOk()
+            ->assertSee('Transfer success!')
+            ->assertSee($notification->pesan);
+        $this->actingAs($penerima)->patch(route('notifications.read', $notification))->assertRedirect();
+        $this->assertTrue((bool) $notification->fresh()->sudah_dibaca);
     }
 
     public function test_target_notification_is_created_when_wallet_reaches_target(): void

@@ -31,16 +31,23 @@
 
             <div x-cloak x-show="open" x-on:click.outside="open = false"
                  class="absolute bottom-full left-0 mb-2 w-full rounded-xl border border-line bg-white p-1 text-sm shadow-lg">
-                {{-- Backend: ganti jadi form POST logout + @csrf --}}
-                <a href="/login" class="flex items-center gap-2 rounded-lg px-3 py-2 text-expense hover:bg-page">
-                    <x-icon name="logout" size="h-4 w-4" /> Sign out
-                </a>
+                <a href="/admin/profile" class="block rounded-lg px-3 py-2 hover:bg-page">Profile</a>
+                <form method="POST" action="{{ route('logout') }}">
+                    @csrf
+                    <button type="submit" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-expense hover:bg-page">
+                        <x-icon name="logout" size="h-4 w-4" /> Sign out
+                    </button>
+                </form>
             </div>
 
             <button type="button" x-on:click="open = !open" class="flex w-full items-center gap-3 rounded-lg p-2 text-left hover:bg-page">
-                <span class="h-10 w-10 rounded-full bg-brand-soft"></span>
+                @if (auth()->user()->avatar_path)
+                    <img src="{{ asset('storage/' . auth()->user()->avatar_path) }}" alt="{{ auth()->user()->nama }}" class="h-10 w-10 rounded-full object-cover ring-1 ring-line" />
+                @else
+                    <span class="flex h-10 w-10 items-center justify-center rounded-full bg-brand-soft text-sm font-semibold text-brand">{{ strtoupper(substr(trim(auth()->user()->nama), 0, 1)) }}</span>
+                @endif
                 <span class="leading-tight">
-                    <span class="block text-sm font-semibold">Maya Putri</span>
+                    <span class="block text-sm font-semibold">{{ auth()->user()->nama }}</span>
                     <span class="block text-xs text-muted">Admin</span>
                 </span>
             </button>

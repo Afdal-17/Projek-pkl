@@ -4,29 +4,39 @@
 
 @section('content')
 
-@php
-    // DATA DUMMY: nanti diganti data dari backend
-    $wallets = [
-        ['name' => 'Cash'],
-        ['name' => 'DANA'],
-        ['name' => 'GoPay'],
-    ];
-@endphp
-
 <div
     x-data="{
         name: '',
         note: '',
-        wallet: 'DANA',
+        wallet: @js((string) ($wallets->first()['id'] ?? '')),
         target: '',
-        initial: '',
+        initial: @js((float) ($wallets->first()['balance'] ?? 0)),
+        initialManual: false,
         wallets: @js($wallets),
+        csrfToken: @js(csrf_token()),
 
-        rp(amount) {
-            return 'Rp ' + new Intl.NumberFormat('id-ID').format(Number(amount) || 0);
+        init() {
+            this.$watch('wallet', () => this.syncInitial());
+            this.$watch('target', () => this.syncInitial());
         },
 
-        saveTarget() {
+        get selectedWallet() {
+            return this.wallets.find(item => String(item.id) === String(this.wallet)) ?? { balance: 0 };
+        },
+
+        syncInitial() {
+            if (!this.initialManual) {
+                this.initial = this.target
+                    ? Math.min(this.selectedWallet.balance, Number(this.target))
+                    : this.selectedWallet.balance;
+            }
+        },
+
+        rp(amount) {
+            return window.financeMoney.format(Number(amount) || 0);
+        },
+
+        async saveTarget() {
             const target = Number(this.target);
             const initial = Number(this.initial) || 0;
 
@@ -45,18 +55,31 @@
                 return;
             }
 
-            const list = JSON.parse(localStorage.getItem('savingTargets') || '[]');
+            if (initial > this.selectedWallet.balance) {
+                alert('Initial savings tidak boleh melebihi saldo wallet.');
+                return;
+            }
 
-            list.push({
-                id: Date.now(),
-                name: this.name.trim(),
-                note: this.note.trim(),
-                wallet: this.wallet,
-                saved: initial,
-                target: target,
+            const payload = new URLSearchParams({
+                _token: this.csrfToken,
+                id_dompet: this.wallet,
+                nama_target: this.name.trim(),
+                deskripsi: this.note.trim(),
+                nominal_target: String(target),
+                initial_savings: this.initial === '' ? '' : String(initial),
             });
 
-            localStorage.setItem('savingTargets', JSON.stringify(list));
+            const response = await fetch(@js(route('saving.store')), {
+                method: 'POST',
+                headers: { 'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: payload,
+            });
+
+            if (!response.ok) {
+                const result = await response.json();
+                alert(Object.values(result.errors ?? {}).flat()[0] ?? 'Saving target could not be saved.');
+                return;
+            }
 
             window.location.href = '/saving';
         }
@@ -112,7 +135,7 @@
                         class="w-full appearance-none rounded-lg border border-line bg-white py-3 pl-9 pr-10 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
                     >
                         <template x-for="item in wallets" :key="item.name">
-                            <option :value="item.name" :selected="item.name === wallet" x-text="item.name"></option>
+                            <option :value="item.id" :selected="String(item.id) === wallet" x-text="item.name"></option>
                         </template>
                     </select>
 
@@ -126,7 +149,7 @@
                 <label for="target_amount" class="mb-2 block text-sm font-medium">Saving Target</label>
 
                 <div class="relative">
-                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-semibold text-muted">Rp</span>
+                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-semibold text-muted" x-text="window.financeMoney.symbol"></span>
                     <input
                         id="target_amount"
                         type="number"
@@ -143,12 +166,13 @@
                 <label for="initial_amount" class="mb-2 block text-sm font-medium">Initial Savings (Optional)</label>
 
                 <div class="relative">
-                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-semibold text-muted">Rp</span>
+                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-semibold text-muted" x-text="window.financeMoney.symbol"></span>
                     <input
                         id="initial_amount"
                         type="number"
                         min="0"
                         x-model.number="initial"
+                        x-on:input="initialManual = true"
                         placeholder="0"
                         class="w-full rounded-lg border border-line bg-white py-3 pl-12 pr-4 text-2xl font-semibold placeholder:text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
                     >
@@ -181,7 +205,7 @@
                     <div class="flex items-center justify-between">
                         <span class="text-muted">Wallet</span>
                         <span class="rounded-full bg-expense-soft px-3 py-1 text-xs font-medium"
-                              x-text="wallet"></span>
+                              x-text="wallets.find(item => String(item.id) === wallet)?.name ?? '-' "></span>
                     </div>
 
                     <div class="flex items-center justify-between">

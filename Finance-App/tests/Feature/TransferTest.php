@@ -18,6 +18,14 @@ class TransferTest extends TestCase
         [$pengirim, $dompetAsal] = $this->userWithWallet('pengirim@example.com', 'Dompet Pengirim', 100000);
         [$penerima, $dompetTujuan] = $this->userWithWallet('penerima@example.com', 'Dompet Penerima', 10000);
 
+        $this->actingAs($pengirim)->get(route('transfer.index'))
+            ->assertOk()
+            ->assertSee('Transfer Wallet & User')
+            ->assertSee('Dompet Pengirim');
+        $this->actingAs($pengirim)->get(route('transfer.recipients', ['query' => $penerima->email]))
+            ->assertOk()
+            ->assertJsonPath('id_dompet_tujuan', $dompetTujuan->id_dompet);
+
         $this->actingAs($pengirim)->post(route('transfer.store'), [
             'id_dompet_asal' => $dompetAsal->id_dompet,
             'id_dompet_tujuan' => $dompetTujuan->id_dompet,

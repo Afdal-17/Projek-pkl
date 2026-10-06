@@ -28,6 +28,12 @@ class User extends Authenticatable
         'password',
         'role',
         'status',
+        'nomor_telepon',
+        'lokasi',
+        'avatar_path',
+        'mata_uang',
+        'awal_minggu',
+        'last_seen_at',
     ];
 
     protected $hidden = [
@@ -40,6 +46,7 @@ class User extends Authenticatable
         return [
             'password' => 'hashed',
             'status' => 'boolean',
+            'last_seen_at' => 'datetime',
         ];
     }
 

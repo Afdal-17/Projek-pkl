@@ -4,40 +4,11 @@
 
 @section('content')
 
-@php
-    // DATA DUMMY: nanti diganti data dari backend
-    $categories = [
-        ['id' => 1, 'name' => 'Food',          'type' => 'expense', 'icon' => 'utensils'],
-        ['id' => 2, 'name' => 'Transport',     'type' => 'expense', 'icon' => 'car'],
-        ['id' => 3, 'name' => 'Entertainment', 'type' => 'expense', 'icon' => 'film'],
-        ['id' => 4, 'name' => 'Bills',         'type' => 'expense', 'icon' => 'landmark'],
-        ['id' => 5, 'name' => 'Dining',        'type' => 'expense', 'icon' => 'utensils'],
-        ['id' => 6, 'name' => 'Salary',        'type' => 'income',  'icon' => 'landmark'],
-        ['id' => 7, 'name' => 'Freelance',     'type' => 'income',  'icon' => 'briefcase'],
-    ];
-
-    $wallets = [
-        ['name' => 'Cash',  'balance' => 3250000],
-        ['name' => 'DANA',  'balance' => 4500000],
-        ['name' => 'GoPay', 'balance' => 4250000],
-    ];
-
-    $dummy = [
-        ['id' => 'd1', 'name' => 'Grocery shopping',    'type' => 'expense',  'category' => 'Food',      'wallet' => 'DANA',  'amount' => 245000,  'date' => now()->format('Y-m-d')],
-        ['id' => 'd2', 'name' => 'Morning coffee',      'type' => 'expense',  'category' => 'Food',      'wallet' => 'Cash',  'amount' => 40000,   'date' => now()->format('Y-m-d')],
-        ['id' => 'd3', 'name' => 'Project payment',     'type' => 'income',   'category' => 'Freelance', 'wallet' => 'GoPay', 'amount' => 5000000, 'date' => now()->subDay()->format('Y-m-d')],
-        ['id' => 'd4', 'name' => 'Internet bill',       'type' => 'expense',  'category' => 'Bills',     'wallet' => 'DANA',  'amount' => 325000,  'date' => now()->subDay()->format('Y-m-d')],
-        ['id' => 'd5', 'name' => 'Dinner with friends', 'type' => 'expense',  'category' => 'Dining',    'wallet' => 'Cash',  'amount' => 420000,  'date' => now()->subDays(3)->format('Y-m-d')],
-        ['id' => 'd6', 'name' => 'Transfer wallets',    'type' => 'transfer', 'category' => 'Transfer',  'wallet' => 'DANA',  'to' => 'GoPay', 'amount' => 450000, 'date' => now()->subDays(3)->format('Y-m-d')],
-    ];
-@endphp
-
-
 <div
     x-data="{
-        dummy: @js($dummy),
-        saved: JSON.parse(localStorage.getItem('transactions') || '[]'),
-        allCategories: JSON.parse(localStorage.getItem('categories') || 'null') ?? @js($categories),
+        dummy: [],
+        saved: @js($transactions),
+        allCategories: @js($categories),
         wallets: @js($wallets),
 
         search: '',
@@ -171,7 +142,7 @@
         /* ---------- Helper tampilan ---------- */
 
         rp(n) {
-            return 'Rp ' + new Intl.NumberFormat('id-ID').format(Math.abs(n));
+            return window.financeMoney.format(Math.abs(n));
         },
 
         /* Income positif; expense dan transfer dihitung uang keluar (sama seperti Figma) */

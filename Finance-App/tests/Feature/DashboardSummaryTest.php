@@ -79,5 +79,35 @@ class DashboardSummaryTest extends TestCase
             ->assertJsonPath('total_pengeluaran_bulan_ini', 10000)
             ->assertJsonPath('pengeluaran_per_kategori.0.nama_kategori', 'Makan')
             ->assertJsonPath('target_tabungan.0.progress', 60);
+
+        $this->actingAs($user)->get(route('user.dashboard'))
+            ->assertOk()
+            ->assertSee('Asal')
+            ->assertSee('Rp 200.000')
+            ->assertSee('Makan')
+            ->assertSee('1 savings targets tracked');
+    }
+
+    public function test_dashboard_renders_profile_currency_preference(): void
+    {
+        $user = User::create([
+            'nama' => 'Currency User',
+            'email' => 'currency@example.com',
+            'password' => 'password',
+            'role' => 'user',
+            'status' => true,
+            'mata_uang' => 'USD',
+        ]);
+        Dompet::create([
+            'id_user' => $user->id_user,
+            'nama_dompet' => 'Dollar wallet',
+            'saldo_awal' => 1250000,
+            'saldo' => 1250000,
+        ]);
+
+        $this->actingAs($user)->get(route('user.dashboard'))
+            ->assertOk()
+            ->assertSee('$ 1,250,000.00')
+            ->assertSee('name="finance-currency" content="USD"', false);
     }
 }

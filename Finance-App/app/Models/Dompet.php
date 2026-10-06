@@ -19,6 +19,8 @@ class Dompet extends Model
         'id_user',
         'nama_dompet',
         'deskripsi',
+        'jenis',
+        'warna',
         'saldo_awal',
         'saldo',
     ];

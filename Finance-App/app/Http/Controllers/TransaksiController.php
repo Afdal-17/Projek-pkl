@@ -18,6 +18,44 @@ use Illuminate\View\View;
 
 class TransaksiController extends Controller
 {
+    public function frontendIndex(): View
+    {
+        $userId = (int) Auth::id();
+
+        $transactions = Transaksi::with(['dompet', 'kategori', 'transfer.dompetAsal', 'transfer.dompetTujuan'])
+            ->whereHas('dompet', fn ($query) => $query->where('id_user', $userId))
+            ->latest('tanggal')
+            ->get()
+            ->map(fn (Transaksi $transaction): array => [
+                'id' => $transaction->id_transaksi,
+                'name' => $transaction->nama_transaksi,
+                'type' => $transaction->id_transfer !== null
+                    ? 'transfer'
+                    : ($transaction->jenis === 'pemasukan' ? 'income' : 'expense'),
+                'category' => $transaction->id_transfer !== null
+                    ? 'Transfer'
+                    : ($transaction->kategori?->nama_kategori ?? 'Without category'),
+                'wallet' => $transaction->dompet->nama_dompet,
+                'to' => $transaction->id_transfer !== null
+                    ? ($transaction->id_dompet === $transaction->transfer->id_dompet_asal
+                        ? $transaction->transfer->dompetTujuan->nama_dompet
+                        : $transaction->transfer->dompetAsal->nama_dompet)
+                    : null,
+                'amount' => (float) $transaction->jumlah,
+                'date' => $transaction->tanggal->toDateString(),
+            ]);
+
+        return view('transactions.index', [
+            'transactions' => $transactions,
+            ...$this->frontendOptions($userId),
+        ]);
+    }
+
+    public function frontendCreate(): View
+    {
+        return view('transactions.create', $this->frontendOptions((int) Auth::id()));
+    }
+
     public function index(FilterTransaksiRequest $request): View
     {
         $userId = (int) Auth::id();
@@ -62,8 +100,9 @@ class TransaksiController extends Controller
             $saldoSebelumnya = (float) $dompet->saldo;
 
             $this->applyBalanceChange($dompet, $data['jenis'], (float) $data['jumlah']);
-            Transaksi::create($data);
+            $transaksi = Transaksi::create($data);
             $this->notifyReachedTargets($dompet, $saldoSebelumnya, $notifikasiService);
+            $notifikasiService->transaksiDicatat($transaksi, $userId);
         });
 
         return redirect()->route('transaksi.index');
@@ -118,6 +157,7 @@ class TransaksiController extends Controller
             if ($newDompet->id_dompet !== $oldDompet->id_dompet) {
                 $this->notifyReachedTargets($newDompet, $saldoDompetBaru, $notifikasiService);
             }
+            $notifikasiService->transaksiDiubah($current->fresh(), $userId);
         });
 
         return redirect()->route('transaksi.index');
@@ -140,8 +180,11 @@ class TransaksiController extends Controller
             $saldoSebelumnya = (float) $dompet->saldo;
 
             $this->applyBalanceChange($dompet, $current->jenis === 'pemasukan' ? 'pengeluaran' : 'pemasukan', (float) $current->jumlah);
+            $namaTransaksi = $current->nama_transaksi;
+            $jumlahTransaksi = (float) $current->jumlah;
             $current->delete();
             $this->notifyReachedTargets($dompet, $saldoSebelumnya, $notifikasiService);
+            $notifikasiService->transaksiDihapus($namaTransaksi, $jumlahTransaksi, $userId);
         });
 
         return redirect()->route('transaksi.index');
@@ -177,5 +220,30 @@ class TransaksiController extends Controller
             ->where('id_dompet', $dompet->id_dompet)
             ->get()
             ->each(fn (TargetTabungan $target) => $notifikasiService->targetBaruTercapai($target, $saldoSebelumnya));
+    }
+
+    private function frontendOptions(int $userId): array
+    {
+        $icons = ['makanan' => 'utensils', 'transport' => 'car', 'hiburan' => 'film', 'tagihan' => 'landmark', 'gaji' => 'landmark'];
+
+        return [
+            'categories' => Kategori::where('id_user', $userId)
+                ->orderBy('nama_kategori')
+                ->get()
+                ->map(fn (Kategori $category): array => [
+                    'id' => $category->id_kategori,
+                    'name' => $category->nama_kategori,
+                    'type' => $category->jenis === 'pemasukan' ? 'income' : 'expense',
+                    'icon' => $icons[strtolower($category->nama_kategori)] ?? 'landmark',
+                ]),
+            'wallets' => Dompet::where('id_user', $userId)
+                ->orderBy('nama_dompet')
+                ->get()
+                ->map(fn (Dompet $wallet): array => [
+                    'id' => $wallet->id_dompet,
+                    'name' => $wallet->nama_dompet,
+                    'balance' => (float) $wallet->saldo,
+                ]),
+        ];
     }
 }

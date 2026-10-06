@@ -5,23 +5,26 @@
 @section('content')
 
 @php
-    // DATA DUMMY: nanti diganti data dari backend
-    $users = [
-        ['id' => 1, 'name' => 'Maya Putri',     'email' => 'maya.putri@financeapp.id',     'status' => 'Active'],
-        ['id' => 2, 'name' => 'Rizky Pratama',  'email' => 'rizky.pratama@financeapp.id',  'status' => 'Active'],
-        ['id' => 3, 'name' => 'Siti Aisyah',    'email' => 'siti.aisyah@financeapp.id',    'status' => 'Inactive'],
-        ['id' => 4, 'name' => 'Budi Santoso',   'email' => 'budi.santoso@financeapp.id',   'status' => 'Active'],
-        ['id' => 5, 'name' => 'Lestari Wijaya', 'email' => 'lestari.wijaya@financeapp.id', 'status' => 'Active'],
-        ['id' => 6, 'name' => 'Andi Nugroho',   'email' => 'andi.nugroho@financeapp.id',   'status' => 'Inactive'],
-    ];
+    $userRows = $users->getCollection()->map(fn ($user) => [
+        'id' => $user->id_user,
+        'name' => $user->nama,
+        'email' => $user->email,
+        'status' => $user->status ? 'Active' : 'Inactive',
+        'canToggle' => ! $user->isAdmin() && ! $user->is(auth()->user()),
+        'canManage' => ! $user->isAdmin() && ! $user->is(auth()->user()),
+    ])->values();
 @endphp
 
 <div
     x-data="{
-        users: @js($users),
+        users: @js($userRows),
         search: '',
         editingId: null,
         form: { name: '', email: '' },
+        csrfToken: @js(csrf_token()),
+        statusUrl: @js(route('admin.users.status', ['user' => '__USER__'])),
+        updateUrl: @js(route('admin.users.update', ['user' => '__USER__'])),
+        deleteUrl: @js(route('admin.users.destroy', ['user' => '__USER__'])),
 
         get filtered() {
             const keyword = this.search.toLowerCase().trim();
@@ -34,29 +37,61 @@
             );
         },
 
-        activate(u) {
-            u.status = 'Active';
+        async toggleStatus(user) {
+            if (!user.canToggle) return;
+
+            const response = await fetch(this.statusUrl.replace('__USER__', user.id), {
+                method: 'PATCH',
+                headers: { 'X-CSRF-TOKEN': this.csrfToken, 'Accept': 'application/json' },
+            });
+
+            if (response.ok) user.status = user.status === 'Active' ? 'Inactive' : 'Active';
         },
 
-        remove(id) {
+        async remove(id) {
             if (!confirm('Delete this user?')) return;
-            this.users = this.users.filter(u => u.id !== id);
+
+            const user = this.users.find(u => u.id === id);
+            if (!user?.canManage) return;
+
+            const response = await fetch(this.deleteUrl.replace('__USER__', id), {
+                method: 'DELETE',
+                headers: { 'X-CSRF-TOKEN': this.csrfToken, 'Accept': 'application/json' },
+            });
+
+            if (response.ok) {
+                this.users = this.users.filter(u => u.id !== id);
+            } else {
+                const result = await response.json();
+                alert(result.message ?? 'User could not be deleted.');
+            }
         },
 
         openEdit(u) {
+            if (!u.canManage) return;
             this.editingId = u.id;
             this.form = { name: u.name, email: u.email };
         },
 
-        saveEdit() {
+        async saveEdit() {
             const user = this.users.find(u => u.id === this.editingId);
+            if (!user?.canManage) return;
 
-            if (user && this.form.name.trim() && this.form.email.trim()) {
-                user.name = this.form.name.trim();
-                user.email = this.form.email.trim();
+            const response = await fetch(this.updateUrl.replace('__USER__', user.id), {
+                method: 'PATCH',
+                headers: { 'X-CSRF-TOKEN': this.csrfToken, 'Accept': 'application/json' },
+                body: new URLSearchParams({ name: this.form.name.trim(), email: this.form.email.trim() }),
+            });
+
+            if (response.ok) {
+                const updated = await response.json();
+                user.name = updated.name;
+                user.email = updated.email;
+                this.editingId = null;
+            } else {
+                const result = await response.json();
+                alert(Object.values(result.errors ?? {}).flat()[0] ?? 'User could not be updated.');
             }
-
-            this.editingId = null;
         }
     }"
 >
@@ -124,7 +159,7 @@
 
                     <div class="flex items-center gap-2">
 
-                        <button type="button" title="Activate" x-on:click="activate(u)"
+                        <button type="button" title="Activate" x-on:click="toggleStatus(u)" :disabled="!u.canToggle"
                                 class="flex h-8 w-8 items-center justify-center rounded-md bg-income-soft text-income hover:opacity-80">
                             <x-icon name="check" size="h-4 w-4" />
                         </button>
@@ -160,11 +195,16 @@
                 <span class="flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-white">
                     <x-icon name="arrow-left" size="h-3.5 w-3.5" />
                 </span>
-                <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-soft font-medium text-brand">1</span>
-                <span class="flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-white">2</span>
-                <span class="flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-white">
-                    <x-icon name="arrow-right" size="h-3.5 w-3.5" />
-                </span>
+                <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-soft font-medium text-brand">{{ $users->currentPage() }}</span>
+                @if ($users->hasMorePages())
+                    <a href="{{ $users->nextPageUrl() }}" class="flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-white">
+                        <x-icon name="arrow-right" size="h-3.5 w-3.5" />
+                    </a>
+                @else
+                    <span class="flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-white">
+                        <x-icon name="arrow-right" size="h-3.5 w-3.5" />
+                    </span>
+                @endif
             </div>
 
         </div>

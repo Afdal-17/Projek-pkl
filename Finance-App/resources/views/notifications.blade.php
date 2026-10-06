@@ -4,27 +4,16 @@
 
 @section('content')
 
-@php
-    // DATA DUMMY: nanti diganti data dari backend
-    $notifications = [
-        ['id' => 1, 'type' => 'transaction', 'title' => 'Transaction success!', 'text' => 'Grocery shopping Rp 245.000 was recorded from DANA.', 'scope' => 'Across all wallets'],
-        ['id' => 2, 'type' => 'transfer', 'title' => 'Transfer success!', 'text' => 'Rp 450.000 was moved from DANA to GoPay.', 'scope' => 'Across all wallets'],
-        ['id' => 3, 'type' => 'transaction', 'title' => 'Transaction success!', 'text' => 'Morning coffee Rp 40.000 was recorded from Cash.', 'scope' => 'Across all wallets'],
-        ['id' => 4, 'type' => 'transaction', 'title' => 'Transaction success!', 'text' => 'Internet bill Rp 325.000 was recorded from DANA.', 'scope' => 'Across all wallets'],
-        ['id' => 5, 'type' => 'transaction', 'title' => 'Transaction success!', 'text' => 'Project payment Rp 5.000.000 was received in GoPay.', 'scope' => 'Across all wallets'],
-        ['id' => 6, 'type' => 'saving', 'title' => 'Savings goal reached 🤩', 'text' => 'Congratulations, one of your saving targets is fully funded.', 'scope' => 'Across all wallets',
-            'goal' => ['name' => 'New Laptop', 'note' => 'Work equipment', 'saved' => 15000000, 'target' => 15000000]],
-        ['id' => 7, 'type' => 'transaction', 'title' => 'Transaction success!', 'text' => 'Dinner with friends Rp 420.000 was recorded from Cash.', 'scope' => 'Across all wallets'],
-    ];
-@endphp
-
 <div
     x-data="{
         items: @js($notifications),
-        read: JSON.parse(localStorage.getItem('readNotifications') || '[]'),
+        read: @js($readIds),
         filter: 'all',
         onlyUnread: false,
         open: null,
+        csrfToken: @js(csrf_token()),
+        readUrl: @js(route('notifications.read', ['notifikasi' => '__ID__'])),
+        readAllUrl: @js(route('notifications.read-all')),
 
         get unreadCount() {
             return this.items.filter(i => !this.read.includes(i.id)).length;
@@ -41,21 +30,30 @@
             return this.read.includes(id);
         },
 
-        save() {
-            localStorage.setItem('readNotifications', JSON.stringify(this.read));
-            window.dispatchEvent(new CustomEvent('notifications-updated'));
-        },
+        async markRead(id) {
+            if (this.read.includes(id)) return;
 
-        markRead(id) {
-            if (!this.read.includes(id)) {
+            const response = await fetch(this.readUrl.replace('__ID__', id), {
+                method: 'PATCH',
+                headers: { 'X-CSRF-TOKEN': this.csrfToken, 'Accept': 'application/json' },
+            });
+
+            if (response.ok) {
                 this.read.push(id);
-                this.save();
+                window.dispatchEvent(new CustomEvent('notifications-updated', { detail: { unread: this.unreadCount } }));
             }
         },
 
-        markAllRead() {
-            this.read = this.items.map(i => i.id);
-            this.save();
+        async markAllRead() {
+            const response = await fetch(this.readAllUrl, {
+                method: 'PATCH',
+                headers: { 'X-CSRF-TOKEN': this.csrfToken, 'Accept': 'application/json' },
+            });
+
+            if (response.ok) {
+                this.read = this.items.map(i => i.id);
+                window.dispatchEvent(new CustomEvent('notifications-updated', { detail: { unread: 0 } }));
+            }
         },
 
         toggle(id) {
@@ -64,7 +62,7 @@
         },
 
         rp(n) {
-            return 'Rp ' + new Intl.NumberFormat('id-ID').format(n);
+            return window.financeMoney.format(n);
         },
 
         pct(g) {

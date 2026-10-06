@@ -21,7 +21,9 @@ class StoreTargetTabunganRequest extends FormRequest
                 Rule::exists('dompet', 'id_dompet')->where('id_user', $this->user()->getAuthIdentifier()),
             ],
             'nama_target' => ['required', 'string', 'max:150'],
+            'deskripsi' => ['nullable', 'string', 'max:1000'],
             'nominal_target' => ['required', 'numeric', 'gt:0'],
+            'initial_savings' => ['nullable', 'numeric', 'min:0'],
         ];
     }
 }

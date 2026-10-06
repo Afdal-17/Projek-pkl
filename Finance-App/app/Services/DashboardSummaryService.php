@@ -53,6 +53,7 @@ class DashboardSummaryService
                     'nama_target' => $target->nama_target,
                     'nama_dompet' => $target->dompet->nama_dompet,
                     'saldo_dompet' => round((float) $target->dompet->saldo, 2),
+                    'jumlah_terkumpul' => round((float) $target->jumlah_terkumpul, 2),
                     'nominal_target' => round((float) $target->nominal_target, 2),
                     'progress' => $target->progress,
                     'tercapai' => $target->tercapai,
