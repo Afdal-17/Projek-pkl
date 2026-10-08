@@ -19,6 +19,7 @@ class Kategori extends Model
         'id_user',
         'nama_kategori',
         'jenis',
+        'icon',
     ];
 
     public function user(): BelongsTo

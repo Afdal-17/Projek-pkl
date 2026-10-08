@@ -243,6 +243,9 @@
                 <p class="text-sm text-muted">{{ $w['type'] }}</p>
                 <p class="mt-3 text-[11px] uppercase tracking-wide text-muted">Available balance</p>
                 <p class="text-2xl font-bold">{{ $formatMoney($w['balance']) }}</p>
+                <a href="/wallet/{{ $w['id'] }}" class="mt-3 inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline">
+                    <x-icon name="history" size="h-3 w-3" /> View history
+                </a>
             </x-card>
         @endforeach
     </div>

@@ -15,6 +15,19 @@ class CheckRole
         }
 
         $user = Auth::user();
+
+        // User biasa wajib sudah diverifikasi admin
+        if ($user?->role === 'user' && $user?->email_verified_at === null) {
+            Auth::logout();
+            return redirect()->route('login')->with('error', 'Akun Anda belum diverifikasi oleh admin.');
+        }
+
+        // Akun yang diblokir (banned) oleh admin
+        if ($user?->isBanned()) {
+            Auth::logout();
+            return redirect()->route('login')->with('error', 'Akun Anda telah diblokir. Silakan hubungi admin.');
+        }
+
         $isActive = $user?->status_aktif ?? $user?->status ?? true;
 
         if (!$isActive) {

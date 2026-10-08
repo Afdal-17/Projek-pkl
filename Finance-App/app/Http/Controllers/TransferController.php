@@ -59,6 +59,45 @@ class TransferController extends Controller
         ]);
     }
 
+    public function searchRecipients(): \Illuminate\Http\JsonResponse
+    {
+        $query = trim((string) request('query'));
+
+        if ($query === '') {
+            return response()->json([]);
+        }
+
+        $users = User::query()
+            ->where('status', true)
+            ->where('role', 'user')
+            ->whereNotNull('email_verified_at')
+            ->where('id_user', '!=', (int) Auth::id())
+            ->where(function (Builder $builder) use ($query): void {
+                $builder->where('nama', 'like', '%'.$query.'%')
+                    ->orWhere('email', 'like', '%'.$query.'%')
+                    ->orWhere('id_user', ctype_digit($query) ? (int) $query : 0);
+            })
+            ->with(['dompet' => fn ($wallets) => $wallets->orderBy('nama_dompet')])
+            ->limit(8)
+            ->get();
+
+        return response()->json(
+            $users->map(fn (User $user): array => [
+                'id_user' => $user->id_user,
+                'nama' => $user->nama,
+                'email' => $user->email,
+                'has_wallet' => $user->dompet->isNotEmpty(),
+                'wallets' => $user->dompet->map(fn (Dompet $wallet): array => [
+                    'id' => $wallet->id_dompet,
+                    'name' => $wallet->nama_dompet,
+                    'balance' => (float) $wallet->saldo,
+                ])->values(),
+                'id_dompet_tujuan' => $user->dompet->first()?->id_dompet,
+                'dompet' => $user->dompet->first()?->nama_dompet,
+            ])->values()
+        );
+    }
+
     public function create(): View
     {
         return view('transfer.create', [

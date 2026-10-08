@@ -4,10 +4,8 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules;
 use Illuminate\Validation\ValidationException;
@@ -42,13 +40,12 @@ class RegisteredUserController extends Controller
             'email' => $request->email,
             'password' => Hash::make($request->password),
             'role' => 'user',
-            'status' => true,
+            'status' => false,
+            'email_verified_at' => null,
         ]);
 
-        event(new Registered($user));
+        // Tidak mengirim email verifikasi; verifikasi dilakukan oleh admin.
 
-        Auth::login($user);
-
-        return redirect(route('user.dashboard', absolute: false));
+        return redirect()->route('login')->with('status', 'Akun berhasil dibuat. Menunggu verifikasi dari admin untuk dapat login.');
     }
 }

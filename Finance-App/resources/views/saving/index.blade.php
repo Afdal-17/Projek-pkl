@@ -132,6 +132,7 @@
                     <div class="leading-tight">
                         <p class="text-sm font-semibold" x-text="t.name"></p>
                         <p class="text-xs text-muted" x-text="t.note"></p>
+                        <p class="mt-0.5 text-xs text-muted">From wallet: <span x-text="t.wallet"></span></p>
                     </div>
                 </div>
 

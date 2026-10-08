@@ -7,7 +7,7 @@
 <div
     x-data="{
         type: 'expense',
-        amount: 245000,
+        amount: 0,
         transactionName: 'Grocery shopping',
         category: '',
         wallet: @js($wallets->first()['name'] ?? ''),

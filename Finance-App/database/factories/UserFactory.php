@@ -31,6 +31,7 @@ class UserFactory extends Factory
             'remember_token' => Str::random(10),
             'role' => 'user',
             'status' => true,
+            'email_verified_at' => now(),
         ];
     }
 
@@ -39,6 +40,8 @@ class UserFactory extends Factory
      */
     public function unverified(): static
     {
-        return $this;
+        return $this->state(fn (array $attributes) => [
+            'email_verified_at' => null,
+        ]);
     }
 }

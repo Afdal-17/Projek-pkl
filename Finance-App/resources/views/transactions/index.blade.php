@@ -1,4 +1,4 @@
-@extends('layouts.main')
+﻿@extends('layouts.main')
 
 @section('title', 'Transactions')
 
@@ -92,7 +92,7 @@
             const from = (this.page - 1) * this.perPage + 1;
             const to = Math.min(this.page * this.perPage, total);
 
-            return 'Showing ' + from + '–' + to + ' of ' + total + ' transactions';
+            return 'Showing ' + from + 'â€“' + to + ' of ' + total + ' transactions';
         },
 
         goTo(n) {
@@ -150,16 +150,22 @@
             return t.type === 'income' ? Number(t.amount) : -Number(t.amount);
         },
 
-        sign(type) {
+        sign(type, Jenis) {
             if (type === 'income') return '+';
             if (type === 'expense') return '-';
-            return '⇆ ';
+            if (type === 'transfer') {
+                return Jenis === 'pemasukan' ? '+' : '-';
+            }
+            return 'â‡† ';
         },
 
         iconFor(t) {
             if (t.type === 'transfer') return 'transfer';
+            if (t.icon) return t.icon;
+            const foundCat = this.allCategories.find(c => c.name === t.category);
+            if (foundCat && foundCat.icon) return foundCat.icon;
             if (t.type === 'income') return 'landmark';
-            return t.wallet === 'Cash' ? 'banknote' : 'smartphone';
+            return 'utensils';
         },
 
         boxClass(type) {
@@ -168,9 +174,9 @@
             return 'bg-expense-soft text-expense';
         },
 
-        amountClass(type) {
+        amountClass(type, Jenis) {
             if (type === 'income') return 'text-income';
-            if (type === 'transfer') return 'text-ink';
+            if (type === 'transfer') return Jenis === 'pemasukan' ? 'text-income' : 'text-expense';
             return 'text-expense';
         }
     }"
@@ -416,10 +422,15 @@
                         class="flex h-10 w-10 items-center justify-center rounded-lg"
                         :class="boxClass(t.type)"
                     >
-                        <x-icon name="smartphone" size="h-4 w-4" x-show="iconFor(t) === 'smartphone'" />
-                        <x-icon name="banknote" size="h-4 w-4" x-show="iconFor(t) === 'banknote'" x-cloak />
+                        <x-icon name="utensils" size="h-4 w-4" x-show="iconFor(t) === 'utensils'" />
                         <x-icon name="landmark" size="h-4 w-4" x-show="iconFor(t) === 'landmark'" x-cloak />
+                        <x-icon name="car" size="h-4 w-4" x-show="iconFor(t) === 'car'" x-cloak />
+                        <x-icon name="film" size="h-4 w-4" x-show="iconFor(t) === 'film'" x-cloak />
+                        <x-icon name="briefcase" size="h-4 w-4" x-show="iconFor(t) === 'briefcase'" x-cloak />
+                        <x-icon name="shopping-bag" size="h-4 w-4" x-show="iconFor(t) === 'shopping-bag'" x-cloak />
                         <x-icon name="transfer" size="h-4 w-4" x-show="iconFor(t) === 'transfer'" x-cloak />
+                        <x-icon name="smartphone" size="h-4 w-4" x-show="iconFor(t) === 'smartphone'" x-cloak />
+                        <x-icon name="banknote" size="h-4 w-4" x-show="iconFor(t) === 'banknote'" x-cloak />
                     </span>
 
                     {{-- Nama --}}
@@ -459,8 +470,8 @@
                     {{-- Nominal --}}
                     <p
                         class="w-36 text-right text-lg font-semibold"
-                        :class="amountClass(t.type)"
-                        x-text="sign(t.type) + rp(t.amount)"
+                        :class="amountClass(t.type, t.jenis)"
+                        x-text="sign(t.type, t.jenis) + rp(t.amount)"
                     ></p>
 
                 </div>
@@ -524,3 +535,5 @@
 </div>
 
 @endsection
+
+

@@ -23,6 +23,7 @@ class DashboardSummaryTest extends TestCase
             'password' => 'password',
             'role' => 'user',
             'status' => true,
+            'email_verified_at' => now(),
         ]);
         $asal = Dompet::create([
             'id_user' => $user->id_user,
@@ -96,6 +97,7 @@ class DashboardSummaryTest extends TestCase
             'password' => 'password',
             'role' => 'user',
             'status' => true,
+            'email_verified_at' => now(),
             'mata_uang' => 'USD',
         ]);
         Dompet::create([

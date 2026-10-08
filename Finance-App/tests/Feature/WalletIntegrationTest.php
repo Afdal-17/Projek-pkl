@@ -22,6 +22,7 @@ class WalletIntegrationTest extends TestCase
             'password' => 'password',
             'role' => 'user',
             'status' => true,
+            'email_verified_at' => now(),
         ]);
         $wallet = Dompet::create([
             'id_user' => $user->id_user,
@@ -92,6 +93,7 @@ class WalletIntegrationTest extends TestCase
             'password' => 'password',
             'role' => 'user',
             'status' => true,
+            'email_verified_at' => now(),
         ]);
 
         $this->actingAs($user)->postJson(route('dompet.store'), [

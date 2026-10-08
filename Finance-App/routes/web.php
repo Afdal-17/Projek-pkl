@@ -21,6 +21,8 @@ Route::middleware(['auth', CheckRole::class . ':admin'])->prefix('admin')->group
     Route::patch('/profile', [ProfileController::class, 'frontendUpdate'])->name('admin.profile.update');
     Route::patch('/users/{user}/status', [AdminController::class, 'toggleStatus'])->name('admin.users.status');
     Route::patch('/users/{user}', [AdminController::class, 'updateUser'])->name('admin.users.update');
+    Route::patch('/users/{user}/ban', [AdminController::class, 'banUser'])->name('admin.users.ban');
+    Route::patch('/users/{user}/verify', [AdminController::class, 'verifyUser'])->name('admin.users.verify');
     Route::delete('/users/{user}', [AdminController::class, 'deleteUser'])->name('admin.users.destroy');
 });
 
@@ -28,6 +30,7 @@ Route::middleware(['auth', CheckRole::class . ':admin'])->prefix('admin')->group
 Route::middleware(['auth', CheckRole::class . ':user'])->group(function () {
     Route::get('/dashboard', [UserController::class, 'index'])->name('user.dashboard');
     Route::get('/dashboard/summary', [UserController::class, 'summary'])->name('user.dashboard.summary');
+    Route::get('/wallet/{dompet}', [DompetController::class, 'frontendShow'])->name('dompet.history');
     Route::resource('dompet', DompetController::class);
     Route::patch('/dompet/{dompet}/manage', [DompetController::class, 'frontendUpdate'])->name('dompet.manage');
     Route::resource('kategori', KategoriController::class);
@@ -44,6 +47,7 @@ Route::middleware(['auth', CheckRole::class . ':user'])->group(function () {
     Route::post('/saving', [TargetTabunganController::class, 'store'])->name('saving.store');
     Route::delete('/saving/{targetTabungan}', [TargetTabunganController::class, 'destroy'])->name('saving.destroy');
     Route::get('/transfer/recipients', [TransferController::class, 'frontendRecipients'])->name('transfer.recipients');
+    Route::get('/transfer/recipients/search', [TransferController::class, 'searchRecipients'])->name('transfer.recipients.search');
     Route::resource('transfer', TransferController::class)->only(['index', 'create', 'store', 'show']);
     Route::resource('target-tabungan', TargetTabunganController::class);
     Route::get('/notifikasi', [NotifikasiController::class, 'index'])->name('notifikasi.index');

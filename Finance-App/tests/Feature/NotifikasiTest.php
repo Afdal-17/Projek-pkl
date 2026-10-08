@@ -19,6 +19,9 @@ class NotifikasiTest extends TestCase
         [$pengirim, $asal] = $this->userWithWallet('notif-pengirim@example.com', 'Asal', 100000);
         [$penerima, $tujuan] = $this->userWithWallet('notif-penerima@example.com', 'Tujuan', 0);
 
+        $pengirim->update(['nama' => 'Pengirim']);
+        $penerima->update(['nama' => 'Penerima']);
+
         $this->actingAs($pengirim)->post(route('transfer.store'), [
             'id_dompet_asal' => $asal->id_dompet,
             'id_dompet_tujuan' => $tujuan->id_dompet,
@@ -29,17 +32,55 @@ class NotifikasiTest extends TestCase
         $this->assertSame(1, Notifikasi::where('id_user', $pengirim->id_user)->count());
         $this->assertSame(1, Notifikasi::where('id_user', $penerima->id_user)->count());
 
-        $notification = Notifikasi::where('id_user', $penerima->id_user)->firstOrFail();
-        $this->actingAs($penerima)->patch(route('notifikasi.read', $notification))->assertRedirect();
-        $this->assertTrue((bool) $notification->fresh()->sudah_dibaca);
+        // Pengirim mendapat notifikasi transfer berhasil ke penerima dari dompet asal
+        $senderNotification = Notifikasi::where('id_user', $pengirim->id_user)->firstOrFail();
+        $this->assertSame('Transfer berhasil ke Penerima dari Asal sebesar Rp 10.000,00.', $senderNotification->pesan);
 
-        $notification->update(['sudah_dibaca' => false]);
+        // Penerima mendapat notifikasi di transfer oleh pengirim
+        $recipientNotification = Notifikasi::where('id_user', $penerima->id_user)->firstOrFail();
+        $this->assertSame('Anda di transfer oleh Pengirim sebesar Rp 10.000,00.', $recipientNotification->pesan);
+
+        // Waktu notifikasi mengikuti waktu pembuatan (sekarang), bukan tanggal transfer
+        $this->assertLessThanOrEqual(60, $senderNotification->tanggal->diffInSeconds(now()));
+        $this->assertLessThanOrEqual(60, $recipientNotification->tanggal->diffInSeconds(now()));
+
+        $this->actingAs($penerima)->patch(route('notifikasi.read', $recipientNotification))->assertRedirect();
+        $this->assertTrue((bool) $recipientNotification->fresh()->sudah_dibaca);
+
+        $recipientNotification->update(['sudah_dibaca' => false]);
         $this->actingAs($penerima)->get(route('notifications.index'))
             ->assertOk()
             ->assertSee('Transfer success!')
-            ->assertSee($notification->pesan);
-        $this->actingAs($penerima)->patch(route('notifications.read', $notification))->assertRedirect();
-        $this->assertTrue((bool) $notification->fresh()->sudah_dibaca);
+            ->assertSee($recipientNotification->pesan);
+        $this->actingAs($penerima)->patch(route('notifications.read', $recipientNotification))->assertRedirect();
+        $this->assertTrue((bool) $recipientNotification->fresh()->sudah_dibaca);
+    }
+
+    public function test_notifications_are_listed_newest_first(): void
+    {
+        [$user] = $this->userWithWallet('urutan@example.com', 'Dompet', 100000);
+
+        // Notifikasi lama dibuat lebih dulu, meskipun tanggalnya lebih baru
+        Notifikasi::create([
+            'id_user' => $user->id_user,
+            'tipe' => 'transaksi',
+            'pesan' => 'Notifikasi lama',
+            'sudah_dibaca' => false,
+            'tanggal' => now()->subDays(2),
+        ]);
+
+        Notifikasi::create([
+            'id_user' => $user->id_user,
+            'tipe' => 'transaksi',
+            'pesan' => 'Notifikasi terbaru',
+            'sudah_dibaca' => false,
+            'tanggal' => now()->subDay(),
+        ]);
+
+        // Notifikasi terbaru selalu muncul di atas, sesuai urutan pembuatan
+        $this->actingAs($user)->get(route('notifications.index'))
+            ->assertOk()
+            ->assertSeeInOrder(['Notifikasi terbaru', 'Notifikasi lama']);
     }
 
     public function test_target_notification_is_created_when_wallet_reaches_target(): void
@@ -84,6 +125,7 @@ class NotifikasiTest extends TestCase
             'password' => 'password',
             'role' => 'user',
             'status' => true,
+            'email_verified_at' => now(),
         ]);
         $wallet = Dompet::create([
             'id_user' => $user->id_user,

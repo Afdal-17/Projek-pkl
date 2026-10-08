@@ -9,9 +9,12 @@
         'id' => $user->id_user,
         'name' => $user->nama,
         'email' => $user->email,
-        'status' => $user->status ? 'Active' : 'Inactive',
+        'status' => $user->email_verified_at === null && $user->role === 'user' ? 'Unverified' : ($user->banned_at ? 'Banned' : ($user->status ? 'Active' : 'Inactive')),
+        'banned' => $user->banned_at !== null,
         'canToggle' => ! $user->isAdmin() && ! $user->is(auth()->user()),
+        'canBan' => ! $user->isAdmin() && ! $user->is(auth()->user()) && $user->email_verified_at !== null,
         'canManage' => ! $user->isAdmin() && ! $user->is(auth()->user()),
+        'canVerify' => $user->email_verified_at === null && $user->role === 'user',
     ])->values();
 @endphp
 
@@ -23,8 +26,10 @@
         form: { name: '', email: '' },
         csrfToken: @js(csrf_token()),
         statusUrl: @js(route('admin.users.status', ['user' => '__USER__'])),
+        banUrl: @js(route('admin.users.ban', ['user' => '__USER__'])),
         updateUrl: @js(route('admin.users.update', ['user' => '__USER__'])),
         deleteUrl: @js(route('admin.users.destroy', ['user' => '__USER__'])),
+        verifyUrl: @js(route('admin.users.verify', ['user' => '__USER__'])),
 
         get filtered() {
             const keyword = this.search.toLowerCase().trim();
@@ -45,7 +50,35 @@
                 headers: { 'X-CSRF-TOKEN': this.csrfToken, 'Accept': 'application/json' },
             });
 
-            if (response.ok) user.status = user.status === 'Active' ? 'Inactive' : 'Active';
+            if (response.ok) {
+                // Toggle pada akun banned akan mengaktifkan kembali (unban)
+                if (user.banned) {
+                    user.banned = false;
+                    user.status = 'Active';
+                } else {
+                    user.status = user.status === 'Active' ? 'Inactive' : 'Active';
+                }
+            }
+        },
+
+        async banUser(user) {
+            if (!user.canBan) return;
+
+            const response = await fetch(this.banUrl.replace('__USER__', user.id), {
+                method: 'PATCH',
+                headers: { 'X-CSRF-TOKEN': this.csrfToken, 'Accept': 'application/json' },
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                const bannedNow = result.status === 'banned';
+                user.status = bannedNow ? 'Banned' : 'Active';
+                user.banned = bannedNow;
+                user.canBan = true;
+            } else {
+                const result = await response.json();
+                alert(result.message ?? 'User could not be updated.');
+            }
         },
 
         async remove(id) {
@@ -91,6 +124,24 @@
             } else {
                 const result = await response.json();
                 alert(Object.values(result.errors ?? {}).flat()[0] ?? 'User could not be updated.');
+            }
+        },
+
+        async verifyUser(user) {
+            if (!user.canVerify) return;
+
+            const response = await fetch(this.verifyUrl.replace('__USER__', user.id), {
+                method: 'PATCH',
+                headers: { 'X-CSRF-TOKEN': this.csrfToken, 'Accept': 'application/json' },
+            });
+
+            if (response.ok) {
+                user.status = 'Active';
+                user.canVerify = false;
+                user.canBan = true;
+            } else {
+                const result = await response.json();
+                alert(result.message ?? 'User could not be verified.');
             }
         }
     }"
@@ -152,16 +203,27 @@
                     <span>
                         <span
                             class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
-                            :class="u.status === 'Active' ? 'bg-income-soft text-income' : 'bg-gray-100 text-muted'"
+                            :class="u.status === 'Active' ? 'bg-income-soft text-income' : (u.status === 'Banned' ? 'bg-expense-soft text-expense' : (u.status === 'Unverified' ? 'bg-warn-soft text-warn' : 'bg-gray-100 text-muted'))"
                             x-text="u.status"
                         ></span>
                     </span>
 
                     <div class="flex items-center gap-2">
 
-                        <button type="button" title="Activate" x-on:click="toggleStatus(u)" :disabled="!u.canToggle"
-                                class="flex h-8 w-8 items-center justify-center rounded-md bg-income-soft text-income hover:opacity-80">
+                        <button type="button" title="Verify" x-show="u.canVerify" x-on:click="verifyUser(u)"
+                                class="flex h-8 w-8 items-center justify-center rounded-md bg-brand-soft text-brand hover:opacity-80">
                             <x-icon name="check" size="h-4 w-4" />
+                        </button>
+
+                        <button type="button" title="Activate" x-show="!u.canVerify" x-on:click="toggleStatus(u)" :disabled="!u.canToggle"
+                                class="flex h-8 w-8 items-center justify-center rounded-md bg-income-soft text-income hover:opacity-80" x-cloak>
+                            <x-icon name="check" size="h-4 w-4" />
+                        </button>
+
+                        <button type="button" :title="u.banned ? 'Unban' : 'Ban'" x-on:click="banUser(u)" :disabled="!u.canBan"
+                                class="flex h-8 w-8 items-center justify-center rounded-md bg-expense-soft text-expense hover:opacity-80">
+                            <x-icon name="ban" size="h-4 w-4" x-show="!u.banned" />
+                            <x-icon name="check" size="h-4 w-4" x-show="u.banned" x-cloak />
                         </button>
 
                         <button type="button" title="Edit" x-on:click="openEdit(u)"

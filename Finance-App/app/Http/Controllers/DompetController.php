@@ -28,6 +28,39 @@ class DompetController extends Controller
         return view('dompet.create');
     }
 
+    public function frontendShow(Dompet $dompet): View
+    {
+        abort_unless($dompet->id_user === (int) Auth::id(), 404);
+
+        $icons = ['makanan' => 'utensils', 'transport' => 'car', 'hiburan' => 'film', 'tagihan' => 'landmark', 'gaji' => 'landmark'];
+
+        $transactions = Transaksi::with(['kategori', 'transfer.dompetAsal', 'transfer.dompetTujuan'])
+            ->where('id_dompet', $dompet->id_dompet)
+            ->latest('tanggal')
+            ->get()
+            ->map(fn (Transaksi $transaction): array => [
+                'id' => $transaction->id_transaksi,
+                'name' => $transaction->nama_transaksi,
+                'type' => $transaction->id_transfer !== null
+                    ? 'transfer'
+                    : ($transaction->jenis === 'pemasukan' ? 'income' : 'expense'),
+                'category' => $transaction->id_transfer !== null
+                    ? 'Transfer'
+                    : ($transaction->kategori?->nama_kategori ?? 'Without category'),
+                'amount' => (float) $transaction->jumlah,
+                'jenis' => $transaction->jenis,
+                'icon' => $transaction->id_transfer !== null
+                    ? 'transfer'
+                    : ($transaction->kategori?->icon ?: ($icons[strtolower($transaction->kategori?->nama_kategori ?? '')] ?? ($transaction->jenis === 'pemasukan' ? 'landmark' : 'utensils'))),
+                'date' => $transaction->tanggal->toDateString(),
+            ]);
+
+        return view('dompet.history', [
+            'dompet' => $dompet,
+            'transactions' => $transactions,
+        ]);
+    }
+
     public function store(StoreDompetRequest $request): RedirectResponse
     {
         $data = $request->validated();

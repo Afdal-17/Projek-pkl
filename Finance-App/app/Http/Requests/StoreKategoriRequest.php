@@ -17,6 +17,7 @@ class StoreKategoriRequest extends FormRequest
         return [
             'nama_kategori' => ['required', 'string', 'max:100'],
             'jenis' => ['required', Rule::in(['pemasukan', 'pengeluaran'])],
+            'icon' => ['nullable', 'string', 'max:30'],
         ];
     }
 }

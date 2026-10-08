@@ -29,6 +29,29 @@ class AuthenticatedSessionController extends Controller
         $request->session()->regenerate();
 
         $user = Auth::user();
+
+        // User role harus diverifikasi admin terlebih dahulu
+        if ($user?->role === 'user' && $user?->email_verified_at === null) {
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return redirect()->route('login')->withErrors([
+                'email' => 'Akun Anda belum diverifikasi oleh admin. Silakan hubungi admin.',
+            ]);
+        }
+
+        // Akun yang diblokir (banned) oleh admin
+        if ($user?->isBanned()) {
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return redirect()->route('login')->withErrors([
+                'email' => 'Akun Anda telah diblokir. Silakan hubungi admin.',
+            ]);
+        }
+
         $isActive = $user?->status_aktif ?? $user?->status ?? true;
 
         if (!$isActive) {

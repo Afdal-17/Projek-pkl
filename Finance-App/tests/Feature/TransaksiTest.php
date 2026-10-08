@@ -21,6 +21,7 @@ class TransaksiTest extends TestCase
             'password' => 'password',
             'role' => 'user',
             'status' => true,
+            'email_verified_at' => now(),
         ]);
         $dompet = Dompet::create([
             'id_user' => $user->id_user,
@@ -74,6 +75,7 @@ class TransaksiTest extends TestCase
             'password' => 'password',
             'role' => 'user',
             'status' => true,
+            'email_verified_at' => now(),
         ]);
         $dompet = Dompet::create([
             'id_user' => $user->id_user,
@@ -116,6 +118,7 @@ class TransaksiTest extends TestCase
             'password' => 'password',
             'role' => 'user',
             'status' => true,
+            'email_verified_at' => now(),
         ]);
         $wallet = Dompet::create([
             'id_user' => $user->id_user,

@@ -10,6 +10,10 @@
         from: @js((string) ($wallets->first()['id'] ?? '')),
         to: @js((string) ($wallets->skip(1)->first()['id'] ?? $wallets->first()['id'] ?? '')),
         userQuery: '',
+        recipient: null,
+        recipientWalletId: '',
+        searchResults: [],
+        searching: false,
         amount: '',
         wallets: @js($wallets),
         csrfToken: @js(csrf_token()),
@@ -30,12 +34,62 @@
             return this.wallets.find(w => String(w.id) === String(this.to))?.name ?? '-';
         },
 
+        get recipientWallet() {
+            return this.recipient?.wallets.find(w => String(w.id) === String(this.recipientWalletId)) ?? null;
+        },
+
         get formattedAmount() {
             return window.financeMoney.format(Number(this.amount) || 0);
         },
 
         toggleMode() {
             this.mode = this.mode === 'wallet' ? 'user' : 'wallet';
+            this.recipient = null;
+            this.searchResults = [];
+        },
+
+        async searchUsers() {
+            const query = this.userQuery.trim();
+
+            if (!query) {
+                this.searchResults = [];
+                this.recipient = null;
+                return;
+            }
+
+            this.searching = true;
+
+            try {
+                const response = await fetch(@js(route('transfer.recipients.search')) + '?query=' + encodeURIComponent(query), {
+                    headers: { 'Accept': 'application/json' },
+                });
+
+                this.searchResults = response.ok ? await response.json() : [];
+            } catch (e) {
+                this.searchResults = [];
+            } finally {
+                this.searching = false;
+            }
+        },
+
+        selectUser(user) {
+            const firstWallet = user.wallets[0] ?? null;
+
+            this.recipient = {
+                penerima: user.nama,
+                wallets: user.wallets,
+            };
+            this.recipientWalletId = firstWallet ? String(firstWallet.id) : '';
+
+            this.userQuery = user.nama;
+            this.searchResults = [];
+        },
+
+        clearRecipient() {
+            this.recipient = null;
+            this.recipientWalletId = '';
+            this.userQuery = '';
+            this.searchResults = [];
         },
 
         async saveTransfer() {
@@ -52,8 +106,13 @@
                 return;
             }
 
-            if (this.mode === 'user' && !this.userQuery.trim()) {
-                alert('Pilih tujuan transfer.');
+            if (this.mode === 'user' && !this.recipient) {
+                alert('Cari dan verifikasi penerima terlebih dahulu.');
+                return;
+            }
+
+            if (this.mode === 'user' && !this.recipientWalletId) {
+                alert('Pilih dompet tujuan penerima.');
                 return;
             }
 
@@ -68,17 +127,7 @@
             }
 
             if (this.mode === 'user') {
-                const recipientResponse = await fetch(@js(route('transfer.recipients')) + '?query=' + encodeURIComponent(this.userQuery.trim()), {
-                    headers: { 'Accept': 'application/json' },
-                });
-
-                if (!recipientResponse.ok) {
-                    const result = await recipientResponse.json();
-                    alert(result.message ?? 'User tidak ditemukan.');
-                    return;
-                }
-
-                targetWalletId = (await recipientResponse.json()).id_dompet_tujuan;
+                targetWalletId = this.recipientWalletId;
             }
 
             const payload = new URLSearchParams({
@@ -193,16 +242,82 @@
                     <input
                         type="text"
                         x-model="userQuery"
-                        placeholder="Find user/ID user..."
+                        x-on:input.debounce.300ms="searchUsers()"
+                        placeholder="Cari nama / email / ID user..."
                         class="w-full rounded-full border border-line bg-white py-2.5 pl-9 pr-9 text-sm placeholder:text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
                     >
 
                     <x-icon name="search" size="h-4 w-4"
                         class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted" />
                 </div>
-
             </div>
 
+            {{-- Search Result (live) --}}
+            <div class="mt-2" x-show="mode === 'user' && searchResults.length > 0 && !recipient" x-cloak>
+                <div class="overflow-hidden rounded-xl border border-line bg-white shadow-lg">
+                    <template x-for="u in searchResults" :key="u.id_user">
+                        <button type="button"
+                                @click="u.has_wallet ? selectUser(u) : null"
+                                :disabled="!u.has_wallet"
+                                :title="u.has_wallet ? '' : 'Penerima belum memiliki dompet'"
+                                class="flex w-full items-center gap-3 border-b border-line px-4 py-3 text-left transition last:border-0 hover:bg-page disabled:cursor-not-allowed disabled:opacity-50">
+                            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-soft text-brand">
+                                <x-icon name="user" size="h-4 w-4" />
+                            </span>
+                            <span class="min-w-0 flex-1 leading-tight">
+                                <span class="block truncate text-sm font-semibold" x-text="u.nama"></span>
+                                <span class="block truncate text-xs text-muted" x-text="u.email"></span>
+                            </span>
+                            <span
+                                class="shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold"
+                                :class="u.has_wallet ? 'bg-page text-muted' : 'bg-expense-soft text-expense'"
+                                x-text="u.has_wallet ? u.wallets[0].name + (u.wallets.length > 1 ? ' +' + (u.wallets.length - 1) : '') : 'Belum punya dompet'">
+                            </span>
+                        </button>
+                    </template>
+                </div>
+            </div>
+
+            {{-- Verifikasi penerima --}}
+            <div class="mt-3" x-show="mode === 'user' && recipient" x-cloak>
+                <div class="rounded-xl border border-brand/30 bg-brand-soft p-4">
+                    <div class="flex items-center gap-3">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-full bg-brand text-white">
+                            <x-icon name="user" size="h-4 w-4" />
+                        </span>
+                        <div class="leading-tight">
+                            <p class="text-sm font-semibold" x-text="recipient?.penerima"></p>
+                            <p class="text-xs text-muted">Penerima ditemukan &amp; terverifikasi</p>
+                        </div>
+                        <span class="ml-auto rounded-full bg-income-soft px-2.5 py-1 text-xs font-semibold text-income">Verified</span>
+                        <button type="button" @click="clearRecipient()" title="Ganti penerima"
+                                class="flex h-7 w-7 items-center justify-center rounded-md text-muted hover:bg-white">
+                            <x-icon name="x" size="h-3.5 w-3.5" />
+                        </button>
+                    </div>
+
+                    {{-- Pilih dompet penerima --}}
+                    <div class="mt-3 flex items-center gap-2">
+                        <label class="shrink-0 text-xs font-medium text-muted">Dompet tujuan</label>
+                        <div class="relative flex-1">
+                            <x-icon name="wallet" size="h-4 w-4"
+                                class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-brand" />
+
+                            <select
+                                x-model="recipientWalletId"
+                                class="w-full appearance-none rounded-lg border border-line bg-white py-2 pl-9 pr-9 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+                            >
+                                <template x-for="w in recipient?.wallets ?? []" :key="w.id">
+                                    <option :value="String(w.id)" x-text="w.name + ' · ' + window.financeMoney.format(Number(w.balance) || 0)"></option>
+                                </template>
+                            </select>
+
+                            <x-icon name="chevron-down" size="h-4 w-4"
+                                class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted" />
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             {{-- Amount --}}
             <div class="mt-6">
@@ -259,7 +374,15 @@
                         <span class="text-muted" x-text="mode === 'wallet' ? 'To Wallet' : 'To User'"></span>
                         <span
                             class="rounded-full bg-expense-soft px-3 py-1 text-xs font-medium"
-                            x-text="mode === 'wallet' ? toLabel : (userQuery || '-')"
+                            x-text="mode === 'wallet' ? toLabel : (recipient ? recipient.penerima : (userQuery || '-'))"
+                        ></span>
+                    </div>
+
+                    <div class="flex items-center justify-between" x-show="mode === 'user' && recipient" x-cloak>
+                        <span class="text-muted">To Wallet</span>
+                        <span
+                            class="rounded-full bg-page px-3 py-1 text-xs font-medium"
+                            x-text="(recipientWallet?.name ?? '-') + ' · ' + window.financeMoney.format(Number(recipientWallet?.balance ?? 0))"
                         ></span>
                     </div>
 

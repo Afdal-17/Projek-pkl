@@ -12,7 +12,7 @@ class NotifikasiService
     public function transaksiDicatat(Transaksi $transaksi, int $userId): void
     {
         $jenisLabel = $transaksi->jenis === 'pemasukan' ? 'Pemasukan' : 'Pengeluaran';
-        $this->catatTransaksi($userId, "{$jenisLabel} \"{$transaksi->nama_transaksi}\" sebesar Rp ".number_format((float) $transaksi->jumlah, 2, ',', '.').' berhasil dicatat.', $transaksi->tanggal);
+        $this->catatTransaksi($userId, "{$jenisLabel} \"{$transaksi->nama_transaksi}\" sebesar Rp ".number_format((float) $transaksi->jumlah, 2, ',', '.').' berhasil dicatat.', now());
     }
 
     public function transaksiDiubah(Transaksi $transaksi, int $userId): void
@@ -34,27 +34,60 @@ class NotifikasiService
             'sudah_dibaca' => false,
             'tanggal' => $tanggal,
         ]);
+
+        session()->flash('notif_popup', $pesan);
     }
 
     public function transferBerhasil(Transfer $transfer): void
     {
-        $transfer->loadMissing(['dompetAsal', 'dompetTujuan']);
-        $message = 'Transfer Rp '.number_format((float) $transfer->jumlah, 2, ',', '.').' dari '
-            .$transfer->dompetAsal->nama_dompet.' ke '.$transfer->dompetTujuan->nama_dompet.' berhasil.';
-        $recipientIds = array_unique([
-            (int) $transfer->dompetAsal->id_user,
-            (int) $transfer->dompetTujuan->id_user,
-        ]);
+        $transfer->loadMissing(['dompetAsal.user', 'dompetTujuan.user']);
+        $amount = number_format((float) $transfer->jumlah, 2, ',', '.');
+        $now = now();
 
-        foreach ($recipientIds as $userId) {
+        $senderId = (int) $transfer->dompetAsal->id_user;
+        $recipientId = (int) $transfer->dompetTujuan->id_user;
+
+        // Transfer antar dompet milik user yang sama
+        if ($senderId === $recipientId) {
+            $message = 'Transfer Rp '.$amount.' dari '
+                .$transfer->dompetAsal->nama_dompet.' ke '.$transfer->dompetTujuan->nama_dompet.' berhasil.';
+
             Notifikasi::create([
-                'id_user' => $userId,
+                'id_user' => $senderId,
                 'tipe' => 'transaksi',
                 'pesan' => $message,
                 'sudah_dibaca' => false,
-                'tanggal' => $transfer->tanggal_transfer,
+                'tanggal' => $now,
             ]);
+
+            session()->flash('notif_popup', $message);
+            return;
         }
+
+        // Transfer ke user lain: pesan berbeda untuk pengirim dan penerima
+        $senderMessage = 'Transfer berhasil ke '.$transfer->dompetTujuan->user->nama
+            .' dari '.$transfer->dompetAsal->nama_dompet
+            .' sebesar Rp '.$amount.'.';
+        $recipientMessage = 'Anda di transfer oleh '.$transfer->dompetAsal->user->nama
+            .' sebesar Rp '.$amount.'.';
+
+        Notifikasi::create([
+            'id_user' => $senderId,
+            'tipe' => 'transaksi',
+            'pesan' => $senderMessage,
+            'sudah_dibaca' => false,
+            'tanggal' => $now,
+        ]);
+
+        Notifikasi::create([
+            'id_user' => $recipientId,
+            'tipe' => 'transaksi',
+            'pesan' => $recipientMessage,
+            'sudah_dibaca' => false,
+            'tanggal' => $now,
+        ]);
+
+        session()->flash('notif_popup', $senderMessage);
     }
 
     public function targetTercapai(TargetTabungan $target): void
@@ -67,6 +100,8 @@ class NotifikasiService
             'sudah_dibaca' => false,
             'tanggal' => now(),
         ]);
+
+        session()->flash('notif_popup', 'Target '.$target->nama_target.' telah tercapai.');
     }
 
     public function targetBaruTercapai(TargetTabungan $target, float $saldoSebelumnya): void

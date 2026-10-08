@@ -34,6 +34,8 @@ class User extends Authenticatable
         'mata_uang',
         'awal_minggu',
         'last_seen_at',
+        'banned_at',
+        'email_verified_at',
     ];
 
     protected $hidden = [
@@ -47,6 +49,8 @@ class User extends Authenticatable
             'password' => 'hashed',
             'status' => 'boolean',
             'last_seen_at' => 'datetime',
+            'banned_at' => 'datetime',
+            'email_verified_at' => 'datetime',
         ];
     }
 
@@ -68,6 +72,11 @@ class User extends Authenticatable
     public function isUser(): bool
     {
         return $this->role === 'user';
+    }
+
+    public function isBanned(): bool
+    {
+        return $this->banned_at !== null;
     }
 
     public function dompet()

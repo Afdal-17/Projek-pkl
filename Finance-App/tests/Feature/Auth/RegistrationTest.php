@@ -25,7 +25,15 @@ class RegistrationTest extends TestCase
             'password_confirmation' => 'password',
         ]);
 
-        $this->assertAuthenticated();
-        $response->assertRedirect(route('user.dashboard', absolute: false));
+        $this->assertGuest();
+        $response->assertRedirect(route('login', absolute: false));
+        $response->assertSessionHas('status', 'Akun berhasil dibuat. Menunggu verifikasi dari admin untuk dapat login.');
+
+        $this->assertDatabaseHas('user', [
+            'email' => 'test@example.com',
+            'role' => 'user',
+            'status' => false,
+            'email_verified_at' => null,
+        ]);
     }
 }

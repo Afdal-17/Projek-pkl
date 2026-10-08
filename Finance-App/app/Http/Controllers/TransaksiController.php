@@ -21,6 +21,7 @@ class TransaksiController extends Controller
     public function frontendIndex(): View
     {
         $userId = (int) Auth::id();
+        $icons = ['makanan' => 'utensils', 'transport' => 'car', 'hiburan' => 'film', 'tagihan' => 'landmark', 'gaji' => 'landmark'];
 
         $transactions = Transaksi::with(['dompet', 'kategori', 'transfer.dompetAsal', 'transfer.dompetTujuan'])
             ->whereHas('dompet', fn ($query) => $query->where('id_user', $userId))
@@ -43,6 +44,10 @@ class TransaksiController extends Controller
                     : null,
                 'amount' => (float) $transaction->jumlah,
                 'date' => $transaction->tanggal->toDateString(),
+                'jenis' => $transaction->jenis,
+                'icon' => $transaction->id_transfer !== null
+                    ? 'transfer'
+                    : ($transaction->kategori?->icon ?: ($icons[strtolower($transaction->kategori?->nama_kategori ?? '')] ?? ($transaction->jenis === 'pemasukan' ? 'landmark' : 'utensils'))),
             ]);
 
         return view('transactions.index', [
@@ -234,7 +239,7 @@ class TransaksiController extends Controller
                     'id' => $category->id_kategori,
                     'name' => $category->nama_kategori,
                     'type' => $category->jenis === 'pemasukan' ? 'income' : 'expense',
-                    'icon' => $icons[strtolower($category->nama_kategori)] ?? 'landmark',
+                    'icon' => $category->icon ?: ($icons[strtolower($category->nama_kategori)] ?? 'landmark'),
                 ]),
             'wallets' => Dompet::where('id_user', $userId)
                 ->orderBy('nama_dompet')

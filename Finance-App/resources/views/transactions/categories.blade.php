@@ -75,6 +75,7 @@
                 _token: this.csrfToken,
                 nama_kategori: this.form.name.trim(),
                 jenis: this.form.type === 'income' ? 'pemasukan' : 'pengeluaran',
+                icon: this.form.icon,
             });
             const url = this.isEdit ? this.updateUrl.replace('__ID__', this.editingId) : this.storeUrl;
             const response = await fetch(url, {

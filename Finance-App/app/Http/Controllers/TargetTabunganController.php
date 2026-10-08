@@ -23,6 +23,7 @@ class TargetTabunganController extends Controller
                 'id' => $target->id_target,
                 'name' => $target->nama_target,
                 'note' => $target->deskripsi ?: $target->dompet->nama_dompet,
+                'wallet' => $target->dompet->nama_dompet,
                 'saved' => min((float) $target->jumlah_terkumpul, (float) $target->nominal_target),
                 'target' => (float) $target->nominal_target,
             ]);

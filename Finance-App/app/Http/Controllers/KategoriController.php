@@ -24,7 +24,7 @@ class KategoriController extends Controller
                     'id' => $category->id_kategori,
                     'name' => $category->nama_kategori,
                     'type' => $category->jenis === 'pemasukan' ? 'income' : 'expense',
-                    'icon' => $icons[strtolower($category->nama_kategori)] ?? 'landmark',
+                    'icon' => $category->icon ?: ($icons[strtolower($category->nama_kategori)] ?? 'landmark'),
                     'count' => $category->transaksi_count,
                 ]),
         ]);
@@ -65,9 +65,18 @@ class KategoriController extends Controller
         return redirect()->route('kategori.index');
     }
 
-    public function destroy(Kategori $kategori): RedirectResponse
+    public function destroy(Kategori $kategori): \Illuminate\Http\Response|\Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
     {
         abort_unless($kategori->id_user === Auth::id(), 404);
+        
+        // Cannot delete category if it has transactions
+        if ($kategori->transaksi()->count() > 0) {
+            if (request()->expectsJson() || request()->wantsJson()) {
+                return response()->json(['message' => 'Category cannot be deleted because it has transactions. You can only edit it.'], 422);
+            }
+            return redirect()->route('kategori.index')->withErrors(['message' => 'Category cannot be deleted because it has transactions. You can only edit it.']);
+        }
+        
         $kategori->delete();
         return redirect()->route('kategori.index');
     }

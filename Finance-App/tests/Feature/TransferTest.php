@@ -63,6 +63,111 @@ class TransferTest extends TestCase
         $this->assertDatabaseHas('dompet', ['id_dompet' => $dompetAsal->id_dompet, 'saldo' => 1000]);
     }
 
+    public function test_user_search_returns_matching_users_by_name(): void
+    {
+        [$pengirim] = $this->userWithWallet('pengirim-search@example.com', 'Dompet Pengirim', 100000);
+
+        // Beberapa calon penerima dengan nama berbeda
+        [$alpha] = $this->userWithWallet('alpha@example.com', 'Dompet Alpha', 10000);
+        User::where('id_user', $alpha->id_user)->update(['nama' => 'Alpha User']);
+
+        [$beta] = $this->userWithWallet('beta@example.com', 'Dompet Beta', 10000);
+        User::where('id_user', $beta->id_user)->update(['nama' => 'Beta User']);
+
+        [$gamma] = $this->userWithWallet('gamma@example.com', 'Dompet Gamma', 10000);
+        User::where('id_user', $gamma->id_user)->update(['nama' => 'Gamma User']);
+
+        // Pencarian berdasarkan sebagian nama
+        $response = $this->actingAs($pengirim)->get(route('transfer.recipients.search', ['query' => 'User']));
+
+        $response->assertOk();
+        $this->assertCount(3, $response->json());
+
+        // Pencarian lebih spesifik
+        $response = $this->actingAs($pengirim)->get(route('transfer.recipients.search', ['query' => 'Alpha']));
+        $response->assertOk();
+        $this->assertCount(1, $response->json());
+        $this->assertSame('Alpha User', $response->json()[0]['nama']);
+        $this->assertSame('Dompet Alpha', $response->json()[0]['wallets'][0]['name']);
+
+        // Pencarian email
+        $response = $this->actingAs($pengirim)->get(route('transfer.recipients.search', ['query' => 'beta@example.com']));
+        $response->assertOk();
+        $this->assertCount(1, $response->json());
+
+        // Pengirim tidak muncul di hasil (tidak bisa transfer ke diri sendiri)
+        $response = $this->actingAs($pengirim)->get(route('transfer.recipients.search', ['query' => 'pengirim']));
+        $response->assertOk();
+        $this->assertCount(0, $response->json());
+    }
+
+    public function test_user_search_shows_users_without_wallet_as_not_selectable(): void
+    {
+        [$pengirim] = $this->userWithWallet('pengirim-nodompet@example.com', 'Dompet Pengirim', 100000);
+
+        // User aktif & terverifikasi tetapi BELUM memiliki dompet
+        $tanpaDompet = User::create([
+            'nama' => 'Tanpa Dompet',
+            'email' => 'tanpadompet@example.com',
+            'password' => 'password',
+            'role' => 'user',
+            'status' => true,
+            'email_verified_at' => now(),
+        ]);
+
+        $response = $this->actingAs($pengirim)->get(route('transfer.recipients.search', ['query' => 'Tanpa']));
+
+        $response->assertOk();
+        $results = $response->json();
+        $this->assertCount(1, $results);
+        $this->assertSame('Tanpa Dompet', $results[0]['nama']);
+        $this->assertFalse($results[0]['has_wallet']);
+        $this->assertSame([], $results[0]['wallets']);
+        $this->assertNull($results[0]['id_dompet_tujuan']);
+    }
+
+    public function test_user_search_returns_all_recipient_wallets(): void
+    {
+        [$pengirim] = $this->userWithWallet('pengirim-multwallet@example.com', 'Dompet Pengirim', 100000);
+
+        $penerima = User::create([
+            'nama' => 'Multi Wallet',
+            'email' => 'multiwallet@example.com',
+            'password' => 'password',
+            'role' => 'user',
+            'status' => true,
+            'email_verified_at' => now(),
+        ]);
+
+        Dompet::create([
+            'id_user' => $penerima->id_user,
+            'nama_dompet' => 'Dompet Tunai',
+            'saldo_awal' => 50000,
+            'saldo' => 50000,
+        ]);
+
+        Dompet::create([
+            'id_user' => $penerima->id_user,
+            'nama_dompet' => 'Dompet Bank',
+            'saldo_awal' => 75000,
+            'saldo' => 75000,
+        ]);
+
+        $response = $this->actingAs($pengirim)->get(route('transfer.recipients.search', ['query' => 'Multi']));
+
+        $response->assertOk();
+        $results = $response->json();
+        $this->assertCount(1, $results);
+        $this->assertTrue($results[0]['has_wallet']);
+
+        // Semua dompet penerima dikembalikan, diurutkan berdasarkan nama
+        $this->assertCount(2, $results[0]['wallets']);
+        $this->assertSame('Dompet Bank', $results[0]['wallets'][0]['name']);
+        $this->assertSame(75000.0, (float) $results[0]['wallets'][0]['balance']);
+        $this->assertSame('Dompet Tunai', $results[0]['wallets'][1]['name']);
+        $this->assertSame(50000.0, (float) $results[0]['wallets'][1]['balance']);
+    }
+
     private function userWithWallet(string $email, string $walletName, int $balance): array
     {
         $user = User::create([
@@ -71,6 +176,7 @@ class TransferTest extends TestCase
             'password' => 'password',
             'role' => 'user',
             'status' => true,
+            'email_verified_at' => now(),
         ]);
         $wallet = Dompet::create([
             'id_user' => $user->id_user,
