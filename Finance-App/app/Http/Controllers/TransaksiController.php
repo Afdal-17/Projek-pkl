@@ -35,7 +35,7 @@ class TransaksiController extends Controller
                     : ($transaction->jenis === 'pemasukan' ? 'income' : 'expense'),
                 'category' => $transaction->id_transfer !== null
                     ? 'Transfer'
-                    : ($transaction->kategori?->nama_kategori ?? 'Without category'),
+                    : ($transaction->kategori?->nama_kategori ?? ($transaction->nama_transaksi === 'Saldo awal' ? 'Saldo awal' : 'Without category')),
                 'wallet' => $transaction->dompet->nama_dompet,
                 'to' => $transaction->id_transfer !== null
                     ? ($transaction->id_dompet === $transaction->transfer->id_dompet_asal

@@ -9,9 +9,21 @@ class StoreDompetRequest extends FormRequest
 {
     protected function prepareForValidation(): void
     {
+        $saldoAwal = $this->input('saldo_awal');
+        if ($saldoAwal === '' || $saldoAwal === null) {
+            $saldoAwal = null;
+        }
+
+        $saldo = $this->input('saldo');
+        if ($saldo === '' || $saldo === null) {
+            $saldo = null;
+        }
+
         $this->merge([
             'jenis' => $this->input('jenis', 'digital'),
             'warna' => strtolower((string) $this->input('warna', 'brand')),
+            'saldo_awal' => $saldoAwal,
+            'saldo' => $saldo,
         ]);
     }
 
@@ -34,7 +46,8 @@ class StoreDompetRequest extends FormRequest
                     ->where('id_user', $this->user()->id_user)
                     ->ignore($this->route('dompet')?->id_dompet, 'id_dompet'),
             ],
-            'saldo_awal' => ['required', 'numeric', 'min:0'],
+            'saldo' => ['nullable', 'numeric', 'min:0', 'prohibits:saldo_awal'],
+            'saldo_awal' => ['nullable', 'numeric', 'min:0', 'prohibits:saldo'],
         ];
     }
 
@@ -42,6 +55,12 @@ class StoreDompetRequest extends FormRequest
     {
         return [
             'warna.unique' => 'Wallet tidak bisa ditambah karena warna penentu sama.',
+            'saldo.numeric' => 'Current balance harus berupa angka.',
+            'saldo.min' => 'Current balance tidak boleh negatif.',
+            'saldo.prohibits' => 'Hanya boleh mengisi salah satu antara Current Balance atau Saldo Awal.',
+            'saldo_awal.numeric' => 'Saldo awal harus berupa angka.',
+            'saldo_awal.min' => 'Saldo awal tidak boleh negatif.',
+            'saldo_awal.prohibits' => 'Hanya boleh mengisi salah satu antara Current Balance atau Saldo Awal.',
         ];
     }
 }

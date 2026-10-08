@@ -14,7 +14,12 @@
         'email' => $user->email,
         'status' => $user->status ? 'Active' : 'Inactive',
         'canToggle' => ! $user->isAdmin() && ! $user->is(auth()->user()),
-        'canDelete' => ! $user->isAdmin() && ! $user->is(auth()->user()),
+        'canBan' => ! $user->isAdmin() && ! $user->is(auth()->user()) && $user->email_verified_at !== null,
+        'canManage' => ! $user->isAdmin() && ! $user->is(auth()->user()) && $user->email_verified_at !== null,
+        'canVerify' => $user->email_verified_at === null && $user->role === 'user',
+        'ban_days_remaining' => $user->banned_at ? floor(max(0, 30 - $user->banned_at->diffInDays(now()))) : null,
+        'ban_expires_at' => $user->banned_at ? $user->banned_at->addDays(30)->format('d M Y H:i') : null,
+        'ban_reason' => $user->ban_reason,
     ])->values();
 @endphp
 
@@ -26,7 +31,8 @@
         days: @js($days),
         csrfToken: @js(csrf_token()),
         statusUrl: @js(route('admin.users.status', ['user' => '__USER__'])),
-        deleteUrl: @js(route('admin.users.destroy', ['user' => '__USER__'])),
+        banUrl: @js(route('admin.users.ban', ['user' => '__USER__'])),
+        verifyUrl: @js(route('admin.users.verify', ['user' => '__USER__'])),
 
         W: 800, H: 240, padL: 48, padR: 16, padT: 16, padB: 28, max: {{ $chartMaximum }},
 
@@ -57,25 +63,6 @@
             });
 
             if (response.ok) user.status = status;
-        },
-
-        async remove(id) {
-            if (!confirm('Delete this user?')) return;
-
-            const user = this.users.find(u => u.id === id);
-            if (!user?.canDelete) return;
-
-            const response = await fetch(this.deleteUrl.replace('__USER__', id), {
-                method: 'DELETE',
-                headers: { 'X-CSRF-TOKEN': this.csrfToken, 'Accept': 'application/json' },
-            });
-
-            if (response.ok) {
-                this.users = this.users.filter(u => u.id !== id);
-            } else {
-                const result = await response.json();
-                alert(result.message ?? 'User could not be deleted.');
-            }
         }
     }"
 >
@@ -170,17 +157,16 @@
             <a href="/admin/users" class="text-sm font-medium text-brand hover:underline">View all</a>
         </div>
 
-        <div class="mt-4 overflow-hidden rounded-xl border border-line">
+        
 
-            <div class="grid grid-cols-[2fr_2.6fr_1fr_1.3fr] gap-4 bg-gray-50 px-4 py-3 text-xs font-semibold text-muted">
+            <div class="grid grid-cols-[2fr_2.6fr_1fr] gap-4 bg-gray-50 px-4 py-3 text-xs font-semibold text-muted">
                 <span>Name</span>
                 <span>Email</span>
                 <span>Status</span>
-                <span>Actions</span>
             </div>
 
             <template x-for="u in users" :key="u.id">
-                <div class="grid grid-cols-[2fr_2.6fr_1fr_1.3fr] items-center gap-4 border-t border-line px-4 py-3 text-sm">
+                <div class="grid grid-cols-[2fr_2.6fr_1fr] items-center gap-4 border-t border-line px-4 py-3 text-sm">
 
                     <div class="flex items-center gap-3">
                         <span class="h-8 w-8 rounded-full bg-brand-soft"></span>
@@ -196,26 +182,6 @@
                             x-text="u.status"
                         ></span>
                     </span>
-
-                    <div class="flex items-center gap-2">
-
-                        <button type="button" title="Activate" x-on:click="setStatus(u, 'Active')"
-                                class="flex h-8 w-8 items-center justify-center rounded-md bg-income-soft text-income hover:opacity-80">
-                            <x-icon name="check" size="h-4 w-4" />
-                        </button>
-
-                        <button type="button" title="Deactivate" x-on:click="setStatus(u, 'Inactive')"
-                                class="flex h-8 w-8 items-center justify-center rounded-md bg-warn-soft text-warn hover:opacity-80">
-                            <x-icon name="pause" size="h-4 w-4" />
-                        </button>
-
-                        <button type="button" title="Delete" x-on:click="remove(u.id)"
-                                class="flex h-8 w-8 items-center justify-center rounded-md bg-expense-soft text-expense hover:opacity-80">
-                            <x-icon name="trash" size="h-4 w-4" />
-                        </button>
-
-                    </div>
-
                 </div>
             </template>
 

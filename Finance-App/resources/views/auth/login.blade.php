@@ -7,6 +7,19 @@
     <!-- Session Status -->
     <x-auth-session-status class="mb-4" :status="session('status')" />
 
+    <!-- Ban/Error Message with Contact Admin -->
+    @if (session('error'))
+        <div class="mb-4 p-4 rounded-xl border border-red-200 bg-red-50">
+            <p class="text-sm text-red-800">{{ session('error') }}</p>
+            @if (session('show_contact_admin'))
+                <a href="mailto:admin@example.com?subject=Bantuan Akun Terblokir" class="mt-2 inline-flex items-center text-sm font-medium text-red-700 hover:text-red-900">
+                    <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                    Hubungi Admin
+                </a>
+            @endif
+        </div>
+    @endif
+
     <form method="POST" action="{{ route('login') }}">
         @csrf
 

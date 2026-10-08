@@ -46,7 +46,7 @@ class DompetController extends Controller
                     : ($transaction->jenis === 'pemasukan' ? 'income' : 'expense'),
                 'category' => $transaction->id_transfer !== null
                     ? 'Transfer'
-                    : ($transaction->kategori?->nama_kategori ?? 'Without category'),
+                    : ($transaction->kategori?->nama_kategori ?? ($transaction->nama_transaksi === 'Saldo awal' ? 'Saldo awal' : 'Without category')),
                 'amount' => (float) $transaction->jumlah,
                 'jenis' => $transaction->jenis,
                 'icon' => $transaction->id_transfer !== null
@@ -64,7 +64,33 @@ class DompetController extends Controller
     public function store(StoreDompetRequest $request): RedirectResponse
     {
         $data = $request->validated();
-        Dompet::create([...$data, 'id_user' => Auth::id(), 'saldo' => $data['saldo_awal']]);
+        $saldoAwal = isset($data['saldo_awal']) && $data['saldo_awal'] !== null && $data['saldo_awal'] !== ''
+            ? (float) $data['saldo_awal']
+            : 0.0;
+        $saldo = isset($data['saldo']) && $data['saldo'] !== null && $data['saldo'] !== ''
+            ? (float) $data['saldo']
+            : $saldoAwal;
+
+        DB::transaction(function () use ($data, $saldoAwal, $saldo): void {
+            $dompet = Dompet::create([
+                ...$data,
+                'id_user' => Auth::id(),
+                'saldo_awal' => $saldoAwal,
+                'saldo' => $saldo,
+            ]);
+
+            if ($saldoAwal > 0) {
+                Transaksi::create([
+                    'id_kategori' => null,
+                    'id_dompet' => $dompet->id_dompet,
+                    'nama_transaksi' => 'Saldo awal',
+                    'jumlah' => $saldoAwal,
+                    'jenis' => 'pemasukan',
+                    'tanggal' => now(),
+                ]);
+            }
+        });
+
         return redirect()->route('dompet.index');
     }
 

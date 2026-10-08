@@ -22,10 +22,33 @@ class CheckRole
             return redirect()->route('login')->with('error', 'Akun Anda belum diverifikasi oleh admin.');
         }
 
+        // Auto-unban jika sudah lebih dari 30 hari
+        if ($user?->isBanned() && $user->banned_at->addDays(30)->isPast()) {
+            $user->update([
+                'status' => true,
+                'banned_at' => null,
+                'ban_reason' => null,
+            ]);
+            $user->refresh();
+        }
+
+        // Auto-inactive jika user tidak login selama 1 tahun (365 hari)
+        if ($user?->status && $user?->role === 'user') {
+            $lastActiveAt = $user->last_seen_at ?? $user->created_at;
+            if ($lastActiveAt && $lastActiveAt->diffInDays(now()) >= 365) {
+                $user->update(['status' => false]);
+                $user->refresh();
+            }
+        }
+
         // Akun yang diblokir (banned) oleh admin
         if ($user?->isBanned()) {
             Auth::logout();
-            return redirect()->route('login')->with('error', 'Akun Anda telah diblokir. Silakan hubungi admin.');
+            $banReason = $user->ban_reason ?? 'melanggar ketentuan layanan';
+            $daysRemaining = max(0, 30 - $user->banned_at->diffInDays(now()));
+            return redirect()->route('login')
+                ->with('error', "Akun Anda telah diblokir selama 30 hari karena {$banReason}. Sisa {$daysRemaining} hari lagi.")
+                ->with('show_contact_admin', true);
         }
 
         $isActive = $user?->status_aktif ?? $user?->status ?? true;

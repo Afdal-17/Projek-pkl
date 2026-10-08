@@ -71,6 +71,7 @@
         name: '',
         type: 'Digital wallet',
         balance: '',
+        saldo_awal: '',
         color: 'brand'
     },
     async saveWallet() {
@@ -82,7 +83,17 @@
             warna: this.editing.color,
         });
 
-        if (this.mode === 'add') data.set('saldo_awal', String(Number(String(this.editing.balance).replace(/[^0-9.-]/g, '')) || 0));
+        if (this.mode === 'add') {
+            const rawBalance = String(this.editing.balance ?? '').trim();
+            const rawSaldoAwal = String(this.editing.saldo_awal ?? '').trim();
+
+            if (rawBalance !== '') {
+                data.set('saldo', String(Number(rawBalance.replace(/[^0-9.-]/g, '')) || 0));
+            }
+            if (rawSaldoAwal !== '') {
+                data.set('saldo_awal', String(Number(rawSaldoAwal.replace(/[^0-9.-]/g, '')) || 0));
+            }
+        }
         else data.set('saldo', String(Number(String(this.editing.balance).replace(/[^0-9.-]/g, '')) || 0));
 
         const response = await fetch(this.mode === 'add' ? @js(route('dompet.store')) : @js(route('dompet.manage', ['dompet' => '__ID__'])).replace('__ID__', this.editing.id), {
@@ -152,6 +163,7 @@
                 name: '',
                 type: 'Digital wallet',
                 balance: '',
+                saldo_awal: '',
                 color: 'brand'
             };
             open = true;
@@ -306,7 +318,13 @@
                     </select>
                 </div>
 
-                <x-input label="Current balance" name="wallet_balance" inputmode="decimal" type="text" placeholder="0.00" x-model="editing.balance" />
+                <x-input label="Current balance" name="wallet_balance" inputmode="decimal" type="text" placeholder="0.00" x-model="editing.balance" x-on:input="if (editing.balance) editing.saldo_awal = ''" />
+
+                <div x-show="mode === 'add'">
+                    <label class="mb-1.5 block text-sm font-medium">Saldo awal (Opsional)</label>
+                    <input name="saldo_awal" inputmode="decimal" type="text" placeholder="0.00" x-model="editing.saldo_awal" x-on:input="if (editing.saldo_awal) editing.balance = ''" class="w-full rounded-lg border border-line bg-white px-3 py-2.5 text-sm text-ink placeholder:text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20" />
+                    <p class="mt-1 text-xs text-muted">Hanya boleh mengisi salah satu. Saldo awal akan dicatat sebagai transaksi pemasukan.</p>
+                </div>
 
                 <div>
                     <label class="mb-2 block text-sm font-medium">Wallet color</label>

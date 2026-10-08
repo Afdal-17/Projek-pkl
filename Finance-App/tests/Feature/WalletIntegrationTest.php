@@ -111,5 +111,125 @@ class WalletIntegrationTest extends TestCase
             'warna' => 'brand',
             'saldo' => 2500,
         ]);
+        $this->assertDatabaseHas('transaksi', [
+            'nama_transaksi' => 'Saldo awal',
+            'jumlah' => 2500,
+            'jenis' => 'pemasukan',
+        ]);
+    }
+
+    public function test_wallet_creation_with_optional_empty_initial_balance_defaults_to_zero_without_transaction(): void
+    {
+        $user = User::create([
+            'nama' => 'Zero Balance User',
+            'email' => 'zero-balance@example.com',
+            'password' => 'password',
+            'role' => 'user',
+            'status' => true,
+            'email_verified_at' => now(),
+        ]);
+
+        // Test without saldo_awal field provided
+        $this->actingAs($user)->post(route('dompet.store'), [
+            'nama_dompet' => 'Dompet Kosong',
+            'deskripsi' => 'Tanpa saldo awal',
+            'jenis' => 'digital',
+            'warna' => 'brand',
+        ])->assertRedirect(route('dompet.index'));
+
+        $this->assertDatabaseHas('dompet', [
+            'id_user' => $user->id_user,
+            'nama_dompet' => 'Dompet Kosong',
+            'saldo_awal' => 0,
+            'saldo' => 0,
+        ]);
+        $this->assertDatabaseMissing('transaksi', [
+            'nama_transaksi' => 'Saldo awal',
+        ]);
+    }
+
+    public function test_wallet_creation_with_initial_balance_creates_transaction(): void
+    {
+        $user = User::create([
+            'nama' => 'Initial Balance User',
+            'email' => 'initial-balance@example.com',
+            'password' => 'password',
+            'role' => 'user',
+            'status' => true,
+            'email_verified_at' => now(),
+        ]);
+
+        $this->actingAs($user)->post(route('dompet.store'), [
+            'nama_dompet' => 'Dompet Tabungan Baru',
+            'deskripsi' => 'Dengan saldo awal',
+            'jenis' => 'bank',
+            'warna' => 'income',
+            'saldo_awal' => 150000,
+        ])->assertRedirect(route('dompet.index'));
+
+        $wallet = Dompet::where('id_user', $user->id_user)->firstOrFail();
+        $this->assertSame('150000.00', (string) $wallet->saldo);
+        $this->assertSame('150000.00', (string) $wallet->saldo_awal);
+
+        $this->assertDatabaseHas('transaksi', [
+            'id_dompet' => $wallet->id_dompet,
+            'nama_transaksi' => 'Saldo awal',
+            'jumlah' => 150000,
+            'jenis' => 'pemasukan',
+        ]);
+    }
+
+    public function test_wallet_creation_with_both_current_balance_and_initial_balance(): void
+    {
+        $user = User::create([
+            'nama' => 'Both Balances User',
+            'email' => 'both-balances@example.com',
+            'password' => 'password',
+            'role' => 'user',
+            'status' => true,
+            'email_verified_at' => now(),
+        ]);
+
+        $response = $this->actingAs($user)->post(route('dompet.store'), [
+            'nama_dompet' => 'Dompet Fleksibel',
+            'deskripsi' => 'Dengan saldo saat ini dan saldo awal',
+            'jenis' => 'bank',
+            'warna' => 'warn',
+            'saldo' => 200000,
+            'saldo_awal' => 100000,
+        ]);
+
+        $response->assertSessionHasErrors(['saldo', 'saldo_awal']);
+        $this->assertDatabaseMissing('dompet', [
+            'nama_dompet' => 'Dompet Fleksibel',
+        ]);
+    }
+
+    public function test_wallet_creation_with_only_current_balance(): void
+    {
+        $user = User::create([
+            'nama' => 'Only Current Balance User',
+            'email' => 'only-current@example.com',
+            'password' => 'password',
+            'role' => 'user',
+            'status' => true,
+            'email_verified_at' => now(),
+        ]);
+
+        $this->actingAs($user)->post(route('dompet.store'), [
+            'nama_dompet' => 'Dompet Saldo Saat Ini',
+            'jenis' => 'digital',
+            'warna' => 'dark',
+            'saldo' => 75000,
+        ])->assertRedirect(route('dompet.index'));
+
+        $wallet = Dompet::where('id_user', $user->id_user)->firstOrFail();
+        $this->assertSame('75000.00', (string) $wallet->saldo);
+        $this->assertSame('0.00', (string) $wallet->saldo_awal);
+
+        $this->assertDatabaseMissing('transaksi', [
+            'id_dompet' => $wallet->id_dompet,
+            'nama_transaksi' => 'Saldo awal',
+        ]);
     }
 }

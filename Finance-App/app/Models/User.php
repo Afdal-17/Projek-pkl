@@ -35,6 +35,7 @@ class User extends Authenticatable
         'awal_minggu',
         'last_seen_at',
         'banned_at',
+        'ban_reason',
         'email_verified_at',
     ];
 

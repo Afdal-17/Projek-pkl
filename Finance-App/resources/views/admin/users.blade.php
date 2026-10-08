@@ -11,10 +11,15 @@
         'email' => $user->email,
         'status' => $user->email_verified_at === null && $user->role === 'user' ? 'Unverified' : ($user->banned_at ? 'Banned' : ($user->status ? 'Active' : 'Inactive')),
         'banned' => $user->banned_at !== null,
-        'canToggle' => ! $user->isAdmin() && ! $user->is(auth()->user()),
+        'ban_reason' => $user->ban_reason,
+        'banned_at' => $user->banned_at?->toIso8601String(),
+        'ban_days_remaining' => $user->banned_at ? floor(max(0, 30 - $user->banned_at->diffInDays(now()))) : null,
+        'ban_expires_at' => $user->banned_at?->addDays(30)->format('d M Y H:i'),
+        'last_seen_at' => $user->last_seen_at?->toIso8601String(),
+        'canToggle' => ! $user->isAdmin() && ! $user->is(auth()->user()) && $user->banned_at !== null,
         'canBan' => ! $user->isAdmin() && ! $user->is(auth()->user()) && $user->email_verified_at !== null,
-        'canManage' => ! $user->isAdmin() && ! $user->is(auth()->user()),
         'canVerify' => $user->email_verified_at === null && $user->role === 'user',
+        'canDelete' => ! $user->isAdmin() && ! $user->is(auth()->user()) && ($user->last_seen_at ?? $user->created_at)->diffInDays(now()) >= 365,
     ])->values();
 @endphp
 
@@ -22,12 +27,11 @@
     x-data="{
         users: @js($userRows),
         search: '',
-        editingId: null,
-        form: { name: '', email: '' },
+        banningId: null,
+        banReason: '',
         csrfToken: @js(csrf_token()),
         statusUrl: @js(route('admin.users.status', ['user' => '__USER__'])),
         banUrl: @js(route('admin.users.ban', ['user' => '__USER__'])),
-        updateUrl: @js(route('admin.users.update', ['user' => '__USER__'])),
         deleteUrl: @js(route('admin.users.destroy', ['user' => '__USER__'])),
         verifyUrl: @js(route('admin.users.verify', ['user' => '__USER__'])),
 
@@ -51,22 +55,36 @@
             });
 
             if (response.ok) {
-                // Toggle pada akun banned akan mengaktifkan kembali (unban)
+                // Hanya untuk unban (mengaktifkan kembali akun yang dibanned)
                 if (user.banned) {
                     user.banned = false;
                     user.status = 'Active';
-                } else {
-                    user.status = user.status === 'Active' ? 'Inactive' : 'Active';
+                    user.ban_reason = null;
                 }
             }
         },
 
-        async banUser(user) {
+        openBanModal(user) {
             if (!user.canBan) return;
+            this.banningId = user.id;
+            this.banReason = '';
+        },
+
+        async submitBan() {
+            const user = this.users.find(u => u.id === this.banningId);
+            if (!user) return;
+
+            const banning = !user.banned;
+
+            const body = new URLSearchParams({ _token: this.csrfToken });
+            if (banning && this.banReason.trim()) {
+                body.set('ban_reason', this.banReason.trim());
+            }
 
             const response = await fetch(this.banUrl.replace('__USER__', user.id), {
                 method: 'PATCH',
-                headers: { 'X-CSRF-TOKEN': this.csrfToken, 'Accept': 'application/json' },
+                headers: { 'X-CSRF-TOKEN': this.csrfToken, 'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: body,
             });
 
             if (response.ok) {
@@ -74,18 +92,21 @@
                 const bannedNow = result.status === 'banned';
                 user.status = bannedNow ? 'Banned' : 'Active';
                 user.banned = bannedNow;
+                user.ban_reason = bannedNow ? this.banReason.trim() : null;
                 user.canBan = true;
+                this.banningId = null;
+                this.banReason = '';
             } else {
                 const result = await response.json();
-                alert(result.message ?? 'User could not be updated.');
+                alert(Object.values(result.errors ?? {}).flat()[0] || result.message || 'User could not be updated.');
             }
         },
 
         async remove(id) {
-            if (!confirm('Delete this user?')) return;
-
             const user = this.users.find(u => u.id === id);
-            if (!user?.canManage) return;
+            if (!user?.canDelete) return;
+
+            if (!confirm('Hapus user ini? User tidak login selama 1 tahun.')) return;
 
             const response = await fetch(this.deleteUrl.replace('__USER__', id), {
                 method: 'DELETE',
@@ -97,33 +118,6 @@
             } else {
                 const result = await response.json();
                 alert(result.message ?? 'User could not be deleted.');
-            }
-        },
-
-        openEdit(u) {
-            if (!u.canManage) return;
-            this.editingId = u.id;
-            this.form = { name: u.name, email: u.email };
-        },
-
-        async saveEdit() {
-            const user = this.users.find(u => u.id === this.editingId);
-            if (!user?.canManage) return;
-
-            const response = await fetch(this.updateUrl.replace('__USER__', user.id), {
-                method: 'PATCH',
-                headers: { 'X-CSRF-TOKEN': this.csrfToken, 'Accept': 'application/json' },
-                body: new URLSearchParams({ name: this.form.name.trim(), email: this.form.email.trim() }),
-            });
-
-            if (response.ok) {
-                const updated = await response.json();
-                user.name = updated.name;
-                user.email = updated.email;
-                this.editingId = null;
-            } else {
-                const result = await response.json();
-                alert(Object.values(result.errors ?? {}).flat()[0] ?? 'User could not be updated.');
             }
         },
 
@@ -206,6 +200,11 @@
                             :class="u.status === 'Active' ? 'bg-income-soft text-income' : (u.status === 'Banned' ? 'bg-expense-soft text-expense' : (u.status === 'Unverified' ? 'bg-warn-soft text-warn' : 'bg-gray-100 text-muted'))"
                             x-text="u.status"
                         ></span>
+                        <template x-if="u.banned && u.ban_days_remaining !== null">
+                            <div class="mt-1 text-xs text-muted">
+                                <span x-text="u.ban_days_remaining + ' hari tersisa'"></span>
+                            </div>
+                        </template>
                     </span>
 
                     <div class="flex items-center gap-2">
@@ -215,23 +214,22 @@
                             <x-icon name="check" size="h-4 w-4" />
                         </button>
 
-                        <button type="button" title="Activate" x-show="!u.canVerify" x-on:click="toggleStatus(u)" :disabled="!u.canToggle"
+                        <button type="button" x-show="u.banned" title="Unban User" x-on:click="toggleStatus(u)" :disabled="!u.canToggle"
                                 class="flex h-8 w-8 items-center justify-center rounded-md bg-income-soft text-income hover:opacity-80" x-cloak>
                             <x-icon name="check" size="h-4 w-4" />
                         </button>
 
-                        <button type="button" :title="u.banned ? 'Unban' : 'Ban'" x-on:click="banUser(u)" :disabled="!u.canBan"
+                        <button type="button" x-show="!u.banned && u.canBan" title="Suspend User" x-on:click="openBanModal(u)"
                                 class="flex h-8 w-8 items-center justify-center rounded-md bg-expense-soft text-expense hover:opacity-80">
-                            <x-icon name="ban" size="h-4 w-4" x-show="!u.banned" />
-                            <x-icon name="check" size="h-4 w-4" x-show="u.banned" x-cloak />
+                            <x-icon name="ban" size="h-4 w-4" />
                         </button>
 
-                        <button type="button" title="Edit" x-on:click="openEdit(u)"
-                            class="flex h-8 w-8 items-center justify-center rounded-md bg-warn-soft text-warn hover:opacity-80">
-                            <x-icon name="pencil" size="h-4 w-4" />
+                        <button type="button" title="View ban details" x-show="u.banned && u.ban_reason" x-on:click="alert('Alasan suspend: ' + u.ban_reason)"
+                                class="flex h-8 w-8 items-center justify-center rounded-md bg-warn-soft text-warn hover:opacity-80" x-cloak>
+                            <x-icon name="alert-circle" size="h-4 w-4" />
                         </button>
 
-                        <button type="button" title="Delete" x-on:click="remove(u.id)"
+                        <button type="button" title="Delete User (1 tahun tidak login)" x-show="u.canDelete" x-on:click="remove(u.id)"
                                 class="flex h-8 w-8 items-center justify-center rounded-md bg-expense-soft text-expense hover:opacity-80">
                             <x-icon name="trash" size="h-4 w-4" />
                         </button>
@@ -274,34 +272,37 @@
     </x-card>
 
 
-    {{-- Modal edit user --}}
-    <div x-cloak x-show="editingId !== null" x-transition.opacity
-         x-on:keydown.escape.window="editingId = null"
-         x-on:click.self="editingId = null"
+    {{-- Modal suspend user --}}
+    <div x-cloak x-show="banningId !== null" x-transition.opacity
+         x-on:keydown.escape.window="banningId = null"
+         x-on:click.self="banningId = null"
          class="fixed inset-0 z-30 flex items-center justify-center bg-black/30 p-4">
 
         <div class="w-full max-w-sm rounded-2xl border border-line bg-white p-6 shadow-xl">
 
             <div class="flex items-start justify-between">
                 <div>
-                    <h3 class="text-2xl font-bold">Edit User</h3>
-                    <p class="mt-1 text-xs text-muted">Update the details for this user.</p>
+                    <h3 class="text-2xl font-bold">Suspend User</h3>
+                    <p class="mt-1 text-xs text-muted">Berikan alasan suspend untuk akun ini.</p>
                 </div>
 
-                <button type="button" x-on:click="editingId = null"
+                <button type="button" x-on:click="banningId = null"
                         class="flex h-9 w-9 items-center justify-center rounded-lg border border-line hover:bg-page">
                     <x-icon name="x" size="h-4 w-4" />
                 </button>
             </div>
 
             <div class="mt-5 space-y-4">
-                <x-input label="Name" name="user_name" x-model="form.name" />
-                <x-input label="Email" name="user_email" type="email" x-model="form.email" />
+                <div>
+                    <label class="mb-1.5 block text-sm font-medium">Alasan Suspend (30 hari)</label>
+                    <textarea x-model="banReason" rows="4" required placeholder="Jelaskan alasan suspend akun ini..." class="w-full rounded-lg border border-line bg-white px-3 py-2.5 text-sm text-ink placeholder:text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"></textarea>
+                    <p class="mt-1 text-xs text-muted">User akan melihat: "Akun Anda telah diblokir selama 30 hari karena [alasan ini]"</p>
+                </div>
             </div>
 
             <div class="mt-6 flex justify-end gap-3">
-                <x-button variant="outline" x-on:click="editingId = null">Cancel</x-button>
-                <x-button x-on:click="saveEdit()">Save changes</x-button>
+                <x-button variant="outline" x-on:click="banningId = null">Cancel</x-button>
+                <x-button variant="danger" x-on:click="submitBan()">Suspend User</x-button>
             </div>
 
         </div>

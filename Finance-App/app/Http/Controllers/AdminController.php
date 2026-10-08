@@ -49,22 +49,40 @@ class AdminController extends Controller
     public function manageUsers(): View
     {
         return view('admin.users', [
-            'users' => User::orderBy('nama')->paginate(15),
+            'users' => User::where('role', 'user')->orderBy('nama')->paginate(15),
         ]);
     }
 
-    public function toggleStatus(Request $request, User $user): RedirectResponse
+    public function toggleStatus(Request $request, User $user): \Illuminate\Http\JsonResponse|RedirectResponse
     {
         abort_if($user->is($request->user()), 422, 'Admin tidak dapat menonaktifkan akunnya sendiri.');
         abort_if($user->isAdmin(), 403, 'Status akun admin tidak dapat diubah dari halaman ini.');
 
-        $ban = $user->banned_at !== null;
-        $reactivating = ! $user->status || $ban;
+        // Hanya untuk mengaktifkan kembali akun yang dibanned (unban)
+        if ($user->banned_at !== null) {
+            $user->update([
+                'status' => true,
+                'banned_at' => null,
+                'ban_reason' => null,
+            ]);
 
-        $user->update([
-            'status' => $reactivating ? true : false,
-            'banned_at' => $reactivating ? null : $user->banned_at,
-        ]);
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'status' => 'active',
+                    'message' => 'Akun user telah diaktifkan kembali.',
+                ]);
+            }
+
+            return back()->with('status', 'Akun user telah diaktifkan kembali.');
+        }
+
+        // User tidak dibanned, tidak ada aksi yang diizinkan
+        if ($request->expectsJson()) {
+            return response()->json([
+                'status' => 'no_change',
+                'message' => 'Tidak ada perubahan status.',
+            ]);
+        }
 
         return back();
     }
@@ -76,10 +94,23 @@ class AdminController extends Controller
 
         $banning = $user->banned_at === null;
 
-        $user->update([
-            'status' => ! $banning,
-            'banned_at' => $banning ? now() : null,
-        ]);
+        if ($banning) {
+            $validated = $request->validate([
+                'ban_reason' => ['required', 'string', 'max:500'],
+            ]);
+
+            $user->update([
+                'status' => false,
+                'banned_at' => now(),
+                'ban_reason' => $validated['ban_reason'],
+            ]);
+        } else {
+            $user->update([
+                'status' => true,
+                'banned_at' => null,
+                'ban_reason' => null,
+            ]);
+        }
 
         if ($request->expectsJson()) {
             return response()->json([
@@ -159,14 +190,14 @@ class AdminController extends Controller
             ], 409);
         }
 
+        // User hanya bisa dihapus jika tidak login selama 1 tahun (365 hari)
         $lastActiveAt = $user->last_seen_at ?? $user->created_at;
-        $longInactive = ($user->status === false || $user->banned_at !== null)
-            && $lastActiveAt !== null
-            && $lastActiveAt->diffInDays(now()) >= 30;
+        $longInactive = $lastActiveAt !== null
+            && $lastActiveAt->diffInDays(now()) >= 365;
 
         if (! $longInactive) {
             return response()->json([
-                'message' => 'User hanya bisa dihapus jika akunnya non-aktif atau diblokir lebih dari 30 hari.',
+                'message' => 'User hanya bisa dihapus jika tidak login selama 1 tahun.',
             ], 409);
         }
 
