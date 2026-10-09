@@ -68,7 +68,6 @@ class TransferController extends Controller
         }
 
         $users = User::query()
-            ->where('status', true)
             ->where('role', 'user')
             ->whereNotNull('email_verified_at')
             ->where('id_user', '!=', (int) Auth::id())
@@ -86,11 +85,11 @@ class TransferController extends Controller
                 'id_user' => $user->id_user,
                 'nama' => $user->nama,
                 'email' => $user->email,
+                'is_banned' => $user->isBanned(),
                 'has_wallet' => $user->dompet->isNotEmpty(),
                 'wallets' => $user->dompet->map(fn (Dompet $wallet): array => [
                     'id' => $wallet->id_dompet,
                     'name' => $wallet->nama_dompet,
-                    'balance' => (float) $wallet->saldo,
                 ])->values(),
                 'id_dompet_tujuan' => $user->dompet->first()?->id_dompet,
                 'dompet' => $user->dompet->first()?->nama_dompet,

@@ -1,6 +1,6 @@
 @extends('layouts.main')
 
-@section('title', 'Add Saving Target')
+@section('title', __('saving.add_target'))
 
 @section('content')
 
@@ -88,8 +88,8 @@
 
     {{-- Header --}}
     <div>
-        <h1 class="text-3xl font-bold">Add Saving Target</h1>
-        <p class="mt-1 text-sm text-muted">Set your own personal savings goal.</p>
+        <h1 class="text-3xl font-bold">{{ __('saving.add_target') }}</h1>
+        <p class="mt-1 text-sm text-muted">{{ __('saving.subtitle') }}</p>
     </div>
 
     <div class="mt-8 grid gap-6 lg:grid-cols-[2fr_1.2fr]">
@@ -99,7 +99,7 @@
 
             {{-- Name --}}
             <div>
-                <label for="target_name" class="mb-2 block text-sm font-medium">Name Target</label>
+                <label for="target_name" class="mb-2 block text-sm font-medium">{{ __('saving.target_name') }}</label>
                 <input
                     id="target_name"
                     type="text"
@@ -111,7 +111,7 @@
 
             {{-- Description --}}
             <div class="mt-6">
-                <label for="target_note" class="mb-2 block text-sm font-medium">Description</label>
+                <label for="target_note" class="mb-2 block text-sm font-medium">{{ __('saving.description') }}</label>
                 <textarea
                     id="target_note"
                     rows="4"
@@ -123,7 +123,7 @@
 
             {{-- Wallet --}}
             <div class="mt-6">
-                <label for="target_wallet" class="mb-2 block text-sm font-medium">Wallet</label>
+                <label for="target_wallet" class="mb-2 block text-sm font-medium">{{ __('saving.wallet') }}</label>
 
                 <div class="relative">
                     <x-icon name="wallet" size="h-4 w-4"
@@ -146,7 +146,7 @@
 
             {{-- Saving target --}}
             <div class="mt-6">
-                <label for="target_amount" class="mb-2 block text-sm font-medium">Saving Target</label>
+                <label for="target_amount" class="mb-2 block text-sm font-medium">{{ __('saving.saving_target') }}</label>
 
                 <div class="relative">
                     <span class="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-semibold text-muted" x-text="window.financeMoney.symbol"></span>
@@ -163,7 +163,7 @@
 
             {{-- Initial savings --}}
             <div class="mt-6">
-                <label for="initial_amount" class="mb-2 block text-sm font-medium">Initial Savings (Optional)</label>
+                <label for="initial_amount" class="mb-2 block text-sm font-medium">{{ __('saving.initial_savings') }}</label>
 
                 <div class="relative">
                     <span class="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-semibold text-muted" x-text="window.financeMoney.symbol"></span>
@@ -181,8 +181,8 @@
 
             {{-- Tombol --}}
             <div class="mt-6 flex justify-end gap-3">
-                <x-button href="/saving" variant="outline">Cancel</x-button>
-                <x-button x-on:click="saveTarget()">Add target</x-button>
+                <x-button href="/saving" variant="outline">{{ __('saving.cancel') }}</x-button>
+                <x-button x-on:click="saveTarget()">{{ __('saving.add_button') }}</x-button>
             </div>
 
         </x-card>
@@ -192,29 +192,29 @@
         <div>
             <x-card class="p-6">
 
-                <h2 class="text-lg font-semibold">Summary</h2>
+                <h2 class="text-lg font-semibold">{{ __('saving.summary') }}</h2>
 
                 <div class="mt-5 space-y-4 text-sm">
 
                     <div class="flex items-center justify-between">
-                        <span class="text-muted">Name Target</span>
+                        <span class="text-muted">{{ __('saving.target_name') }}</span>
                         <span class="rounded-full bg-expense-soft px-3 py-1 text-xs font-medium"
                               x-text="name || '-'"></span>
                     </div>
 
                     <div class="flex items-center justify-between">
-                        <span class="text-muted">Wallet</span>
+                        <span class="text-muted">{{ __('saving.wallet') }}</span>
                         <span class="rounded-full bg-expense-soft px-3 py-1 text-xs font-medium"
                               x-text="wallets.find(item => String(item.id) === wallet)?.name ?? '-' "></span>
                     </div>
 
                     <div class="flex items-center justify-between">
-                        <span class="text-muted">Saving Target</span>
+                        <span class="text-muted">{{ __('saving.saving_target') }}</span>
                         <span class="text-base font-bold" x-text="rp(target)"></span>
                     </div>
 
                     <div class="flex items-center justify-between">
-                        <span class="text-muted">Initial Savings</span>
+                        <span class="text-muted">{{ __('saving.initial_savings') }}</span>
                         <span class="text-base font-bold" x-text="rp(initial)"></span>
                     </div>
 

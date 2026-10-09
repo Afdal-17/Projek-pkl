@@ -35,6 +35,13 @@ class StoreTransferRequest extends FormRequest
             if ($this->filled('id_dompet_asal') && $this->input('id_dompet_asal') === $this->input('id_dompet_tujuan')) {
                 $validator->errors()->add('id_dompet_tujuan', 'Dompet tujuan harus berbeda dari dompet asal.');
             }
+
+            if ($this->filled('id_dompet_tujuan')) {
+                $targetWallet = \App\Models\Dompet::with('user')->find($this->input('id_dompet_tujuan'));
+                if ($targetWallet && $targetWallet->user && $targetWallet->user->isBanned()) {
+                    $validator->errors()->add('id_dompet_tujuan', 'Akun penerima sedang ditangguhkan (banned) oleh admin dan tidak dapat menerima transfer.');
+                }
+            }
         });
     }
 }

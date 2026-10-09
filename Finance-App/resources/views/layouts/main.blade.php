@@ -38,9 +38,9 @@
 
             <nav class="flex items-center gap-1 text-sm font-medium">
                 @foreach ([
-                    ['Dashboard', '/dashboard', ['dashboard*', 'transfer*']],
-                    ['Transactions', '/transactions', ['transactions*']],
-                    ['Saving', '/saving', ['saving*']],
+                    [__('nav.dashboard'), '/dashboard', ['dashboard*', 'transfer*']],
+                    [__('nav.transaksi'), '/transactions', ['transactions*']],
+                    [__('nav.target_tabungan'), '/saving', ['saving*']],
                 ] as [$label, $url, $patterns])
                     <a href="{{ $url }}"
                        class="rounded-lg px-4 py-2 transition {{ request()->is(...$patterns) ? 'bg-brand-soft text-brand' : 'text-muted hover:text-ink' }}">
@@ -118,7 +118,7 @@
                             </div>
                             <template x-if="unread > 0">
                                 <button type="button" @click="markAllAsRead()" class="text-[11px] text-brand hover:underline">
-                                    Tandai dibaca
+                                    {{ __('notifications.mark_all_read') }}
                                 </button>
                             </template>
                         </div>
@@ -148,7 +148,7 @@
 
                             <template x-if="items.length === 0">
                                 <div class="px-4 py-5 text-center text-xs text-muted">
-                                    Belum ada notifikasi baru.
+                                    {{ __('notifications.no_notifications') }}
                                 </div>
                             </template>
                         </div>
@@ -156,7 +156,7 @@
                         {{-- Footer Pop-up "Lihat semua" --}}
                         <div class="border-t border-line bg-page/50 px-3 py-2 text-center">
                             <a href="/notifications" @click="open = false" class="inline-flex items-center justify-center gap-1 text-[11px] font-semibold text-brand hover:underline">
-                                <span>Lihat semua</span>
+                                <span>{{ __('notifications.view_all') }}</span>
                                 <x-icon name="arrow-right" size="h-3 w-3" />
                             </a>
                         </div>
@@ -178,10 +178,10 @@
                     </button>
                     <div x-cloak x-show="open" x-on:click.outside="open = false"
                          class="absolute right-0 z-20 mt-2 w-44 rounded-xl border border-line bg-white p-1 text-sm shadow-lg">
-                        <a href="/account" class="block rounded-lg px-3 py-2 hover:bg-page">Account</a>
+                        <a href="/account" class="block rounded-lg px-3 py-2 hover:bg-page">{{ __('nav.account') }}</a>
                         <form method="POST" action="{{ route('logout') }}">
                             @csrf
-                            <button type="submit" class="block w-full rounded-lg px-3 py-2 text-left text-expense hover:bg-page">Sign out</button>
+                            <button type="submit" class="block w-full rounded-lg px-3 py-2 text-left text-expense hover:bg-page">{{ __('nav.sign_out') }}</button>
                         </form>
                     </div>
                 </div>

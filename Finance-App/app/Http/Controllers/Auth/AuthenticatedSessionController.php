@@ -43,13 +43,29 @@ class AuthenticatedSessionController extends Controller
 
         // Akun yang diblokir (banned) oleh admin
         if ($user?->isBanned()) {
-            Auth::guard('web')->logout();
-            $request->session()->invalidate();
-            $request->session()->regenerateToken();
+            // Auto-unban jika sudah lebih dari 30 hari
+            if ($user->banned_at && $user->banned_at->addDays(30)->isPast()) {
+                $user->update([
+                    'status' => true,
+                    'banned_at' => null,
+                    'ban_reason' => null,
+                ]);
+            } else {
+                $banReason = $user->ban_reason ?: 'Melanggar ketentuan layanan';
+                $daysRemaining = $user->banned_at ? (int) floor(max(0, 30 - $user->banned_at->diffInDays(now()))) : 30;
 
-            return redirect()->route('login')->withErrors([
-                'email' => 'Akun Anda telah diblokir. Silakan hubungi admin.',
-            ]);
+                Auth::guard('web')->logout();
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+
+                return redirect()->route('login')
+                    ->with('banned_modal', [
+                        'reason' => $banReason,
+                        'days_remaining' => $daysRemaining,
+                    ])
+                    ->with('error', "Akun Anda telah diblokir selama 30 hari karena {$banReason}. Sisa {$daysRemaining} hari lagi.")
+                    ->with('show_contact_admin', true);
+            }
         }
 
         $isActive = $user?->status_aktif ?? $user?->status ?? true;

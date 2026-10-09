@@ -1,6 +1,6 @@
 ﻿@extends('layouts.main')
 
-@section('title', 'Transactions')
+@section('title', __('transactions.title'))
 
 @section('content')
 
@@ -87,12 +87,12 @@
         get rangeText() {
             const total = this.filtered.length;
 
-            if (total === 0) return 'No transactions';
+            if (total === 0) return @js(__('transactions.no_transactions'));
 
             const from = (this.page - 1) * this.perPage + 1;
             const to = Math.min(this.page * this.perPage, total);
 
-            return 'Showing ' + from + 'â€“' + to + ' of ' + total + ' transactions';
+            return @js(__('transactions.showing')) + ' ' + from + '–' + to + ' ' + @js(__('transactions.of')) + ' ' + total + ' ' + @js(__('transactions.title')).toLowerCase();
         },
 
         goTo(n) {
@@ -125,7 +125,7 @@
         },
 
         labelFor(date) {
-            if (!date) return 'Unknown date';
+            if (!date) return @js(__('transactions.unknown_date'));
 
             const text = new Date(date + 'T00:00:00')
                 .toLocaleDateString('en-GB', { day: 'numeric', month: 'long' });
@@ -133,8 +133,8 @@
             const today = new Date().toLocaleDateString('en-CA');
             const yesterday = new Date(Date.now() - 86400000).toLocaleDateString('en-CA');
 
-            if (date === today) return 'Today, ' + text;
-            if (date === yesterday) return 'Yesterday, ' + text;
+            if (date === today) return @js(__('transactions.today')) + ', ' + text;
+            if (date === yesterday) return @js(__('transactions.yesterday')) + ', ' + text;
 
             return text;
         },
@@ -156,7 +156,7 @@
             if (type === 'transfer') {
                 return Jenis === 'pemasukan' ? '+' : '-';
             }
-            return 'â‡† ';
+            return '⇄ ';
         },
 
         iconFor(t) {
@@ -180,17 +180,17 @@
             return 'text-expense';
         }
     }"
->
+|>
 
 
     {{-- Judul + 3 tombol --}}
     <div class="flex items-start justify-between">
 
         <div>
-            <h1 class="text-3xl font-bold">Transactions</h1>
+            <h1 class="text-3xl font-bold">{{ __('transactions.title') }}</h1>
 
             <p class="mt-1 text-sm text-muted">
-                Review every income and expense in one place.
+                {{ __('transactions.subtitle') }}
             </p>
         </div>
 
@@ -201,17 +201,17 @@
                 href="/transactions/categories"
                 class="inline-flex items-center gap-2 rounded-lg bg-slate-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-600"
             >
-                Manage Category
+                {{ __('transactions.manage_category') }}
             </a>
 
             <x-button href="/transfer" variant="brand">
                 <x-icon name="arrow-right" size="h-4 w-4" />
-                Transfer
+                {{ __('transactions.transfer') }}
             </x-button>
 
             <x-button href="/transactions/create">
                 <x-icon name="plus" size="h-4 w-4" />
-                Add Transaction
+                {{ __('transactions.add_transaction') }}
             </x-button>
 
         </div>
@@ -235,13 +235,13 @@
                 <input
                     type="text"
                     x-model="search"
-                    placeholder="Search transactions"
+                    placeholder="{{ __('transactions.search_placeholder') }}"
                     class="w-full rounded-lg border border-line bg-white py-2.5 pl-9 pr-3 text-sm placeholder:text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
                 >
 
             </div>
 
-            <span class="text-xs text-muted" x-text="filtered.length + ' results'"></span>
+            <span class="text-xs text-muted" x-text="filtered.length + ' ' + @js(__('transactions.results_count'))"></span>
 
         </div>
 
@@ -255,7 +255,7 @@
                 class="rounded-lg px-4 py-2 font-medium transition"
                 :class="!hasFilter ? 'bg-dark text-white' : 'border border-line bg-white text-muted hover:bg-page'"
             >
-                All
+                {{ __('transactions.all') }}
             </button>
 
 
@@ -268,7 +268,7 @@
                     class="flex items-center gap-2 rounded-lg border px-3 py-2 transition"
                     :class="category ? 'border-brand bg-brand-soft text-brand' : 'border-line bg-white text-muted hover:bg-page'"
                 >
-                    <span x-text="category || 'Category'"></span>
+                    <span x-text="category || @js(__('transactions.category'))"></span>
                     <x-icon name="chevron-down" size="h-4 w-4" />
                 </button>
 
@@ -283,7 +283,7 @@
                         class="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left hover:bg-page"
                         :class="!category ? 'bg-brand-soft text-brand' : ''"
                     >
-                        <span>All categories</span>
+                        <span>{{ __('transactions.all_categories') }}</span>
                         <x-icon name="check" size="h-4 w-4" x-show="!category" x-cloak />
                     </button>
 
@@ -312,7 +312,7 @@
                     class="flex items-center gap-2 rounded-lg border px-3 py-2 transition"
                     :class="wallet ? 'border-brand bg-brand-soft text-brand' : 'border-line bg-white text-muted hover:bg-page'"
                 >
-                    <span x-text="wallet || 'Wallet'"></span>
+                    <span x-text="wallet || @js(__('transactions.wallet'))"></span>
                     <x-icon name="chevron-down" size="h-4 w-4" />
                 </button>
 
@@ -327,7 +327,7 @@
                         class="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left hover:bg-page"
                         :class="!wallet ? 'bg-brand-soft text-brand' : ''"
                     >
-                        <span>All wallets</span>
+                        <span>{{ __('transactions.all_wallets') }}</span>
                         <x-icon name="check" size="h-4 w-4" x-show="!wallet" x-cloak />
                     </button>
 
@@ -356,7 +356,7 @@
                     class="flex items-center gap-2 rounded-lg border px-3 py-2 transition"
                     :class="(dateFrom || dateTo) ? 'border-brand bg-brand-soft text-brand' : 'border-line bg-white text-muted hover:bg-page'"
                 >
-                    <span x-text="(dateFrom || dateTo) ? 'Date selected' : 'Date'"></span>
+                    <span x-text="(dateFrom || dateTo) ? @js(__('transactions.date_selected')) : @js(__('transactions.date'))"></span>
                     <x-icon name="chevron-down" size="h-4 w-4" />
                 </button>
 
@@ -365,14 +365,14 @@
                     x-show="open === 'date'"
                     class="absolute left-0 z-20 mt-2 w-64 rounded-xl border border-line bg-white p-4 shadow-lg"
                 >
-                    <label class="block text-xs font-medium text-muted">From</label>
+                    <label class="block text-xs font-medium text-muted">{{ __('transactions.from') }}</label>
                     <input
                         type="date"
                         x-model="dateFrom"
                         class="mt-1 w-full rounded-lg border border-line bg-white px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
                     >
 
-                    <label class="mt-3 block text-xs font-medium text-muted">To</label>
+                    <label class="mt-3 block text-xs font-medium text-muted">{{ __('transactions.to') }}</label>
                     <input
                         type="date"
                         x-model="dateTo"
@@ -384,7 +384,7 @@
                         x-on:click="dateFrom = ''; dateTo = ''; open = null"
                         class="mt-3 text-xs font-medium text-brand hover:underline"
                     >
-                        Clear dates
+                        {{ __('transactions.clear_dates') }}
                     </button>
                 </div>
 
@@ -486,7 +486,7 @@
     {{-- Kosong --}}
     <template x-if="filtered.length === 0">
         <x-card class="mt-6 p-10 text-center text-sm text-muted">
-            No transactions found.
+            {{ __('transactions.no_transactions') }}
         </x-card>
     </template>
 
@@ -504,7 +504,7 @@
                 x-bind:disabled="page === 1"
                 class="disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
             >
-                Previous
+                {{ __('transactions.previous') }}
             </x-button>
 
             <template x-for="n in pageNumbers" :key="n">
@@ -525,7 +525,7 @@
                 x-bind:disabled="page === totalPages"
                 class="disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
             >
-                Next
+                {{ __('transactions.next') }}
             </x-button>
 
         </div>

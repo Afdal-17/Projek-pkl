@@ -7,16 +7,80 @@
     <!-- Session Status -->
     <x-auth-session-status class="mb-4" :status="session('status')" />
 
-    <!-- Ban/Error Message with Contact Admin -->
-    @if (session('error'))
+    @php
+        $bannedModal = session('banned_modal');
+        $isBanned = $bannedModal !== null || session('show_contact_admin');
+        $banReason = $bannedModal['reason'] ?? (session('error') ? (preg_match('/karena\s+(.*?)\.\s+Sisa/', session('error'), $m) ? $m[1] : session('error')) : 'Melanggar ketentuan layanan');
+        $rawDays = $bannedModal['days_remaining'] ?? (session('error') && preg_match('/Sisa\s+([\d.]+)\s+hari/', session('error'), $m) ? $m[1] : 30);
+        $daysRemaining = (int) floor((float) $rawDays);
+    @endphp
+
+    <!-- Modal Popup Alasan Ban -->
+    @if ($isBanned)
+        <div x-data="{ show: true }"
+             x-cloak
+             x-show="show"
+             x-transition.opacity.duration.300ms
+             x-on:keydown.escape.window="show = false"
+             class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            
+            <div x-show="show"
+                 x-transition:enter="ease-out duration-300"
+                 x-transition:enter-start="opacity-0 scale-95"
+                 x-transition:enter-end="opacity-100 scale-100"
+                 x-transition:leave="ease-in duration-200"
+                 x-transition:leave-start="opacity-100 scale-100"
+                 x-transition:leave-end="opacity-0 scale-95"
+                 class="w-full max-w-md rounded-2xl border border-line bg-white p-6 shadow-2xl">
+                
+                <div class="flex items-start justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-expense-soft text-expense">
+                            <x-icon name="ban" size="h-5 w-5" />
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-bold text-ink">Akun Ditangguhkan</h3>
+                            <p class="text-xs text-muted">Akses akun Anda dibatasi sementara</p>
+                        </div>
+                    </div>
+                    <button type="button" x-on:click="show = false" class="flex h-8 w-8 items-center justify-center rounded-lg border border-line text-muted hover:bg-page hover:text-ink transition">
+                        <x-icon name="x" size="h-4 w-4" />
+                    </button>
+                </div>
+
+                <div class="mt-4 space-y-3">
+                    <div class="rounded-xl border border-red-200 bg-red-50/70 p-4">
+                        <p class="text-xs font-semibold uppercase tracking-wider text-red-600">Alasan dari Admin</p>
+                        <p class="mt-1 text-sm font-medium text-red-950">{{ $banReason }}</p>
+                    </div>
+
+                    <div class="rounded-xl border border-line bg-page/50 p-3.5 text-xs text-muted space-y-1.5">
+                        <div class="flex justify-between">
+                            <span>Durasi Penangguhan:</span>
+                            <span class="font-semibold text-ink">30 Hari</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Sisa Waktu:</span>
+                            <span class="font-semibold text-expense">{{ $daysRemaining }} hari lagi</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-6 flex flex-col sm:flex-row gap-2.5">
+                    <a href="mailto:admin@example.com?subject=Bantuan%20Akun%20Terblokir" class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-dark px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-black transition">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                        Hubungi Admin
+                    </a>
+                    <button type="button" x-on:click="show = false" class="rounded-xl border border-line px-4 py-2.5 text-sm font-medium text-ink hover:bg-page transition">
+                        Tutup
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    @elseif (session('error'))
         <div class="mb-4 p-4 rounded-xl border border-red-200 bg-red-50">
             <p class="text-sm text-red-800">{{ session('error') }}</p>
-            @if (session('show_contact_admin'))
-                <a href="mailto:admin@example.com?subject=Bantuan Akun Terblokir" class="mt-2 inline-flex items-center text-sm font-medium text-red-700 hover:text-red-900">
-                    <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-                    Hubungi Admin
-                </a>
-            @endif
         </div>
     @endif
 

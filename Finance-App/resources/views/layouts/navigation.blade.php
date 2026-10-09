@@ -13,17 +13,17 @@
                 <!-- Navigation Links -->
                 <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
                     @if (Auth::user()->isAdmin())
-                        <x-nav-link :href="route('admin.dashboard')" :active="request()->routeIs('admin.dashboard')">{{ __('Ringkasan Sistem') }}</x-nav-link>
-                        <x-nav-link :href="route('admin.users')" :active="request()->routeIs('admin.users')">{{ __('Kelola User') }}</x-nav-link>
+                        <x-nav-link :href="route('admin.dashboard')" :active="request()->routeIs('admin.dashboard')">{{ __('nav.system_summary') }}</x-nav-link>
+                        <x-nav-link :href="route('admin.users')" :active="request()->routeIs('admin.users')">{{ __('nav.manage_users') }}</x-nav-link>
                     @else
-                        <x-nav-link :href="route('user.dashboard')" :active="request()->routeIs('user.dashboard')">{{ __('Dashboard') }}</x-nav-link>
-                        <x-nav-link :href="route('dompet.index')" :active="request()->routeIs('dompet.*')">{{ __('Dompet') }}</x-nav-link>
-                        <x-nav-link :href="route('kategori.index')" :active="request()->routeIs('kategori.*')">{{ __('Kategori') }}</x-nav-link>
-                        <x-nav-link :href="route('transaksi.index')" :active="request()->routeIs('transaksi.*')">{{ __('Transaksi') }}</x-nav-link>
-                        <x-nav-link :href="route('transfer.index')" :active="request()->routeIs('transfer.*')">{{ __('Transfer') }}</x-nav-link>
-                        <x-nav-link :href="route('target-tabungan.index')" :active="request()->routeIs('target-tabungan.*')">{{ __('Target Tabungan') }}</x-nav-link>
+                        <x-nav-link :href="route('user.dashboard')" :active="request()->routeIs('user.dashboard')">{{ __('nav.dashboard') }}</x-nav-link>
+                        <x-nav-link :href="route('dompet.index')" :active="request()->routeIs('dompet.*')">{{ __('nav.wallets') }}</x-nav-link>
+                        <x-nav-link :href="route('kategori.index')" :active="request()->routeIs('kategori.*')">{{ __('nav.categories') }}</x-nav-link>
+                        <x-nav-link :href="route('transaksi.index')" :active="request()->routeIs('transaksi.*')">{{ __('nav.transactions') }}</x-nav-link>
+                        <x-nav-link :href="route('transfer.index')" :active="request()->routeIs('transfer.*')">{{ __('nav.transfer') }}</x-nav-link>
+                        <x-nav-link :href="route('target-tabungan.index')" :active="request()->routeIs('target-tabungan.*')">{{ __('nav.saving') }}</x-nav-link>
                         <x-nav-link :href="route('notifikasi.index')" :active="request()->routeIs('notifikasi.*')">
-                            {{ __('Notifikasi') }}
+                            {{ __('nav.notifications') }}
                             @php($unreadNotificationCount = Auth::user()->notifikasi()->where('sudah_dibaca', false)->count())
                             @if ($unreadNotificationCount > 0)<span class="ms-1 rounded-full bg-red-600 px-2 py-0.5 text-xs text-white">{{ $unreadNotificationCount }}</span>@endif
                         </x-nav-link>
@@ -81,11 +81,11 @@
     <div :class="{'block': open, 'hidden': ! open}" class="hidden sm:hidden">
         <div class="pt-2 pb-3 space-y-1">
             @if (Auth::user()->isAdmin())
-                <x-responsive-nav-link :href="route('admin.dashboard')" :active="request()->routeIs('admin.dashboard')">{{ __('Ringkasan Sistem') }}</x-responsive-nav-link>
-                <x-responsive-nav-link :href="route('admin.users')" :active="request()->routeIs('admin.users')">{{ __('Kelola User') }}</x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('admin.dashboard')" :active="request()->routeIs('admin.dashboard')">{{ __('nav.system_summary') }}</x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('admin.users')" :active="request()->routeIs('admin.users')">{{ __('nav.manage_users') }}</x-responsive-nav-link>
             @else
-                <x-responsive-nav-link :href="route('user.dashboard')" :active="request()->routeIs('user.dashboard')">{{ __('Dashboard') }}</x-responsive-nav-link>
-                <x-responsive-nav-link :href="route('notifikasi.index')" :active="request()->routeIs('notifikasi.*')">{{ __('Notifikasi') }}</x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('user.dashboard')" :active="request()->routeIs('user.dashboard')">{{ __('nav.dashboard') }}</x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('notifikasi.index')" :active="request()->routeIs('notifikasi.*')">{{ __('nav.notifications') }}</x-responsive-nav-link>
             @endif
         </div>
 
@@ -98,7 +98,7 @@
 
             <div class="mt-3 space-y-1">
                 <x-responsive-nav-link :href="route('profile.edit')">
-                    {{ __('Profile') }}
+                    {{ __('nav.profile') }}
                 </x-responsive-nav-link>
 
                 <!-- Authentication -->
@@ -108,7 +108,7 @@
                     <x-responsive-nav-link :href="route('logout')"
                             onclick="event.preventDefault();
                                         this.closest('form').submit();">
-                        {{ __('Log Out') }}
+                        {{ __('nav.sign_out') }}
                     </x-responsive-nav-link>
                 </form>
             </div>

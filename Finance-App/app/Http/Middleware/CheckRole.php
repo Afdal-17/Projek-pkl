@@ -44,9 +44,13 @@ class CheckRole
         // Akun yang diblokir (banned) oleh admin
         if ($user?->isBanned()) {
             Auth::logout();
-            $banReason = $user->ban_reason ?? 'melanggar ketentuan layanan';
-            $daysRemaining = max(0, 30 - $user->banned_at->diffInDays(now()));
+            $banReason = $user->ban_reason ?: 'melanggar ketentuan layanan';
+            $daysRemaining = $user->banned_at ? (int) floor(max(0, 30 - $user->banned_at->diffInDays(now()))) : 30;
             return redirect()->route('login')
+                ->with('banned_modal', [
+                    'reason' => $banReason,
+                    'days_remaining' => $daysRemaining,
+                ])
                 ->with('error', "Akun Anda telah diblokir selama 30 hari karena {$banReason}. Sisa {$daysRemaining} hari lagi.")
                 ->with('show_contact_admin', true);
         }

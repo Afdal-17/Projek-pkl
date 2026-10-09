@@ -1,6 +1,6 @@
 @extends('layouts.main')
 
-@section('title', 'Saving')
+@section('title', __('saving.title'))
 
 @section('content')
 
@@ -41,7 +41,7 @@
         },
 
         async removeTarget(id) {
-            if (!confirm('Delete this saving target?')) return;
+            if (!confirm(@js(__('saving.confirm_delete')))) return;
 
             const response = await fetch(this.deleteUrl.replace('__ID__', id), {
                 method: 'DELETE',
@@ -56,12 +56,12 @@
     {{-- Header --}}
     <div class="flex items-start justify-between">
         <div>
-            <h1 class="text-3xl font-bold">Saving</h1>
-            <p class="mt-1 text-sm text-muted">Set targets and follow your progress over time.</p>
+            <h1 class="text-3xl font-bold">{{ __('saving.title') }}</h1>
+            <p class="mt-1 text-sm text-muted">{{ __('saving.subtitle') }}</p>
         </div>
 
         <x-button href="/saving/create">
-            <x-icon name="plus" size="h-4 w-4" /> Add Saving Target
+            <x-icon name="plus" size="h-4 w-4" /> {{ __('saving.add_target') }}
         </x-button>
     </div>
 
@@ -71,30 +71,29 @@
 
         <x-card class="p-6">
             <div class="flex items-start justify-between">
-                <p class="text-sm text-muted">Total saved</p>
+                <p class="text-sm text-muted">{{ __('saving.total_saved') }}</p>
                 <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-income-soft text-income">
                     <x-icon name="dollar" />
                 </span>
             </div>
             <p class="mt-4 text-2xl font-bold" x-text="rp(totalSaved)"></p>
-            <p class="mt-2 text-xs text-income">+Rp 2.500.000 this month</p>
         </x-card>
 
         <x-card class="p-6">
             <div class="flex items-start justify-between">
-                <p class="text-sm text-muted">Combined target</p>
+                <p class="text-sm text-muted">{{ __('saving.combined_target') }}</p>
                 <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-soft text-brand">
                     <x-icon name="target" />
                 </span>
             </div>
             <p class="mt-4 text-2xl font-bold" x-text="rp(totalTarget)"></p>
             <p class="mt-2 text-xs text-muted"
-               x-text="overallPct + '% funded across ' + targets.length + ' targets'"></p>
+               x-text="overallPct + '% ' + @js(__('saving.funded_across')) + ' ' + targets.length + ' ' + @js(__('saving.targets_count'))"></p>
         </x-card>
 
         <x-card class="p-6">
             <div class="flex items-start justify-between">
-                <p class="text-sm text-muted">Next milestone</p>
+                <p class="text-sm text-muted">{{ __('saving.next_milestone') }}</p>
                 <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-warn-soft text-warn">
                     <x-icon name="history" />
                 </span>
@@ -102,7 +101,7 @@
             <p class="mt-4 text-2xl font-bold"
                x-text="nextMilestone ? rp(nextMilestone.target - nextMilestone.saved) : 'Rp 0'"></p>
             <p class="mt-2 text-xs text-muted"
-               x-text="nextMilestone ? 'To complete ' + nextMilestone.name : 'All targets completed'"></p>
+               x-text="nextMilestone ? @js(__('saving.to_complete')) + ' ' + nextMilestone.name : @js(__('saving.all_completed'))"></p>
         </x-card>
 
     </div>
@@ -113,10 +112,10 @@
 
         {{-- Kepala tabel --}}
         <div class="grid grid-cols-[1.4fr_3fr_1.4fr_1fr] gap-6 border-b border-line px-6 py-4 text-[11px] font-semibold uppercase tracking-wide text-muted">
-            <span>Target name</span>
-            <span>Progress</span>
-            <span>Amount</span>
-            <span>Action</span>
+            <span>{{ __('saving.target_name') }}</span>
+            <span>{{ __('saving.progress') }}</span>
+            <span>{{ __('saving.amount') }}</span>
+            <span>{{ __('saving.action') }}</span>
         </div>
 
         {{-- Baris --}}
@@ -132,14 +131,14 @@
                     <div class="leading-tight">
                         <p class="text-sm font-semibold" x-text="t.name"></p>
                         <p class="text-xs text-muted" x-text="t.note"></p>
-                        <p class="mt-0.5 text-xs text-muted">From wallet: <span x-text="t.wallet"></span></p>
+                        <p class="mt-0.5 text-xs text-muted">{{ __('saving.from_wallet') }} <span x-text="t.wallet"></span></p>
                     </div>
                 </div>
 
                 {{-- Progress --}}
                 <div>
                     <div class="flex items-center justify-between text-xs text-muted">
-                        <span x-text="rp(t.saved) + ' saved'"></span>
+                        <span x-text="rp(t.saved) + ' ' + @js(__('saving.saved_suffix'))"></span>
                         <span class="rounded-full bg-brand-soft px-2.5 py-1 font-medium text-brand"
                               x-text="pct(t) + '%'"></span>
                     </div>
@@ -151,13 +150,13 @@
                 {{-- Amount --}}
                 <div class="leading-tight">
                     <p class="text-sm font-semibold" x-text="rp(t.saved)"></p>
-                    <p class="text-xs text-muted" x-text="'of ' + rp(t.target)"></p>
+                    <p class="text-xs text-muted" x-text="@js(__('saving.of')) + ' ' + rp(t.target)"></p>
                 </div>
 
                 {{-- Action --}}
                 <div>
                     <x-button variant="danger" x-on:click="removeTarget(t.id)">
-                        <x-icon name="trash" size="h-4 w-4" /> Delete
+                        <x-icon name="trash" size="h-4 w-4" /> {{ __('saving.delete') }}
                     </x-button>
                 </div>
 
@@ -168,13 +167,13 @@
         {{-- Kosong --}}
         <template x-if="targets.length === 0">
             <p class="px-6 py-10 text-center text-sm text-muted">
-                No saving targets yet. Click "Add Saving Target" to create one.
+                {{ __('saving.no_targets') }}
             </p>
         </template>
 
         {{-- Footer --}}
         <div class="px-6 py-4 text-xs text-muted"
-             x-text="targets.length + ' active targets · Keep going, you are making steady progress.'"></div>
+             x-text="targets.length + ' ' + @js(__('saving.active_targets'))"></div>
 
     </x-card>
 

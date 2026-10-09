@@ -1,6 +1,6 @@
 @extends('layouts.admin')
 
-@section('title', 'Users Manage')
+@section('title', __('admin.title'))
 
 @section('content')
 
@@ -9,7 +9,7 @@
         'id' => $user->id_user,
         'name' => $user->nama,
         'email' => $user->email,
-        'status' => $user->email_verified_at === null && $user->role === 'user' ? 'Unverified' : ($user->banned_at ? 'Banned' : ($user->status ? 'Active' : 'Inactive')),
+        'status' => $user->email_verified_at === null && $user->role === 'user' ? 'Unverified' : ($user->banned_at ? __('admin.banned') : ($user->status ? __('admin.active') : 'Inactive')),
         'banned' => $user->banned_at !== null,
         'ban_reason' => $user->ban_reason,
         'banned_at' => $user->banned_at?->toIso8601String(),
@@ -143,8 +143,8 @@
 
     {{-- Header --}}
     <div>
-        <h1 class="text-3xl font-bold">Users Manage</h1>
-        <p class="mt-1 text-sm text-muted">Monitor users, activity, and manage accounts.</p>
+        <h1 class="text-3xl font-bold">{{ __('admin.title') }}</h1>
+        <p class="mt-1 text-sm text-muted">{{ __('admin.subtitle') }}</p>
     </div>
 
 
@@ -154,7 +154,7 @@
         <div class="flex items-center justify-between p-6">
 
             <div class="flex items-center gap-3">
-                <h2 class="text-xl font-bold">Users Manage</h2>
+                <h2 class="text-xl font-bold">{{ __('admin.title') }}</h2>
                 <span class="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-muted"
                       x-text="users.length + ' users'"></span>
             </div>
@@ -166,7 +166,7 @@
                 <input
                     type="text"
                     x-model="search"
-                    placeholder="Search users"
+                    placeholder="{{ __('admin.search') }}"
                     class="w-full rounded-lg border border-line bg-white py-2.5 pl-9 pr-3 text-sm placeholder:text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
                 >
             </div>
@@ -178,10 +178,10 @@
         <div class="border-t border-line">
 
             <div class="grid grid-cols-[2fr_2.6fr_1fr_1.3fr] gap-4 bg-gray-50 px-6 py-3 text-xs font-semibold text-muted">
-                <span>Name</span>
-                <span>Email</span>
-                <span>Status</span>
-                <span>Actions</span>
+                <span>{{ __('admin.name') }}</span>
+                <span>{{ __('admin.email') }}</span>
+                <span>{{ __('admin.status') }}</span>
+                <span>{{ __('admin.actions') }}</span>
             </div>
 
             <template x-for="u in filtered" :key="u.id">

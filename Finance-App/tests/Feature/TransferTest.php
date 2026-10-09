@@ -160,12 +160,51 @@ class TransferTest extends TestCase
         $this->assertCount(1, $results);
         $this->assertTrue($results[0]['has_wallet']);
 
-        // Semua dompet penerima dikembalikan, diurutkan berdasarkan nama
+        // Semua dompet penerima dikembalikan, diurutkan berdasarkan nama (saldo dirahasiakan demi privasi)
         $this->assertCount(2, $results[0]['wallets']);
         $this->assertSame('Dompet Bank', $results[0]['wallets'][0]['name']);
-        $this->assertSame(75000.0, (float) $results[0]['wallets'][0]['balance']);
+        $this->assertArrayNotHasKey('balance', $results[0]['wallets'][0]);
         $this->assertSame('Dompet Tunai', $results[0]['wallets'][1]['name']);
-        $this->assertSame(50000.0, (float) $results[0]['wallets'][1]['balance']);
+        $this->assertArrayNotHasKey('balance', $results[0]['wallets'][1]);
+    }
+
+    public function test_transfer_rejected_when_recipient_user_is_banned(): void
+    {
+        [$pengirim, $dompetAsal] = $this->userWithWallet('pengirim_banned_test@example.com', 'Dompet Pengirim', 100000);
+        [$penerima, $dompetTujuan] = $this->userWithWallet('penerima_banned_test@example.com', 'Dompet Penerima', 10000);
+
+        $penerima->update([
+            'banned_at' => now(),
+            'ban_reason' => 'Melanggar ketentuan',
+        ]);
+
+        $response = $this->actingAs($pengirim)->post(route('transfer.store'), [
+            'id_dompet_asal' => $dompetAsal->id_dompet,
+            'id_dompet_tujuan' => $dompetTujuan->id_dompet,
+            'jumlah' => 20000,
+            'tanggal_transfer' => '2026-10-01 10:00:00',
+        ]);
+
+        $response->assertSessionHasErrors('id_dompet_tujuan');
+    }
+
+    public function test_user_search_includes_banned_status_for_banned_user(): void
+    {
+        [$pengirim, $dompetAsal] = $this->userWithWallet('pengirim_search_banned@example.com', 'Dompet Pengirim', 100000);
+        [$penerima, $dompetTujuan] = $this->userWithWallet('penerima_search_banned@example.com', 'Dompet Penerima', 10000);
+
+        $penerima->update([
+            'banned_at' => now(),
+            'ban_reason' => 'Penyalahgunaan akun',
+        ]);
+
+        $response = $this->actingAs($pengirim)->get(route('transfer.recipients.search', ['query' => 'penerima_search_banned']));
+
+        $response->assertOk();
+        $results = $response->json();
+        $this->assertCount(1, $results);
+        $this->assertTrue($results[0]['is_banned']);
+        $this->assertArrayNotHasKey('ban_reason', $results[0]);
     }
 
     private function userWithWallet(string $email, string $walletName, int $balance): array

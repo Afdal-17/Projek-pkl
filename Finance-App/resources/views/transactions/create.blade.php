@@ -1,6 +1,6 @@
 @extends('layouts.main')
 
-@section('title', 'Add Transaction')
+@section('title', __('transactions.add_title'))
 
 @section('content')
 
@@ -114,10 +114,10 @@
 
     {{-- Page Header --}}
     <div>
-        <h1 class="text-3xl font-bold">Add Transaction</h1>
+        <h1 class="text-3xl font-bold">{{ __('transactions.add_title') }}</h1>
 
         <p class="mt-1 text-sm text-muted">
-            Record an income or expense to keep your balance accurate.
+            {{ __('transactions.add_subtitle') }}
         </p>
     </div>
 
@@ -132,7 +132,7 @@
             {{-- Transaction Type --}}
             <div>
                 <label class="mb-2 block text-sm font-medium">
-                    Transaction type
+                    {{ __('transactions.type') }}
                 </label>
 
                 <div class="grid grid-cols-2 gap-2 rounded-lg bg-page p-1">
@@ -147,7 +147,7 @@
                             : 'text-income'"
                     >
                         <x-icon name="plus" size="h-4 w-4" />
-                        Income
+                        {{ __('transactions.income') }}
                     </button>
 
                     {{-- Expense --}}
@@ -160,7 +160,7 @@
                             : 'text-expense'"
                     >
                         <x-icon name="minus" size="h-4 w-4" />
-                        Expense
+                        {{ __('transactions.expense') }}
                     </button>
 
                 </div>
@@ -171,7 +171,7 @@
             <div class="mt-6">
 
                 <label for="amount" class="mb-2 block text-sm font-medium">
-                    Amount
+                    {{ __('transactions.amount') }}
                 </label>
 
                 <div class="relative">
@@ -196,7 +196,7 @@
             <div class="mt-6">
 
                 <label for="transaction_name" class="mb-2 block text-sm font-medium">
-                    Transaction name
+                    {{ __('transactions.transaction_name') }}
                 </label>
 
                 <input
@@ -217,11 +217,11 @@
 
                     <div class="mb-2 flex items-center justify-between">
                         <label for="category" class="text-sm font-medium">
-                            Category
+                            {{ __('transactions.category') }}
                         </label>
 
                         <a href="/transactions/categories" class="text-xs font-medium text-brand hover:underline">
-                            Manage
+                            {{ __('transactions.manage') }}
                         </a>
                     </div>
 
@@ -233,7 +233,7 @@
                             class="w-full appearance-none rounded-lg border border-line bg-white px-3 py-3 pr-10 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
                         >
                             <template x-if="categories.length === 0">
-                                <option value="" disabled>No category yet</option>
+                                <option value="" disabled>{{ __('transactions.no_category') }}</option>
                             </template>
 
                             <template x-for="item in categories" :key="item.id">
@@ -260,7 +260,7 @@
                 <div>
 
                     <label for="wallet" class="mb-2 block text-sm font-medium">
-                        Wallet
+                        {{ __('transactions.wallet') }}
                     </label>
 
                     <div class="relative">
@@ -296,7 +296,7 @@
             <div class="mt-6">
 
                 <label for="date" class="mb-2 block text-sm font-medium">
-                    Date
+                    {{ __('transactions.date') }}
                 </label>
 
                 <input
@@ -317,11 +317,11 @@
             <div class="mt-6 flex justify-end gap-3">
 
                 <x-button href="/transactions" variant="outline">
-                    Cancel
+                    {{ __('transactions.cancel') }}
                 </x-button>
 
                 <x-button type="button" x-on:click="saveTransaction()">
-                    <span x-text="type === 'income' ? 'Add income' : 'Add expense'"></span>
+                    <span x-text="type === 'income' ? @js(__('transactions.add_income')) : @js(__('transactions.add_expense'))"></span>
                 </x-button>
 
             </div>
@@ -329,37 +329,37 @@
         </x-card>
 
 
-        {{-- RIGHT COLUMN: hanya Summary (kartu Add Category sudah dipindah ke Manage Kategori) --}}
+        {{-- RIGHT COLUMN: hanya Summary --}}
         <div class="space-y-6">
 
             <x-card class="p-6">
 
-                <h2 class="text-lg font-semibold">Summary</h2>
+                <h2 class="text-lg font-semibold">{{ __('transactions.summary') }}</h2>
 
                 <div class="mt-5 space-y-5 text-sm">
 
                     {{-- Type --}}
                     <div class="flex items-center justify-between">
-                        <span class="text-muted">Type</span>
+                        <span class="text-muted">{{ __('transactions.type') }}</span>
 
                         <span
                             class="rounded-full px-3 py-1 text-xs font-medium"
                             :class="type === 'income'
                                 ? 'bg-income-soft text-income'
                                 : 'bg-expense-soft text-expense'"
-                            x-text="type === 'income' ? 'Income' : 'Expense'"
+                            x-text="type === 'income' ? @js(__('transactions.income')) : @js(__('transactions.expense'))"
                         ></span>
                     </div>
 
                     {{-- Wallet --}}
                     <div class="flex items-center justify-between">
-                        <span class="text-muted">Wallet</span>
+                        <span class="text-muted">{{ __('transactions.wallet') }}</span>
                         <span class="font-semibold" x-text="wallet"></span>
                     </div>
 
                     {{-- New Balance --}}
                     <div class="flex items-center justify-between">
-                        <span class="text-muted">New balance</span>
+                        <span class="text-muted">{{ __('transactions.new_balance') }}</span>
 
                         <span
                             class="text-base font-bold"

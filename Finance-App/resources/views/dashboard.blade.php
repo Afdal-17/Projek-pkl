@@ -1,6 +1,6 @@
 @extends('layouts.main')
 
-@section('title', 'My Wallets')
+@section('title', __('dashboard.title'))
 
 @section('content')
 @php
@@ -29,9 +29,9 @@
             'id' => $wallet->id_dompet,
             'name' => $wallet->nama_dompet,
             'type' => match ($wallet->jenis) {
-                'physical' => 'Physical wallet',
-                'bank' => 'Bank account',
-                default => 'Digital wallet',
+                'physical' => __('dashboard.physical_wallet'),
+                'bank' => __('dashboard.bank_account'),
+                default => __('dashboard.digital_wallet'),
             },
             'description' => $wallet->deskripsi,
             'balance' => (float) $wallet->saldo,
@@ -51,7 +51,7 @@
             $formatMoney($category['total']),
         ])
         ->prepend([
-            'Income this month',
+            __('dashboard.income_this_month'),
             'income',
             $formatMoney($summary['total_pemasukan_bulan_ini']),
         ])
@@ -69,7 +69,7 @@
     editing: {
         id: null,
         name: '',
-        type: 'Digital wallet',
+        type: @js(__('dashboard.digital_wallet')),
         balance: '',
         saldo_awal: '',
         color: 'brand'
@@ -79,7 +79,7 @@
             _token: this.csrfToken,
             nama_dompet: this.editing.name.trim(),
             deskripsi: this.editing.description ?? '',
-            jenis: this.editing.type === 'Physical wallet' ? 'physical' : (this.editing.type === 'Bank account' ? 'bank' : 'digital'),
+            jenis: this.editing.type === @js(__('dashboard.physical_wallet')) ? 'physical' : (this.editing.type === @js(__('dashboard.bank_account')) ? 'bank' : 'digital'),
             warna: this.editing.color,
         });
 
@@ -112,7 +112,7 @@
     },
 
     async deleteWallet() {
-        if (!window.confirm('Delete this wallet? Its balance and savings targets will be removed.')) return;
+        if (!window.confirm(@js(__('dashboard.delete_confirm')))) return;
 
         const data = new URLSearchParams({ _token: this.csrfToken, _method: 'DELETE' });
         const response = await fetch(@js(route('dompet.destroy', ['dompet' => '__ID__'])).replace('__ID__', this.editing.id), {
@@ -150,26 +150,26 @@
     }
 }">
 
-    {{-- Judul --}}
     <div class="flex items-start justify-between">
         <div>
-            <h1 class="text-3xl font-bold">My Wallets</h1>
-            <p class="mt-1 text-sm text-muted">Track balances across all the places you keep money.</p>
+            <h1 class="text-3xl font-bold">{{ __('dashboard.title') }}</h1>
+            <p class="mt-1 text-sm text-muted">{{ __('dashboard.subtitle') }}</p>
         </div>
-        <x-button x-on:click="
+        <button type="button" x-on:click="
             mode = 'add';
             editing = {
                 id: null,
                 name: '',
-                type: 'Digital wallet',
+                description: '',
+                type: @js(__('dashboard.digital_wallet')),
                 balance: '',
                 saldo_awal: '',
                 color: 'brand'
             };
             open = true;
-        ">
-            <x-icon name="plus" size="h-4 w-4" /> Add Wallet
-        </x-button>
+        " class="flex items-center gap-2 rounded-xl bg-dark px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90">
+            <x-icon name="plus" size="h-4 w-4" /> {{ __('dashboard.add_wallet') }}
+        </button>
     </div>
 
     {{-- Tiga kartu ringkasan --}}
@@ -180,16 +180,16 @@
                 <div class="flex items-center gap-3">
                     <span class="flex h-11 w-11 items-center justify-center rounded-lg bg-brand-soft"><x-icon name="wallet" /></span>
                     <div class="leading-tight">
-                        <p class="text-sm text-muted">Total balance</p>
-                        <p class="text-xs text-muted">Updated a few seconds ago</p>
+                        <p class="text-sm text-muted">{{ __('dashboard.total_balance') }}</p>
+                        <p class="text-xs text-muted">{{ __('dashboard.updated_just_now') }}</p>
                     </div>
                 </div>
-                <x-badge color="brand">{{ count($wallets) }} active wallets</x-badge>
+                <x-badge color="brand">{{ trans_choice('dashboard.active_wallets', count($wallets), ['count' => count($wallets)]) }}</x-badge>
             </div>
             <p class="mt-6 text-4xl font-bold">{{ $formatMoney($summary['total_saldo']) }}</p>
             <div class="mt-3 flex gap-4 text-xs">
-                <span class="flex items-center gap-1 text-income"><x-icon name="arrow-up" size="h-3 w-3" /> {{ $formatMoney($summary['total_pemasukan_bulan_ini']) }} this month</span>
-                <span class="flex items-center gap-1 text-expense"><x-icon name="arrow-down" size="h-3 w-3" /> {{ $formatMoney($summary['total_pengeluaran_bulan_ini']) }} this month</span>
+                <span class="flex items-center gap-1 text-income"><x-icon name="arrow-up" size="h-3 w-3" /> {{ $formatMoney($summary['total_pemasukan_bulan_ini']) }} {{ __('dashboard.this_month') }}</span>
+                <span class="flex items-center gap-1 text-expense"><x-icon name="arrow-down" size="h-3 w-3" /> {{ $formatMoney($summary['total_pengeluaran_bulan_ini']) }} {{ __('dashboard.this_month') }}</span>
             </div>
         </x-card>
 
@@ -198,18 +198,18 @@
                 <div class="flex items-center gap-3">
                     <span class="flex h-11 w-11 items-center justify-center rounded-lg bg-brand-soft"><x-icon name="wallet" /></span>
                     <div class="leading-tight">
-                        <p class="text-sm text-muted">Category</p>
-                        <p class="text-xs text-muted">Updated a few seconds ago</p>
+                        <p class="text-sm text-muted">{{ __('dashboard.categories') }}</p>
+                        <p class="text-xs text-muted">{{ __('dashboard.updated_just_now') }}</p>
                     </div>
                 </div>
-                <x-badge color="brand">{{ count($categories) }} active Category</x-badge>
+                <x-badge color="brand">{{ trans_choice('dashboard.active_categories', count($categories), ['count' => count($categories)]) }}</x-badge>
             </div>
             <ul class="mt-4 space-y-2 text-sm">
                 @foreach ($categories as [$name, $type, $amount])
                     <li class="flex items-center justify-between">
                         <span class="font-medium">{{ $name }}</span>
                         <span class="flex items-center gap-1 {{ $type === 'income' ? 'text-income' : 'text-expense' }}">
-                            <x-icon :name="$type === 'income' ? 'arrow-up' : 'arrow-down'" size="h-3 w-3" /> {{ $amount }} this month
+                            <x-icon :name="$type === 'income' ? 'arrow-up' : 'arrow-down'" size="h-3 w-3" /> {{ $amount }} {{ __('dashboard.this_month') }}
                         </span>
                     </li>
                 @endforeach
@@ -218,18 +218,18 @@
 
         <x-card class="p-6">
             <div class="flex items-start justify-between">
-                <p class="text-sm text-muted">Total saved</p>
+                <p class="text-sm text-muted">{{ __('dashboard.total_saved') }}</p>
                 <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-income-soft text-income"><x-icon name="dollar" size="h-5 w-5" /></span>
             </div>
             <p class="mt-4 text-2xl font-bold">{{ $formatMoney($totalSaved) }}</p>
-            <p class="mt-2 text-xs text-income">{{ count($summary['target_tabungan']) }} savings targets tracked</p>
+            <p class="mt-2 text-xs text-income">{{ trans_choice('dashboard.savings_targets_tracked', count($summary['target_tabungan']), ['count' => count($summary['target_tabungan'])]) }}</p>
         </x-card>
     </div>
 
     {{-- Daftar wallet --}}
     <div class="mt-8 flex items-center justify-between">
-        <h2 class="font-semibold">Your wallets</h2>
-        <span class="text-sm text-muted">{{ count($wallets) }} wallets</span>
+        <h2 class="font-semibold">{{ __('dashboard.your_wallets') }}</h2>
+        <span class="text-sm text-muted">{{ trans_choice('dashboard.wallets_count', count($wallets), ['count' => count($wallets)]) }}</span>
     </div>
 
     <div class="mt-4 grid gap-6 md:grid-cols-3">
@@ -253,10 +253,10 @@
                 </div>
                 <p class="mt-4 text-lg font-semibold">{{ $w['name'] }}</p>
                 <p class="text-sm text-muted">{{ $w['type'] }}</p>
-                <p class="mt-3 text-[11px] uppercase tracking-wide text-muted">Available balance</p>
+                <p class="mt-3 text-[11px] uppercase tracking-wide text-muted">{{ __('dashboard.available_balance') }}</p>
                 <p class="text-2xl font-bold">{{ $formatMoney($w['balance']) }}</p>
                 <a href="/wallet/{{ $w['id'] }}" class="mt-3 inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline">
-                    <x-icon name="history" size="h-3 w-3" /> View history
+                    <x-icon name="history" size="h-3 w-3" /> {{ __('dashboard.view_history') }}
                 </a>
             </x-card>
         @endforeach
@@ -265,8 +265,8 @@
     {{-- Distribusi saldo --}}
     <x-card class="mt-8 p-6">
         <div class="flex items-center justify-between">
-            <h2 class="font-semibold">Balance distribution</h2>
-            <span class="text-sm text-muted">All wallets</span>
+            <h2 class="font-semibold">{{ __('dashboard.balance_distribution') }}</h2>
+            <span class="text-sm text-muted">{{ __('dashboard.all_wallets') }}</span>
         </div>
         <div class="mt-4 flex gap-1">
             @foreach ($wallets as $w)
@@ -276,9 +276,9 @@
         </div>
         <p class="mt-4 text-sm text-muted">
             @if ($largest && $total > 0)
-                {{ $largest['name'] }} currently holds the largest share of your available balance at {{ round($largest['balance'] / $total * 100, 1) }}%.
+                {{ __('dashboard.largest_share', ['name' => $largest['name'], 'percentage' => round($largest['balance'] / $total * 100, 1)]) }}
             @else
-                No wallet balance available.
+                {{ __('dashboard.no_balance') }}
             @endif
         </p>
     </x-card>
@@ -293,7 +293,7 @@
                 <div>
                     <h3
                         class="text-2xl font-bold"
-                        x-text="mode === 'add' ? 'Add Wallet' : 'Edit Wallet'">
+                        x-text="mode === 'add' ? @js(__('dashboard.add_wallet')) : @js(__('dashboard.edit_wallet'))">
                     </h3>
                     <p class="mt-1 text-xs text-muted"
                         x-text="mode === 'add'
@@ -307,27 +307,27 @@
             </div>
 
             <div class="mt-5 space-y-4">
-                <x-input label="Wallet name" name="wallet_name" x-model="editing.name" />
+                <x-input label="{{ __('dashboard.wallet_name') }}" name="wallet_name" x-model="editing.name" />
 
                 <div>
-                    <label class="mb-1.5 block text-sm font-medium">Wallet type</label>
+                    <label class="mb-1.5 block text-sm font-medium">{{ __('dashboard.wallet_type') }}</label>
                     <select x-model="editing.type" class="w-full rounded-lg border border-line bg-white px-3 py-2.5 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20">
-                        <option>Physical wallet</option>
-                        <option>Digital wallet</option>
-                        <option>Bank account</option>
+                        <option>{{ __('dashboard.physical_wallet') }}</option>
+                        <option>{{ __('dashboard.digital_wallet') }}</option>
+                        <option>{{ __('dashboard.bank_account') }}</option>
                     </select>
                 </div>
 
-                <x-input label="Current balance" name="wallet_balance" inputmode="decimal" type="text" placeholder="0.00" x-model="editing.balance" x-on:input="if (editing.balance) editing.saldo_awal = ''" />
+                <x-input label="{{ __('dashboard.current_balance') }}" name="wallet_balance" inputmode="decimal" type="text" placeholder="0.00" x-model="editing.balance" x-on:input="if (editing.balance) editing.saldo_awal = ''" />
 
                 <div x-show="mode === 'add'">
-                    <label class="mb-1.5 block text-sm font-medium">Saldo awal (Opsional)</label>
+                    <label class="mb-1.5 block text-sm font-medium">{{ __('dashboard.initial_balance') }}</label>
                     <input name="saldo_awal" inputmode="decimal" type="text" placeholder="0.00" x-model="editing.saldo_awal" x-on:input="if (editing.saldo_awal) editing.balance = ''" class="w-full rounded-lg border border-line bg-white px-3 py-2.5 text-sm text-ink placeholder:text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20" />
-                    <p class="mt-1 text-xs text-muted">Hanya boleh mengisi salah satu. Saldo awal akan dicatat sebagai transaksi pemasukan.</p>
+                    <p class="mt-1 text-xs text-muted">{{ __('dashboard.initial_balance_note') }}</p>
                 </div>
 
                 <div>
-                    <label class="mb-2 block text-sm font-medium">Wallet color</label>
+                    <label class="mb-2 block text-sm font-medium">{{ __('dashboard.wallet_color') }}</label>
                     <div class="flex items-center gap-3">
                         @foreach (['brand', 'income', 'warn', 'expense', 'dark'] as $c)
                             <button type="button" x-on:click="editing.color = '{{ $c }}'"
@@ -341,7 +341,7 @@
                             <span x-cloak x-show="editing.color.startsWith('#')" class="text-xs text-muted" x-text="editing.color"></span>
                         </div>
                     </div>
-                    <p class="mt-1.5 text-xs text-muted">Pick a preset, or click the color swatch for a custom color.</p>
+                    <p class="mt-1.5 text-xs text-muted">{{ __('dashboard.color_note') }}</p>
                 </div>
             </div>
 
@@ -352,11 +352,11 @@
 
                 <div class="flex gap-3">
                     <x-button variant="outline" x-on:click="open = false">
-                        Cancel
+                        {{ __('dashboard.cancel') }}
                     </x-button>
 
                     <x-button x-on:click="saveWallet()">
-                        <span x-text="mode === 'add' ? 'Add Wallet' : 'Save changes'"></span>
+                        <span x-text="mode === 'add' ? @js(__('dashboard.add_wallet')) : @js(__('dashboard.save_changes'))"></span>
                     </x-button>
                 </div>
             </div>

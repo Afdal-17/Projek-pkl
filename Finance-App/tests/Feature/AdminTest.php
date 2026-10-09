@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\Dompet;
 use App\Models\Transfer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Auth;
 use Tests\TestCase;
 
 class AdminTest extends TestCase
@@ -77,6 +78,15 @@ class AdminTest extends TestCase
         $response->assertRedirect(route('login'));
         $this->assertTrue(str_contains(session('error'), 'Akun Anda telah diblokir selama 30 hari karena Melanggar ketentuan penggunaan aplikasi'));
         $this->assertTrue(session('show_contact_admin'));
+
+        // Test login form submission as banned user shows modal data
+        Auth::logout();
+        $res = $this->post(route('login'), [
+            'email' => 'banned@example.com',
+            'password' => 'password',
+        ]);
+        $res->assertRedirect(route('login'));
+        $this->assertNotNull($res->getSession()->get('banned_modal'));
 
         $this->actingAs($admin)->patchJson(route('admin.users.ban', $user))
             ->assertOk()
@@ -227,7 +237,7 @@ class AdminTest extends TestCase
         return User::create([
             'nama' => $role,
             'email' => $email,
-            'password' => 'password',
+            'password' => bcrypt('password'),
             'role' => $role,
             'status' => true,
             'email_verified_at' => now(),

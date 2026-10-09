@@ -1,0 +1,27 @@
+<?php
+
+return [
+    'title' => 'Transfer Wallet & User',
+    'subtitle' => 'Send funds between your own wallets or to other users instantly and securely.',
+    'wallet_transfer' => 'Wallet Transfer',
+    'user_transfer' => 'User Transfer',
+    'from_wallet' => 'Source Wallet',
+    'select_source_wallet' => 'Select source wallet',
+    'destination_user_wallet' => 'Destination User Wallet',
+    'search_recipient_placeholder' => 'Search by name or email...',
+    'amount' => 'Amount',
+    'note' => 'Note (Optional)',
+    'note_placeholder' => 'Add a note for this transfer...',
+    'cancel' => 'Cancel',
+    'transfer_now' => 'Transfer Now',
+    'history_title' => 'Transfer History',
+    'history_subtitle' => 'Track your complete transaction history.',
+    'date' => 'Date',
+    'sender' => 'Sender',
+    'recipient' => 'Recipient',
+    'status' => 'Status',
+    'actions' => 'Actions',
+    'detail' => 'Detail',
+    'no_transfers' => 'No transfers found.',
+    'banned_account' => 'Banned Account',
+];

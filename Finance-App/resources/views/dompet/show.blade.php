@@ -1,4 +1,20 @@
-<x-app-layout>
-    <x-slot name="header"><h2 class="font-semibold text-xl text-gray-800">{{ $dompet->nama_dompet }}</h2></x-slot>
-    <div class="py-8 max-w-2xl mx-auto px-4 sm:px-6 lg:px-8"><div class="bg-white p-6 shadow-sm rounded-lg space-y-4"><div><span class="text-sm text-gray-500">Saldo</span><p class="text-2xl font-semibold">Rp {{ number_format((float) $dompet->saldo, 2, ',', '.') }}</p></div><p class="text-gray-600">{{ $dompet->deskripsi ?: 'Tidak ada deskripsi.' }}</p><div class="flex justify-end gap-3"><a href="{{ route('dompet.index') }}" class="px-4 py-2 text-gray-600">Kembali</a><a href="{{ route('dompet.edit', $dompet) }}" class="px-4 py-2 bg-gray-800 text-white rounded-md">Edit</a></div></div></div>
-</x-app-layout>
+@extends('layouts.main')
+
+@section('title', $dompet->nama_dompet)
+
+@section('content')
+    <div class="max-w-2xl mx-auto">
+        <h1 class="text-3xl font-bold">{{ $dompet->nama_dompet }}</h1>
+        <x-card class="mt-8 p-6 space-y-4">
+            <div>
+                <span class="text-sm text-muted">{{ __('dompet.balance') }}</span>
+                <p class="text-2xl font-semibold">Rp {{ number_format((float) $dompet->saldo, 2, ',', '.') }}</p>
+            </div>
+            <p class="text-muted">{{ $dompet->deskripsi ?: __('dompet.no_description') }}</p>
+            <div class="flex justify-end gap-3 pt-4 border-t border-line">
+                <a href="{{ route('dompet.index') }}" class="px-4 py-2 text-muted hover:underline">{{ __('dompet.back') }}</a>
+                <a href="{{ route('dompet.edit', $dompet) }}" class="rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white hover:opacity-90">{{ __('dompet.edit') }}</a>
+            </div>
+        </x-card>
+    </div>
+@endsection

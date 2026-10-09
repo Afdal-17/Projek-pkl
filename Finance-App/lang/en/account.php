@@ -1,0 +1,28 @@
+<?php
+
+return [
+    'title' => 'Account',
+    'subtitle' => 'Manage your profile, security, and finance preferences.',
+    'save_changes' => 'Save changes',
+    'saved' => 'Saved',
+    'profile' => 'Profile',
+    'security' => 'Security',
+    'preferences' => 'Finance preferences',
+    'notifications' => 'Notifications',
+    'sign_out' => 'Sign out',
+    'public_details' => 'Your public account details',
+    'photo_note' => 'JPG or PNG. Maximum file size 2 MB.',
+    'change_photo' => 'Change photo',
+    'remove' => 'Remove',
+    'about' => 'About',
+    'full_name' => 'Full name',
+    'email_address' => 'Email address',
+    'phone_number' => 'Phone number',
+    'location' => 'Location',
+    'security_desc' => 'Your password was last changed 3 months ago. Enable two-step verification for extra protection.',
+    'update_password' => 'Update password',
+    'language' => 'Language',
+    'default_currency' => 'Default currency',
+    'start_of_week' => 'Start of week',
+    'success_popup' => 'Profile successfully updated!',
+];
