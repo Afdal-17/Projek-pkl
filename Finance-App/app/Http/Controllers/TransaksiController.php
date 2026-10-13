@@ -9,6 +9,7 @@ use App\Models\Dompet;
 use App\Models\Kategori;
 use App\Models\Transaksi;
 use App\Models\TargetTabungan;
+use App\Services\CurrencyService;
 use App\Services\NotifikasiService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
@@ -96,6 +97,7 @@ class TransaksiController extends Controller
     {
         $data = $request->validated();
         $userId = (int) Auth::id();
+        $data['jumlah'] = CurrencyService::toBase((float) $data['jumlah']);
 
         DB::transaction(function () use ($data, $userId, $notifikasiService): void {
             $dompet = Dompet::where('id_user', $userId)
@@ -135,6 +137,7 @@ class TransaksiController extends Controller
     {
         $data = $request->validated();
         $userId = (int) Auth::id();
+        $data['jumlah'] = CurrencyService::toBase((float) $data['jumlah']);
 
         DB::transaction(function () use ($data, $transaksi, $userId, $notifikasiService): void {
             $current = Transaksi::whereHas('dompet', fn ($query) => $query->where('id_user', $userId))

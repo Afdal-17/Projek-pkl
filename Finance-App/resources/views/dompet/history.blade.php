@@ -15,7 +15,7 @@
     </div>
     <div class="text-right">
         <p class="text-xs text-muted">Current balance</p>
-        <p class="text-2xl font-bold">Rp {{ number_format((float) $dompet->saldo, 0, ',', '.') }}</p>
+        <p class="text-2xl font-bold">{{ finance_money($dompet->saldo) }}</p>
     </div>
 </div>
 
@@ -36,7 +36,7 @@
                         </div>
                     </div>
                     <p class="text-sm font-semibold {{ $t['jenis'] === 'pemasukan' ? 'text-income' : 'text-expense' }}">
-                        {{ $t['jenis'] === 'pemasukan' ? '+' : '-' }} Rp {{ number_format($t['amount'], 0, ',', '.') }}
+                        {{ $t['jenis'] === 'pemasukan' ? '+' : '-' }} {{ finance_money($t['amount']) }}
                     </p>
                 </div>
             @endforeach

@@ -6,6 +6,7 @@ use App\Http\Requests\StoreTargetTabunganRequest;
 use App\Http\Requests\UpdateTargetTabunganRequest;
 use App\Models\Dompet;
 use App\Models\TargetTabungan;
+use App\Services\CurrencyService;
 use App\Services\NotifikasiService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
@@ -66,9 +67,10 @@ class TargetTabunganController extends Controller
     {
         $data = $request->validated();
         $wallet = Dompet::where('id_user', Auth::id())->findOrFail($data['id_dompet']);
-        $initialSavings = $data['initial_savings'] ?? (float) $wallet->saldo;
+        $nominalTarget = CurrencyService::toBase((float) $data['nominal_target']);
+        $initialSavings = CurrencyService::toBase((float) ($data['initial_savings'] ?? $wallet->saldo));
 
-        if ((float) $initialSavings > (float) $data['nominal_target'] || (float) $initialSavings > (float) $wallet->saldo) {
+        if ((float) $initialSavings > (float) $nominalTarget || (float) $initialSavings > (float) $wallet->saldo) {
             throw \Illuminate\Validation\ValidationException::withMessages([
                 'initial_savings' => 'Initial savings tidak boleh melebihi saldo wallet atau target.',
             ]);
@@ -78,11 +80,11 @@ class TargetTabunganController extends Controller
             'id_dompet' => $wallet->id_dompet,
             'nama_target' => $data['nama_target'],
             'deskripsi' => $data['deskripsi'] ?? null,
-            'nominal_target' => $data['nominal_target'],
+            'nominal_target' => $nominalTarget,
             'nominal_terkumpul' => (float) $initialSavings,
             'saldo_awal_dompet' => $wallet->saldo,
             'id_user' => Auth::id(),
-            'status' => (float) $initialSavings >= (float) $data['nominal_target'] ? 'tercapai' : 'belum_tercapai',
+            'status' => (float) $initialSavings >= (float) $nominalTarget ? 'tercapai' : 'belum_tercapai',
         ]);
 
         if ($target->status === 'tercapai') {
@@ -114,22 +116,25 @@ class TargetTabunganController extends Controller
         $targetTabungan = $this->ownedTarget($targetTabungan);
         $data = $request->validated();
         $wallet = Dompet::where('id_user', Auth::id())->findOrFail($data['id_dompet']);
+        $nominalTarget = CurrencyService::toBase((float) $data['nominal_target']);
         $updates = [
             'id_dompet' => $wallet->id_dompet,
             'nama_target' => $data['nama_target'],
             'deskripsi' => $data['deskripsi'] ?? null,
-            'nominal_target' => $data['nominal_target'],
+            'nominal_target' => $nominalTarget,
         ];
         $walletChanged = (int) $wallet->id_dompet !== (int) $targetTabungan->id_dompet;
 
         if (($data['initial_savings'] ?? null) !== null || $walletChanged) {
-            $initialSavings = $data['initial_savings'] ?? min(
-                (float) $targetTabungan->jumlah_terkumpul,
-                (float) $wallet->saldo,
-                (float) $data['nominal_target']
-            );
+            $initialSavings = isset($data['initial_savings'])
+                ? CurrencyService::toBase((float) $data['initial_savings'])
+                : min(
+                    (float) $targetTabungan->jumlah_terkumpul,
+                    (float) $wallet->saldo,
+                    (float) $nominalTarget
+                );
 
-            if ((float) $initialSavings > (float) $data['nominal_target'] || (float) $initialSavings > (float) $wallet->saldo) {
+            if ((float) $initialSavings > (float) $nominalTarget || (float) $initialSavings > (float) $wallet->saldo) {
                 throw \Illuminate\Validation\ValidationException::withMessages([
                     'initial_savings' => 'Initial savings tidak boleh melebihi saldo wallet atau target.',
                 ]);

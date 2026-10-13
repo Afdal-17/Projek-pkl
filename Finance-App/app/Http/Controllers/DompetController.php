@@ -9,6 +9,7 @@ use App\Models\Dompet;
 use App\Models\TargetTabungan;
 use App\Models\Transaksi;
 use App\Models\Transfer;
+use App\Services\CurrencyService;
 use App\Services\NotifikasiService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -65,10 +66,10 @@ class DompetController extends Controller
     {
         $data = $request->validated();
         $saldoAwal = isset($data['saldo_awal']) && $data['saldo_awal'] !== null && $data['saldo_awal'] !== ''
-            ? (float) $data['saldo_awal']
+            ? CurrencyService::toBase((float) $data['saldo_awal'])
             : 0.0;
         $saldo = isset($data['saldo']) && $data['saldo'] !== null && $data['saldo'] !== ''
-            ? (float) $data['saldo']
+            ? CurrencyService::toBase((float) $data['saldo'])
             : $saldoAwal;
 
         DB::transaction(function () use ($data, $saldoAwal, $saldo): void {
@@ -138,13 +139,14 @@ class DompetController extends Controller
             ]);
         }
 
-        DB::transaction(function () use ($data, $dompet, $notifikasiService): void {
+        $newBalance = CurrencyService::toBase((float) $data['saldo']);
+
+        DB::transaction(function () use ($data, $dompet, $notifikasiService, $newBalance): void {
             $wallet = Dompet::where('id_user', Auth::id())
                 ->whereKey($dompet->id_dompet)
                 ->lockForUpdate()
                 ->firstOrFail();
             $oldBalance = (float) $wallet->saldo;
-            $newBalance = (float) $data['saldo'];
             $delta = round($newBalance - $oldBalance, 2);
 
             $wallet->update([

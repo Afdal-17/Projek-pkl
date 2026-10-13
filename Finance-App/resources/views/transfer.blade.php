@@ -15,6 +15,7 @@
         searchResults: [],
         searching: false,
         amount: '',
+        amountDisplay: '',
         wallets: @js($wallets),
         csrfToken: @js(csrf_token()),
 
@@ -39,7 +40,25 @@
         },
 
         get formattedAmount() {
-            return window.financeMoney.format(Number(this.amount) || 0);
+            // this.amount adalah input user dalam mata uang aktif
+            return window.financeMoney.formatNative(Number(this.amount) || 0);
+        },
+
+        get currentLocale() {
+            const currency = document.querySelector("meta[name='finance-currency']")?.content ?? 'IDR';
+            return currency === 'USD' ? 'en-US' : (currency === 'EUR' ? 'de-DE' : 'id-ID');
+        },
+
+        formatAmount(value) {
+            // Hapus semua karakter non-digit
+            const cleaned = value.replace(/[^\d]/g, '');
+            const num = cleaned === '' ? 0 : parseInt(cleaned, 10);
+            
+            // Simpan nilai numerik
+            this.amount = num;
+            
+            // Format dengan thousand separator sesuai locale mata uang
+            this.amountDisplay = num === 0 ? '' : num.toLocaleString(this.currentLocale);
         },
 
         toggleMode() {
@@ -95,40 +114,41 @@
 
         async saveTransfer() {
             const amount = Number(this.amount);
+            const amountInBase = window.financeMoney.toBase(amount);
             let targetWalletId = this.to;
 
             if (!amount || amount <= 0) {
-                alert(@js(__('transfer.alert_amount_min')));
+                alert('Amount harus lebih dari 0.');
                 return;
             }
 
             if (this.mode === 'wallet' && !targetWalletId) {
-                alert(@js(__('transfer.alert_select_target')));
+                alert('Pilih tujuan transfer.');
                 return;
             }
 
             if (this.mode === 'user' && !this.recipient) {
-                alert(@js(__('transfer.alert_verify_recipient')));
+                alert('Cari dan verifikasi penerima terlebih dahulu.');
                 return;
             }
 
             if (this.mode === 'user' && this.recipient?.is_banned) {
-                alert(@js(__('transfer.alert_recipient_suspended')));
+                alert('Penerima sedang diblokir dan tidak dapat menerima transfer.');
                 return;
             }
 
             if (this.mode === 'user' && !this.recipientWalletId) {
-                alert(@js(__('transfer.alert_select_recipient_wallet')));
+                alert('Pilih dompet tujuan penerima.');
                 return;
             }
 
             if (this.mode === 'wallet' && String(this.from) === String(this.to)) {
-                alert(@js(__('transfer.alert_same_wallet')));
+                alert('Wallet asal dan tujuan tidak boleh sama.');
                 return;
             }
 
-            if (amount > this.fromBalance) {
-                alert(@js(__('transfer.alert_insufficient_balance')));
+            if (amountInBase > this.fromBalance) {
+                alert('Saldo wallet tidak cukup.');
                 return;
             }
 
@@ -152,7 +172,7 @@
 
             if (!response.ok) {
                 const result = await response.json();
-                alert(Object.values(result.errors ?? {}).flat()[0] ?? @js(__('transfer.alert_process_failed')));
+                alert(Object.values(result.errors ?? {}).flat()[0] ?? 'Transfer tidak dapat diproses.');
                 return;
             }
 
@@ -163,9 +183,9 @@
 
     {{-- Header --}}
     <div>
-        <h1 class="text-3xl font-bold">{{ __('transfer.title') }}</h1>
+        <h1 class="text-3xl font-bold">Transfer Wallet &amp; User</h1>
         <p class="mt-1 text-sm text-muted">
-            {{ __('transfer.subtitle') }}
+            Transfer from a specific wallet to another wallet or user.
         </p>
     </div>
 
@@ -178,7 +198,7 @@
             <div class="flex items-center justify-between">
                 <label
                     class="text-sm font-medium"
-                    x-text="mode === 'wallet' ? @js(__('transfer.transfer_wallet')) : @js(__('transfer.transfer_user'))"
+                    x-text="mode === 'wallet' ? 'Transfer Wallet' : 'Transfer User'"
                 ></label>
 
                 <button
@@ -219,7 +239,7 @@
                     <span class="flex h-6 w-6 items-center justify-center rounded-full border border-ink">
                         <x-icon name="arrow-right" size="h-3 w-3" />
                     </span>
-                    <span>{{ __('transfer.to') }}</span>
+                    <span>to</span>
                 </div>
 
                 {{-- Tujuan: wallet --}}
@@ -249,7 +269,7 @@
                         type="text"
                         x-model="userQuery"
                         x-on:input.debounce.300ms="searchUsers()"
-                        placeholder="{{ __('transfer.search_placeholder') }}"
+                        placeholder="Seacrh username/email"
                         class="w-full rounded-full border border-line bg-white py-2.5 pl-9 pr-9 text-sm placeholder:text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
                     >
 
@@ -265,7 +285,7 @@
                         <button type="button"
                                 @click="u.has_wallet ? selectUser(u) : null"
                                 :disabled="!u.has_wallet"
-                                :title="u.has_wallet ? '' : @js(__('transfer.recipient_no_wallet'))"
+                                :title="u.has_wallet ? '' : 'The recipient does not yet have a wallet.'"
                                 class="flex w-full items-center gap-3 border-b border-line px-4 py-3 text-left transition last:border-0 hover:bg-page disabled:cursor-not-allowed disabled:opacity-50">
                             <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full" :class="u.is_banned ? 'bg-expense-soft text-expense' : 'bg-brand-soft text-brand'">
                                 <x-icon name="user" size="h-4 w-4" />
@@ -275,12 +295,12 @@
                                 <span class="block truncate text-xs text-muted" x-text="u.email"></span>
                             </span>
                             <span x-show="u.is_banned" class="shrink-0 rounded-full bg-expense-soft px-2.5 py-1 text-xs font-semibold text-expense">
-                                {{ __('transfer.account_banned') }}
+                                Banned Account
                             </span>
                             <span x-show="!u.is_banned"
                                 class="shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold"
                                 :class="u.has_wallet ? 'bg-page text-muted' : 'bg-expense-soft text-expense'"
-                                x-text="u.has_wallet ? u.wallets[0].name + (u.wallets.length > 1 ? ' +' + (u.wallets.length - 1) : '') : @js(__('transfer.no_wallet'))">
+                                x-text="u.has_wallet ? u.wallets[0].name + (u.wallets.length > 1 ? ' +' + (u.wallets.length - 1) : '') : 'Don\'t have a wallet'">
                             </span>
                         </button>
                     </template>
@@ -296,11 +316,11 @@
                         </span>
                         <div class="leading-tight">
                             <p class="text-sm font-semibold" x-text="recipient?.penerima"></p>
-                            <p class="text-xs text-muted" x-text="recipient?.is_banned ? @js(__('transfer.recipient_suspended')) : @js(__('transfer.recipient_verified'))"></p>
+                            <p class="text-xs text-muted" x-text="recipient?.is_banned ? 'The recipient is currently blocked.' : 'Recipient found & verified'"></p>
                         </div>
-                        <span x-show="!recipient?.is_banned" class="ml-auto rounded-full bg-income-soft px-2.5 py-1 text-xs font-semibold text-income">{{ __('transfer.verified') }}</span>
-                        <span x-show="recipient?.is_banned" class="ml-auto rounded-full bg-expense-soft px-2.5 py-1 text-xs font-semibold text-expense">{{ __('transfer.banned') }}</span>
-                        <button type="button" @click="clearRecipient()" title="{{ __('transfer.change_recipient') }}"
+                        <span x-show="!recipient?.is_banned" class="ml-auto rounded-full bg-income-soft px-2.5 py-1 text-xs font-semibold text-income">Verified</span>
+                        <span x-show="recipient?.is_banned" class="ml-auto rounded-full bg-expense-soft px-2.5 py-1 text-xs font-semibold text-expense">Banned</span>
+                        <button type="button" @click="clearRecipient()" title="Ganti penerima"
                                 class="flex h-7 w-7 items-center justify-center rounded-md text-muted hover:bg-white">
                             <x-icon name="x" size="h-3.5 w-3.5" />
                         </button>
@@ -308,13 +328,13 @@
 
                     {{-- Warning jika akun dibanned --}}
                     <div x-show="recipient?.is_banned" class="mt-3 rounded-lg border border-red-200 bg-white p-3 text-xs text-red-700">
-                        <p class="font-bold">{{ __('transfer.suspended_warning_title') }}</p>
-                        <p class="mt-0.5">{{ __('transfer.suspended_warning_body') }}</p>
+                        <p class="font-bold">Peringatan: Akun Terblokir</p>
+                        <p class="mt-0.5">Penerima tidak dapat menerima transfer karena akun sedang diblokir oleh admin.</p>
                     </div>
 
                     {{-- Pilih dompet penerima --}}
                     <div x-show="!recipient?.is_banned" class="mt-3 flex items-center gap-2">
-                        <label class="shrink-0 text-xs font-medium text-muted">{{ __('transfer.target_wallet') }}</label>
+                        <label class="shrink-0 text-xs font-medium text-muted">Destination wallet</label>
                         <div class="relative flex-1">
                             <x-icon name="wallet" size="h-4 w-4"
                                 class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-brand" />
@@ -337,17 +357,24 @@
 
             {{-- Amount --}}
             <div class="mt-6">
-                <label for="amount" class="mb-2 block text-sm font-medium">{{ __('transfer.amount') }}</label>
+                <div class="mb-2 flex items-center justify-between">
+                    <label for="amount" class="block text-sm font-medium">Amount</label>
+                    <span class="text-xs text-muted">
+                        Balance: <span class="font-semibold" x-text="window.financeMoney.format(fromBalance)"></span>
+                    </span>
+                </div>
 
                 <div class="relative">
                     <span class="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-semibold text-muted" x-text="window.financeMoney.symbol"></span>
 
                     <input
                         id="amount"
-                        type="number"
-                        min="0"
-                        x-model.number="amount"
+                        type="text"
+                        x-model="amountDisplay"
+                        x-on:input="formatAmount($event.target.value)"
+                        x-on:focus="$event.target.select()"
                         class="w-full rounded-lg border border-line bg-white py-3 pl-12 pr-4 text-2xl font-semibold focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+                        placeholder="0"
                     >
                 </div>
             </div>
@@ -355,19 +382,19 @@
 
             {{-- Category (tetap) --}}
             <div class="mt-6">
-                <label class="mb-2 block text-sm font-medium">{{ __('transfer.category') }}</label>
+                <label class="mb-2 block text-sm font-medium">Category</label>
 
                 <div class="flex w-56 items-center gap-2 rounded-lg border border-line bg-white px-3 py-2.5 text-sm">
                     <x-icon name="wallet" size="h-4 w-4" class="text-muted" />
-                    {{ __('transfer.transfer') }}
+                    Transfer
                 </div>
             </div>
 
 
             {{-- Tombol --}}
             <div class="mt-6 flex justify-end gap-3">
-                <x-button href="/transactions" variant="outline">{{ __('transfer.cancel') }}</x-button>
-                <x-button x-on:click="saveTransfer()">{{ __('transfer.transfer') }}</x-button>
+                <x-button href="/transactions" variant="outline">Cancel</x-button>
+                <x-button x-on:click="saveTransfer()">Transfer</x-button>
             </div>
 
         </x-card>
@@ -377,17 +404,17 @@
         <div>
             <x-card class="p-6">
 
-                <h2 class="text-lg font-semibold">{{ __('transfer.summary') }}</h2>
+                <h2 class="text-lg font-semibold">Summary</h2>
 
                 <div class="mt-5 space-y-4 text-sm">
 
                     <div class="flex items-center justify-between">
-                        <span class="text-muted">{{ __('transfer.from_wallet') }}</span>
+                        <span class="text-muted">From Wallet</span>
                         <span class="rounded-full bg-expense-soft px-3 py-1 text-xs font-medium" x-text="fromLabel"></span>
                     </div>
 
                     <div class="flex items-center justify-between">
-                        <span class="text-muted" x-text="mode === 'wallet' ? @js(__('transfer.to_wallet')) : @js(__('transfer.to_user'))"></span>
+                        <span class="text-muted" x-text="mode === 'wallet' ? 'To Wallet' : 'To User'"></span>
                         <span
                             class="rounded-full bg-expense-soft px-3 py-1 text-xs font-medium"
                             x-text="mode === 'wallet' ? toLabel : (recipient ? recipient.penerima : (userQuery || '-'))"
@@ -395,7 +422,7 @@
                     </div>
 
                     <div class="flex items-center justify-between" x-show="mode === 'user' && recipient" x-cloak>
-                        <span class="text-muted">{{ __('transfer.to_wallet') }}</span>
+                        <span class="text-muted">To Wallet</span>
                         <span
                             class="rounded-full bg-page px-3 py-1 text-xs font-medium"
                             x-text="recipientWallet?.name ?? '-'"
@@ -403,7 +430,7 @@
                     </div>
 
                     <div class="flex items-center justify-between">
-                        <span class="text-muted">{{ __('transfer.amount') }}</span>
+                        <span class="text-muted">Amount</span>
                         <span class="text-base font-bold" x-text="formattedAmount"></span>
                     </div>
 

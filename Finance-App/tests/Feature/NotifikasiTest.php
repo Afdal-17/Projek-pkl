@@ -34,11 +34,11 @@ class NotifikasiTest extends TestCase
 
         // Pengirim mendapat notifikasi transfer berhasil ke penerima dari dompet asal
         $senderNotification = Notifikasi::where('id_user', $pengirim->id_user)->firstOrFail();
-        $this->assertSame('Transfer berhasil ke Penerima dari Asal sebesar Rp 10.000,00.', $senderNotification->pesan);
+        $this->assertSame('Transfer berhasil ke Penerima dari Asal sebesar Rp 10.000.', $senderNotification->pesan);
 
         // Penerima mendapat notifikasi di transfer oleh pengirim
         $recipientNotification = Notifikasi::where('id_user', $penerima->id_user)->firstOrFail();
-        $this->assertSame('Anda di transfer oleh Pengirim sebesar Rp 10.000,00.', $recipientNotification->pesan);
+        $this->assertSame('Anda di transfer oleh Pengirim sebesar Rp 10.000.', $recipientNotification->pesan);
 
         // Waktu notifikasi mengikuti waktu pembuatan (sekarang), bukan tanggal transfer
         $this->assertLessThanOrEqual(60, $senderNotification->tanggal->diffInSeconds(now()));

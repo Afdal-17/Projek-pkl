@@ -27,6 +27,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="finance-currency" content="{{ $currentUser?->mata_uang ?? 'IDR' }}">
+    <meta name="finance-rates" content="{{ json_encode(\App\Services\CurrencyService::rates()) }}">
     <title>@yield('title', 'Finance App')</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
@@ -38,9 +39,9 @@
 
             <nav class="flex items-center gap-1 text-sm font-medium">
                 @foreach ([
-                    [__('nav.dashboard'), '/dashboard', ['dashboard*', 'transfer*']],
-                    [__('nav.transaksi'), '/transactions', ['transactions*']],
-                    [__('nav.target_tabungan'), '/saving', ['saving*']],
+                    ['Dashboard', '/dashboard', ['dashboard*', 'transfer*']],
+                    ['Transactions', '/transactions', ['transactions*']],
+                    ['Saving', '/saving', ['saving*']],
                 ] as [$label, $url, $patterns])
                     <a href="{{ $url }}"
                        class="rounded-lg px-4 py-2 transition {{ request()->is(...$patterns) ? 'bg-brand-soft text-brand' : 'text-muted hover:text-ink' }}">

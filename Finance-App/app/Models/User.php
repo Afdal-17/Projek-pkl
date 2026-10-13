@@ -25,6 +25,7 @@ class User extends Authenticatable
     protected $fillable = [
         'nama',
         'email',
+        'google_id',
         'password',
         'role',
         'status',
@@ -42,6 +43,7 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'otp_kode',
     ];
 
     protected function casts(): array
@@ -52,6 +54,8 @@ class User extends Authenticatable
             'last_seen_at' => 'datetime',
             'banned_at' => 'datetime',
             'email_verified_at' => 'datetime',
+            'otp_expires_at' => 'datetime',
+            'otp_verified_at' => 'datetime',
         ];
     }
 

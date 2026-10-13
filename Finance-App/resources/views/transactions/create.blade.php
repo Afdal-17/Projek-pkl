@@ -40,9 +40,14 @@
             return this.wallets.find(w => w.name === this.wallet) ?? { balance: 0 };
         },
 
+        get amountInBase() {
+            // Input user dalam mata uang aktif, dikonversi ke IDR base
+            return window.financeMoney.toBase(Number(this.amount) || 0);
+        },
+
         get newBalance() {
             const balance = Number(this.selectedWallet.balance);
-            const amount = Number(this.amount) || 0;
+            const amount = this.amountInBase;
 
             return this.type === 'income' ? balance + amount : balance - amount;
         },

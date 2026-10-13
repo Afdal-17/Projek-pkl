@@ -107,9 +107,11 @@ class DashboardSummaryTest extends TestCase
             'saldo' => 1250000,
         ]);
 
+        // Saldo tersimpan dalam IDR base; ditampilkan sebagai USD:
+        // 1.250.000 / 16.000 = $78.13
         $this->actingAs($user)->get(route('user.dashboard'))
             ->assertOk()
-            ->assertSee('$ 1,250,000.00')
+            ->assertSee('$78.13')
             ->assertSee('name="finance-currency" content="USD"', false);
     }
 }

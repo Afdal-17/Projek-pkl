@@ -49,7 +49,20 @@ class AdminController extends Controller
     public function manageUsers(): View
     {
         return view('admin.users', [
-            'users' => User::where('role', 'user')->orderBy('nama')->paginate(15),
+            'users' => User::where('role', 'user')
+                ->whereNotNull('email_verified_at')
+                ->orderBy('nama')
+                ->paginate(15),
+        ]);
+    }
+
+    public function verifyUsers(): View
+    {
+        return view('admin.verify-users', [
+            'users' => User::where('role', 'user')
+                ->whereNull('email_verified_at')
+                ->orderBy('created_at', 'desc')
+                ->paginate(15),
         ]);
     }
 
@@ -179,6 +192,19 @@ class AdminController extends Controller
         abort_if($user->isAdmin(), 403, 'Akun admin tidak dapat dihapus dari halaman ini.');
         abort_if($user->is($request->user()), 422, 'Admin tidak dapat menghapus akunnya sendiri.');
 
+        // User inactive atau banned bisa dihapus (termasuk yang sudah tidak aktif 1 tahun)
+        $isInactive = ! $user->status;
+        $isBanned = $user->banned_at !== null;
+        $lastActiveAt = $user->last_seen_at ?? $user->created_at;
+        $longInactive = $lastActiveAt !== null
+            && $lastActiveAt->diffInDays(now()) >= 365;
+
+        if (! $isInactive && ! $isBanned && ! $longInactive) {
+            return response()->json([
+                'message' => 'User hanya bisa dihapus jika statusnya Inactive atau Banned.',
+            ], 409);
+        }
+
         $walletIds = $user->dompet()->pluck('id_dompet');
         $hasTransferHistory = Transfer::whereIn('id_dompet_asal', $walletIds)
             ->orWhereIn('id_dompet_tujuan', $walletIds)
@@ -187,17 +213,6 @@ class AdminController extends Controller
         if ($hasTransferHistory) {
             return response()->json([
                 'message' => 'User tidak dapat dihapus karena wallet-nya memiliki riwayat transfer.',
-            ], 409);
-        }
-
-        // User hanya bisa dihapus jika tidak login selama 1 tahun (365 hari)
-        $lastActiveAt = $user->last_seen_at ?? $user->created_at;
-        $longInactive = $lastActiveAt !== null
-            && $lastActiveAt->diffInDays(now()) >= 365;
-
-        if (! $longInactive) {
-            return response()->json([
-                'message' => 'User hanya bisa dihapus jika tidak login selama 1 tahun.',
             ], 409);
         }
 

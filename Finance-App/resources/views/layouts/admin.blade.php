@@ -16,7 +16,8 @@
         <nav class="mt-8 space-y-1 text-sm font-medium">
             @foreach ([
                 ['Dashboard', '/admin/dashboard', 'admin/dashboard*', 'layout'],
-                ['Users Manage', '/admin/users', 'admin/users*', 'user'],
+                ['Verify Users', '/admin/verify-users', 'admin/verify-users*', 'user-check'],
+                ['Manage Users', '/admin/users', 'admin/users*', 'users'],
             ] as [$label, $url, $pattern, $icon])
                 <a href="{{ $url }}"
                    class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition {{ request()->is($pattern) ? 'bg-brand-soft text-brand' : 'text-muted hover:bg-page' }}">

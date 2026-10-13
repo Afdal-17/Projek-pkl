@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['auth', CheckRole::class . ':admin'])->prefix('admin')->group(function () {
     Route::get('/dashboard', [AdminController::class, 'index'])->name('admin.dashboard');
     Route::get('/users', [AdminController::class, 'manageUsers'])->name('admin.users');
+    Route::get('/verify-users', [AdminController::class, 'verifyUsers'])->name('admin.verify-users');
     Route::get('/profile', [ProfileController::class, 'adminEdit'])->name('admin.profile');
     Route::patch('/profile', [ProfileController::class, 'frontendUpdate'])->name('admin.profile.update');
     Route::patch('/users/{user}/status', [AdminController::class, 'toggleStatus'])->name('admin.users.status');
@@ -70,6 +71,7 @@ Route::get('/', function () {
 Route::middleware('auth')->group(function () {
     Route::get('/account', [ProfileController::class, 'frontendEdit'])->name('account');
     Route::patch('/account', [ProfileController::class, 'frontendUpdate'])->name('account.update');
+    Route::patch('/account/currency', [ProfileController::class, 'switchCurrency'])->name('account.currency.switch');
     Route::post('/account/avatar', [ProfileController::class, 'updateAvatar'])->name('account.avatar.update');
     Route::delete('/account/avatar', [ProfileController::class, 'deleteAvatar'])->name('account.avatar.destroy');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

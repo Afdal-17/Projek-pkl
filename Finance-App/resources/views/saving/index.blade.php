@@ -88,7 +88,7 @@
             </div>
             <p class="mt-4 text-2xl font-bold" x-text="rp(totalTarget)"></p>
             <p class="mt-2 text-xs text-muted"
-               x-text="overallPct + '% ' + @js(__('saving.funded_across')) + ' ' + targets.length + ' ' + @js(__('saving.targets_count'))"></p>
+              x-text="overallPct + '% ' + @js(__('saving.funded_across')) + ' ' + targets.length + ' ' + (targets.length === 1 ? @js(__('saving.target')) : @js(__('saving.targets')))"></p>
         </x-card>
 
         <x-card class="p-6">
@@ -99,7 +99,7 @@
                 </span>
             </div>
             <p class="mt-4 text-2xl font-bold"
-               x-text="nextMilestone ? rp(nextMilestone.target - nextMilestone.saved) : 'Rp 0'"></p>
+               x-text="nextMilestone ? rp(nextMilestone.target - nextMilestone.saved) : rp(0)"></p>
             <p class="mt-2 text-xs text-muted"
                x-text="nextMilestone ? @js(__('saving.to_complete')) + ' ' + nextMilestone.name : @js(__('saving.all_completed'))"></p>
         </x-card>

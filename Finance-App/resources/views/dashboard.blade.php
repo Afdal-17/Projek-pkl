@@ -9,12 +9,7 @@
     $currencySymbol = $currencySymbols[$currency] ?? 'Rp';
     $decimalSeparator = $currency === 'USD' ? '.' : ',';
     $thousandsSeparator = $currency === 'USD' ? ',' : '.';
-    $formatMoney = fn ($amount) => $currencySymbol.' '.number_format(
-        (float) $amount,
-        $currency === 'IDR' ? 0 : 2,
-        $decimalSeparator,
-        $thousandsSeparator
-    );
+    $formatMoney = fn ($amount) => finance_money($amount, $currency);
     $tones = [
         'brand'   => ['soft' => 'bg-brand-soft text-brand',     'solid' => 'bg-brand'],
         'income'  => ['soft' => 'bg-income-soft text-income',   'solid' => 'bg-income'],
@@ -245,7 +240,7 @@
                         x-on:click="
                             mode = 'edit';
                             editing = @js($w);
-                            editing.balance = Number(editing.balance).toFixed(2);
+                            editing.balance = Number(window.financeMoney.fromBase(Number(editing.balance))).toFixed(2);
                             open = true;"
                         class="flex h-9 w-9 items-center justify-center rounded-lg border border-line hover:bg-page">
                     <x-icon name="more" size="h-4 w-4" />

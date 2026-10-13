@@ -9,7 +9,8 @@
         'id' => $user->id_user,
         'name' => $user->nama,
         'email' => $user->email,
-        'status' => $user->email_verified_at === null && $user->role === 'user' ? 'Unverified' : ($user->banned_at ? __('admin.banned') : ($user->status ? __('admin.active') : 'Inactive')),
+        'avatar' => $user->avatar_path ? asset('storage/' . $user->avatar_path) : null,
+        'status' => $user->banned_at ? __('admin.banned') : ($user->status ? __('admin.active') : 'Inactive'),
         'banned' => $user->banned_at !== null,
         'ban_reason' => $user->ban_reason,
         'banned_at' => $user->banned_at?->toIso8601String(),
@@ -17,9 +18,8 @@
         'ban_expires_at' => $user->banned_at?->addDays(30)->format('d M Y H:i'),
         'last_seen_at' => $user->last_seen_at?->toIso8601String(),
         'canToggle' => ! $user->isAdmin() && ! $user->is(auth()->user()) && $user->banned_at !== null,
-        'canBan' => ! $user->isAdmin() && ! $user->is(auth()->user()) && $user->email_verified_at !== null,
-        'canVerify' => $user->email_verified_at === null && $user->role === 'user',
-        'canDelete' => ! $user->isAdmin() && ! $user->is(auth()->user()) && ($user->last_seen_at ?? $user->created_at)->diffInDays(now()) >= 365,
+        'canBan' => ! $user->isAdmin() && ! $user->is(auth()->user()) && $user->status,
+        'canDelete' => ! $user->isAdmin() && ! $user->is(auth()->user()),
     ])->values();
 @endphp
 
@@ -33,7 +33,6 @@
         statusUrl: @js(route('admin.users.status', ['user' => '__USER__'])),
         banUrl: @js(route('admin.users.ban', ['user' => '__USER__'])),
         deleteUrl: @js(route('admin.users.destroy', ['user' => '__USER__'])),
-        verifyUrl: @js(route('admin.users.verify', ['user' => '__USER__'])),
 
         get filtered() {
             const keyword = this.search.toLowerCase().trim();
@@ -119,24 +118,6 @@
                 const result = await response.json();
                 alert(result.message ?? 'User could not be deleted.');
             }
-        },
-
-        async verifyUser(user) {
-            if (!user.canVerify) return;
-
-            const response = await fetch(this.verifyUrl.replace('__USER__', user.id), {
-                method: 'PATCH',
-                headers: { 'X-CSRF-TOKEN': this.csrfToken, 'Accept': 'application/json' },
-            });
-
-            if (response.ok) {
-                user.status = 'Active';
-                user.canVerify = false;
-                user.canBan = true;
-            } else {
-                const result = await response.json();
-                alert(result.message ?? 'User could not be verified.');
-            }
         }
     }"
 >
@@ -188,7 +169,17 @@
                 <div class="grid grid-cols-[2fr_2.6fr_1fr_1.3fr] items-center gap-4 border-t border-line px-6 py-3 text-sm">
 
                     <div class="flex items-center gap-3">
-                        <span class="h-8 w-8 rounded-full bg-brand-soft"></span>
+                        <template x-if="u.banned">
+                            <span class="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 text-xs font-semibold text-gray-400"
+                                  x-text="u.name.charAt(0).toUpperCase()"></span>
+                        </template>
+                        <template x-if="!u.banned && u.avatar">
+                            <img :src="u.avatar" :alt="u.name" class="h-8 w-8 rounded-full object-cover ring-1 ring-line">
+                        </template>
+                        <template x-if="!u.banned && !u.avatar">
+                            <span class="flex h-8 w-8 items-center justify-center rounded-full bg-brand-soft text-xs font-semibold text-brand"
+                                  x-text="u.name.charAt(0).toUpperCase()"></span>
+                        </template>
                         <span class="font-medium" x-text="u.name"></span>
                     </div>
 
@@ -197,7 +188,7 @@
                     <span>
                         <span
                             class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
-                            :class="u.status === 'Active' ? 'bg-income-soft text-income' : (u.status === 'Banned' ? 'bg-expense-soft text-expense' : (u.status === 'Unverified' ? 'bg-warn-soft text-warn' : 'bg-gray-100 text-muted'))"
+                            :class="u.status === 'Active' ? 'bg-income-soft text-income' : (u.status === 'Banned' ? 'bg-expense-soft text-expense' : 'bg-gray-100 text-muted')"
                             x-text="u.status"
                         ></span>
                         <template x-if="u.banned && u.ban_days_remaining !== null">
@@ -209,17 +200,13 @@
 
                     <div class="flex items-center gap-2">
 
-                        <button type="button" title="Verify" x-show="u.canVerify" x-on:click="verifyUser(u)"
-                                class="flex h-8 w-8 items-center justify-center rounded-md bg-brand-soft text-brand hover:opacity-80">
-                            <x-icon name="check" size="h-4 w-4" />
-                        </button>
-
                         <button type="button" x-show="u.banned" title="Unban User" x-on:click="toggleStatus(u)" :disabled="!u.canToggle"
                                 class="flex h-8 w-8 items-center justify-center rounded-md bg-income-soft text-income hover:opacity-80" x-cloak>
                             <x-icon name="check" size="h-4 w-4" />
                         </button>
 
-                        <button type="button" x-show="!u.banned && u.canBan" title="Suspend User" x-on:click="openBanModal(u)"
+                        {{-- Hanya tampilkan Ban untuk user yang aktif --}}
+                        <button type="button" x-show="!u.banned && u.status === 'Active' && u.canBan" title="Suspend User" x-on:click="openBanModal(u)"
                                 class="flex h-8 w-8 items-center justify-center rounded-md bg-expense-soft text-expense hover:opacity-80">
                             <x-icon name="ban" size="h-4 w-4" />
                         </button>
@@ -229,7 +216,8 @@
                             <x-icon name="alert-circle" size="h-4 w-4" />
                         </button>
 
-                        <button type="button" title="Delete User (1 tahun tidak login)" x-show="u.canDelete" x-on:click="remove(u.id)"
+                        {{-- Delete: untuk user inactive atau banned --}}
+                        <button type="button" title="Delete User" x-show="u.status === 'Inactive' || u.banned" x-on:click="remove(u.id)" :disabled="!u.canDelete"
                                 class="flex h-8 w-8 items-center justify-center rounded-md bg-expense-soft text-expense hover:opacity-80">
                             <x-icon name="trash" size="h-4 w-4" />
                         </button>
@@ -283,7 +271,7 @@
             <div class="flex items-start justify-between">
                 <div>
                     <h3 class="text-2xl font-bold">Suspend User</h3>
-                    <p class="mt-1 text-xs text-muted">Berikan alasan suspend untuk akun ini.</p>
+                    <p class="mt-1 text-xs text-muted">Provide the reason for suspending this account.</p>
                 </div>
 
                 <button type="button" x-on:click="banningId = null"
@@ -294,9 +282,9 @@
 
             <div class="mt-5 space-y-4">
                 <div>
-                    <label class="mb-1.5 block text-sm font-medium">Alasan Suspend (30 hari)</label>
-                    <textarea x-model="banReason" rows="4" required placeholder="Jelaskan alasan suspend akun ini..." class="w-full rounded-lg border border-line bg-white px-3 py-2.5 text-sm text-ink placeholder:text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"></textarea>
-                    <p class="mt-1 text-xs text-muted">User akan melihat: "Akun Anda telah diblokir selama 30 hari karena [alasan ini]"</p>
+                    <label class="mb-1.5 block text-sm font-medium">Reason for Suspension (30 days)</label>
+                    <textarea x-model="banReason" rows="4" required placeholder="Explain the suspending reason this acount..." class="w-full rounded-lg border border-line bg-white px-3 py-2.5 text-sm text-ink placeholder:text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"></textarea>
+                    <p class="mt-1 text-xs text-muted">The user will see: "Your account has been blocked for 30 days due to [this reason]"</p>
                 </div>
             </div>
 

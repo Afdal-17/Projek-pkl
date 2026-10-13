@@ -24,16 +24,22 @@
             return this.wallets.find(item => String(item.id) === String(this.wallet)) ?? { balance: 0 };
         },
 
+        get walletBalanceDisplay() {
+            // Saldo wallet tersimpan dalam IDR base; konversi ke mata uang aktif
+            return window.financeMoney.fromBase(Number(this.selectedWallet.balance));
+        },
+
         syncInitial() {
             if (!this.initialManual) {
                 this.initial = this.target
-                    ? Math.min(this.selectedWallet.balance, Number(this.target))
-                    : this.selectedWallet.balance;
+                    ? Math.min(this.walletBalanceDisplay, Number(this.target))
+                    : this.walletBalanceDisplay;
             }
         },
 
         rp(amount) {
-            return window.financeMoney.format(Number(amount) || 0);
+            // Nilai input user dalam mata uang aktif
+            return window.financeMoney.formatNative(Number(amount) || 0);
         },
 
         async saveTarget() {
@@ -55,7 +61,7 @@
                 return;
             }
 
-            if (initial > this.selectedWallet.balance) {
+            if (initial > this.walletBalanceDisplay) {
                 alert('Initial savings tidak boleh melebihi saldo wallet.');
                 return;
             }

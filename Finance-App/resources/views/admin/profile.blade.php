@@ -10,8 +10,8 @@
         form: {
             name: @js($user->nama),
             email: @js($user->email),
-            phone: @js($user->nomor_telepon),
-            location: @js($user->lokasi),
+            phone: @js($user->nomor_telepon && $user->nomor_telepon !== 'null' ? $user->nomor_telepon : ''),
+            location: @js($user->lokasi && $user->lokasi !== 'null' ? $user->lokasi : ''),
         },
         avatarUrl: @js($avatarUrl),
         csrfToken: @js(csrf_token()),

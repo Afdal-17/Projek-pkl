@@ -29,7 +29,7 @@
                             <p class="font-semibold">{{ $item->nama_dompet }}</p>
                             <p class="text-xs text-muted">{{ $item->deskripsi ?: __('dompet.no_description') }}</p>
                         </td>
-                        <td class="px-6 py-4">Rp {{ number_format((float) $item->saldo, 2, ',', '.') }}</td>
+                        <td class="px-6 py-4">{{ finance_money($item->saldo) }}</td>
                         <td class="px-6 py-4 text-right space-x-2">
                             <a href="{{ route('dompet.show', $item) }}" class="text-brand hover:underline">{{ __('dompet.detail') }}</a>
                             <a href="{{ route('dompet.edit', $item) }}" class="text-brand hover:underline">{{ __('dompet.edit') }}</a>

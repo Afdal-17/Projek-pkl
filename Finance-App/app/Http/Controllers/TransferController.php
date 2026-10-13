@@ -7,6 +7,7 @@ use App\Models\Dompet;
 use App\Models\TargetTabungan;
 use App\Models\Transfer;
 use App\Models\User;
+use App\Services\CurrencyService;
 use App\Services\NotifikasiService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -121,7 +122,7 @@ class TransferController extends Controller
 
             abort_unless($source?->id_user === $userId && $target !== null, 403);
 
-            $amount = (float) $data['jumlah'];
+            $amount = CurrencyService::toBase((float) $data['jumlah']);
             if ((float) $source->saldo < $amount) {
                 throw ValidationException::withMessages([
                     'jumlah' => 'Saldo dompet asal tidak mencukupi.',

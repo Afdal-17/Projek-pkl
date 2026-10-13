@@ -30,6 +30,17 @@ class AuthenticatedSessionController extends Controller
 
         $user = Auth::user();
 
+        // User dengan kode OTP pending wajib menyelesaikan verifikasi kode OTP
+        if ($user?->role === 'user' && $user?->email && $user?->otp_kode && ! $user?->otp_verified_at) {
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            $request->session()->put('otp_user_id', $user->id_user);
+
+            return redirect()->route('otp.show');
+        }
+
         // User role harus diverifikasi admin terlebih dahulu
         if ($user?->role === 'user' && $user?->email_verified_at === null) {
             Auth::guard('web')->logout();

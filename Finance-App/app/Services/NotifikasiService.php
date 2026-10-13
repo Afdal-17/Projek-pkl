@@ -12,7 +12,7 @@ class NotifikasiService
     public function transaksiDicatat(Transaksi $transaksi, int $userId): void
     {
         $jenisLabel = $transaksi->jenis === 'pemasukan' ? 'Pemasukan' : 'Pengeluaran';
-        $this->catatTransaksi($userId, "{$jenisLabel} \"{$transaksi->nama_transaksi}\" sebesar Rp ".number_format((float) $transaksi->jumlah, 2, ',', '.').' berhasil dicatat.', now());
+        $this->catatTransaksi($userId, "{$jenisLabel} \"{$transaksi->nama_transaksi}\" sebesar ".finance_money((float) $transaksi->jumlah).' berhasil dicatat.', now());
     }
 
     public function transaksiDiubah(Transaksi $transaksi, int $userId): void
@@ -22,7 +22,7 @@ class NotifikasiService
 
     public function transaksiDihapus(string $namaTransaksi, float $jumlah, int $userId): void
     {
-        $this->catatTransaksi($userId, "Transaksi \"{$namaTransaksi}\" sebesar Rp ".number_format($jumlah, 2, ',', '.').' telah dihapus.', now());
+        $this->catatTransaksi($userId, "Transaksi \"{$namaTransaksi}\" sebesar ".finance_money($jumlah).' telah dihapus.', now());
     }
 
     private function catatTransaksi(int $userId, string $pesan, mixed $tanggal): void
@@ -41,7 +41,6 @@ class NotifikasiService
     public function transferBerhasil(Transfer $transfer): void
     {
         $transfer->loadMissing(['dompetAsal.user', 'dompetTujuan.user']);
-        $amount = number_format((float) $transfer->jumlah, 2, ',', '.');
         $now = now();
 
         $senderId = (int) $transfer->dompetAsal->id_user;
@@ -49,7 +48,8 @@ class NotifikasiService
 
         // Transfer antar dompet milik user yang sama
         if ($senderId === $recipientId) {
-            $message = 'Transfer Rp '.$amount.' dari '
+            $amount = finance_money((float) $transfer->jumlah, $transfer->dompetAsal->user->mata_uang ?? 'IDR');
+            $message = "Transfer {$amount} dari "
                 .$transfer->dompetAsal->nama_dompet.' ke '.$transfer->dompetTujuan->nama_dompet.' berhasil.';
 
             Notifikasi::create([
@@ -65,11 +65,13 @@ class NotifikasiService
         }
 
         // Transfer ke user lain: pesan berbeda untuk pengirim dan penerima
+        $senderAmount = finance_money((float) $transfer->jumlah, $transfer->dompetAsal->user->mata_uang ?? 'IDR');
+        $recipientAmount = finance_money((float) $transfer->jumlah, $transfer->dompetTujuan->user->mata_uang ?? 'IDR');
         $senderMessage = 'Transfer berhasil ke '.$transfer->dompetTujuan->user->nama
             .' dari '.$transfer->dompetAsal->nama_dompet
-            .' sebesar Rp '.$amount.'.';
+            ." sebesar {$senderAmount}.";
         $recipientMessage = 'Anda di transfer oleh '.$transfer->dompetAsal->user->nama
-            .' sebesar Rp '.$amount.'.';
+            ." sebesar {$recipientAmount}.";
 
         Notifikasi::create([
             'id_user' => $senderId,

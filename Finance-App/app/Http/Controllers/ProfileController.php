@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Services\CurrencyService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -33,15 +34,50 @@ class ProfileController extends Controller
         ]);
     }
 
-    public function frontendUpdate(ProfileUpdateRequest $request): RedirectResponse|JsonResponse
+    public function frontendUpdate(ProfileUpdateRequest $request, CurrencyService $currencyService): RedirectResponse|JsonResponse
     {
-        $request->user()->fill($request->validated())->save();
+        $user = $request->user();
+        $validated = $request->validated();
+        $newCurrency = $validated['mata_uang'] ?? null;
+
+        // Mata uang hanya preferensi tampilan; nilai keuangan tetap tersimpan dalam IDR (base)
+        if ($newCurrency && $newCurrency !== $user->mata_uang) {
+            $currencyService->setUserCurrency($user, $newCurrency);
+        }
+
+        unset($validated['mata_uang']);
+        $user->fill($validated)->save();
 
         if ($request->expectsJson()) {
-            return response()->json(['status' => 'profile-updated']);
+            return response()->json([
+                'status' => 'profile-updated',
+                'currency' => $user->mata_uang,
+            ]);
         }
 
         return Redirect::route('account')->with('status', 'profile-updated');
+    }
+
+    public function switchCurrency(Request $request, CurrencyService $currencyService): JsonResponse
+    {
+        $validated = $request->validate([
+            'mata_uang' => ['required', 'string', 'in:IDR,USD,EUR'],
+        ]);
+
+        $user = $request->user();
+        $oldCurrency = $user->mata_uang ?? 'IDR';
+        $newCurrency = $validated['mata_uang'];
+
+        if ($oldCurrency !== $newCurrency) {
+            $currencyService->setUserCurrency($user, $newCurrency);
+        }
+
+        return response()->json([
+            'success' => true,
+            'old_currency' => $oldCurrency,
+            'new_currency' => $newCurrency,
+            'message' => "Mata uang berhasil diubah ke {$newCurrency}.",
+        ]);
     }
 
     public function updateAvatar(Request $request): JsonResponse

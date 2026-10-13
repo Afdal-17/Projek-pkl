@@ -32,6 +32,7 @@ class UserFactory extends Factory
             'role' => 'user',
             'status' => true,
             'email_verified_at' => now(),
+            'otp_verified_at' => now(),
         ];
     }
 

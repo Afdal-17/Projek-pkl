@@ -9,16 +9,55 @@
         active: 'profile',
         saved: false,
         showPopup: false,
+        popupTitle: @js(__('account.success_popup')),
+        popupMessage: 'Halaman akan segera dimuat ulang...',
+        switchingCurrency: false,
         form: {
             name: @js($user->nama),
             email: @js($user->email),
-            phone: @js($user->nomor_telepon),
-            location: @js($user->lokasi),
+            phone: @js($user->nomor_telepon && $user->nomor_telepon !== 'null' ? $user->nomor_telepon : ''),
+            location: @js($user->lokasi && $user->lokasi !== 'null' ? $user->lokasi : ''),
             currency: @js($user->mata_uang),
             startOfWeek: @js($user->awal_minggu),
         },
         avatarUrl: @js($avatarUrl),
         csrfToken: @js(csrf_token()),
+
+        async changeCurrency(newCurrency) {
+            if (this.switchingCurrency) return;
+            const currentCurrency = @js($user->mata_uang);
+            if (newCurrency === currentCurrency) return;
+
+            this.switchingCurrency = true;
+            try {
+                const response = await fetch(@js(route('account.currency.switch')), {
+                    method: 'PATCH',
+                    headers: {
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ mata_uang: newCurrency }),
+                });
+
+                if (response.ok) {
+                    this.form.currency = newCurrency;
+                    this.popupTitle = 'Mata Uang Berhasil Diubah!';
+                    this.popupMessage = `Seluruh nominal sekarang ditampilkan dalam ${newCurrency}. Memuat ulang...`;
+                    this.showPopup = true;
+                    setTimeout(() => window.location.reload(), 1000);
+                } else {
+                    const result = await response.json();
+                    alert(result.message ?? 'Gagal mengubah mata uang.');
+                    this.form.currency = currentCurrency;
+                }
+            } catch (err) {
+                alert('Terjadi kesalahan saat mengubah mata uang.');
+                this.form.currency = currentCurrency;
+            } finally {
+                this.switchingCurrency = false;
+            }
+        },
 
         async save() {
             const response = await fetch(@js(route('account.update')), {
@@ -80,14 +119,14 @@
     }"
 >
 
-    {{-- Pop-up notifikasi berhasil simpan profile --}}
+    {{-- Pop-up notifikasi berhasil simpan profile / konversi mata uang --}}
     <div x-cloak x-show="showPopup" x-transition class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
         <div class="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-2xl">
             <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-income-soft text-income">
                 <x-icon name="check" size="h-6 w-6" />
             </div>
-            <h3 class="mt-4 text-lg font-bold text-ink">{{ __('account.success_popup') }}</h3>
-            <p class="mt-1 text-xs text-muted">Halaman akan segera dimuat ulang...</p>
+            <h3 class="mt-4 text-lg font-bold text-ink" x-text="popupTitle"></h3>
+            <p class="mt-1 text-xs text-muted" x-text="popupMessage"></p>
         </div>
     </div>
 
@@ -179,7 +218,7 @@
                 <div class="mt-5 grid gap-4 md:grid-cols-2">
                     <x-input label="{{ __('account.full_name') }}" name="full_name" x-model="form.name" />
                     <x-input label="{{ __('account.email_address') }}" name="email" type="email" x-model="form.email" />
-                    <x-input label="{{ __('account.phone_number') }}" name="phone" x-model="form.phone" />
+                    <x-input label="{{ __('account.phone_number') }}"  name="phone" x-model="form.phone" />
                     <x-input label="{{ __('account.location') }}" name="location" x-model="form.location" />
                 </div>
 
@@ -220,7 +259,11 @@
                         <div class="flex items-center justify-between">
                             <dt class="text-muted">{{ __('account.default_currency') }}</dt>
                             <dd>
-                                <select x-model="form.currency" class="border-0 bg-transparent py-0 pl-0 pr-6 text-right text-sm font-semibold focus:ring-0">
+                                <select 
+                                    x-model="form.currency" 
+                                    x-on:change="changeCurrency($event.target.value)"
+                                    :disabled="switchingCurrency"
+                                    class="border-0 bg-transparent py-0 pl-0 pr-6 text-right text-sm font-semibold focus:ring-0 disabled:opacity-50">
                                     <option value="IDR">IDR (Rp)</option>
                                     <option value="USD">USD ($)</option>
                                     <option value="EUR">EUR (€)</option>
