@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\FonnteService;
 use App\Services\OtpService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -33,7 +34,8 @@ class OtpVerificationController extends Controller
         }
 
         return view('auth.otp', [
-            'emailTertutup' => $this->emailTertutup($user->email),
+            'kanal' => $user->email ? 'email' : 'whatsapp',
+            'tujuanTertutup' => $this->tujuanTertutup($user),
         ]);
     }
 
@@ -108,14 +110,22 @@ class OtpVerificationController extends Controller
         }
 
         try {
-            $this->otp->kirim($user);
+            if ($user->email) {
+                $this->otp->kirim($user);
+            } else {
+                if (! app(FonnteService::class)->aktif()) {
+                    return back()->with('error', 'Pengiriman OTP via WhatsApp sedang tidak tersedia. Silakan hubungi admin untuk verifikasi.');
+                }
+
+                $this->otp->kirimWhatsapp($user);
+            }
         } catch (Throwable $e) {
             report($e);
 
             return back()->with('error', 'Gagal mengirim kode OTP. Silakan coba lagi beberapa saat lagi.');
         }
 
-        return back()->with('status', 'Kode OTP baru telah dikirim ke ' . $this->emailTertutup($user->email) . '.');
+        return back()->with('status', 'Kode OTP baru telah dikirim ke ' . $this->tujuanTertutup($user) . '.');
     }
 
     private function userFromSession(Request $request): ?User
@@ -123,6 +133,35 @@ class OtpVerificationController extends Controller
         $id = $request->session()->get('otp_user_id');
 
         return $id ? User::find($id) : null;
+    }
+
+    /**
+     * Tujuan pengiriman kode OTP dalam bentuk tertutup:
+     * ali***@domain.com untuk email, 0812*****890 (WhatsApp) untuk nomor telepon.
+     */
+    private function tujuanTertutup(User $user): string
+    {
+        if ($user->email) {
+            return $this->emailTertutup($user->email);
+        }
+
+        return $this->nomorTertutup($user->nomor_telepon) . ' (WhatsApp)';
+    }
+
+    /**
+     * Sembunyikan sebagian nomor telepon: 0812*****890
+     */
+    private function nomorTertutup(?string $nomor): string
+    {
+        $digits = preg_replace('/\D+/', '', (string) $nomor);
+
+        if (strlen($digits) < 7) {
+            return 'nomor Anda';
+        }
+
+        return substr($digits, 0, 4)
+            . str_repeat('*', max(1, strlen($digits) - 7))
+            . substr($digits, -3);
     }
 
     /**

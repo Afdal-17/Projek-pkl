@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\FonnteService;
 use App\Services\OtpService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -56,6 +57,29 @@ class RegisteredUserController extends Controller
 
             if ($user->email) {
                 return $this->kirimOtpDanArahkan($request, $user);
+            }
+
+            // Register via nomor telepon: kirim kode OTP ke WhatsApp (Fonnte).
+            // Akun langsung aktif setelah kode benar — tanpa menunggu admin.
+            if (app(FonnteService::class)->aktif()) {
+                try {
+                    app(OtpService::class)->kirimWhatsapp($user);
+                    $request->session()->put('otp_user_id', $user->id_user);
+
+                    return redirect()->route('otp.show');
+                } catch (Throwable $e) {
+                    report($e);
+
+                    // Gagal kirim → bersihkan kode OTP agar alur fallback admin
+                    // tidak terblokir login-gate (kode pending).
+                    $user->forceFill([
+                        'otp_kode' => null,
+                        'otp_expires_at' => null,
+                        'otp_attempts' => 0,
+                    ])->save();
+
+                    return redirect()->route('login')->with('status', 'Akun berhasil dibuat, namun gagal mengirim kode OTP ke WhatsApp ' . $cleanPhone . '. Menunggu verifikasi dari admin untuk dapat login.');
+                }
             }
 
             return redirect()->route('login')->with('status', 'Akun dengan nomor telepon ' . $cleanPhone . ' berhasil dibuat. Menunggu verifikasi dari admin untuk dapat login.');

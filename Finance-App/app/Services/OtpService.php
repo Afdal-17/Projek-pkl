@@ -48,6 +48,29 @@ class OtpService
     }
 
     /**
+     * Buat kode OTP baru dan kirimkan ke nomor WhatsApp user (via Fonnte).
+     */
+    public function kirimWhatsapp(User $user): void
+    {
+        abort_if(blank($user->nomor_telepon), 422, 'User tidak memiliki nomor telepon.');
+
+        $kode = $this->buatKode($user);
+
+        $pesan = implode("\n", [
+            'Kode Verifikasi ' . config('app.name', 'Finance App'),
+            '',
+            "Halo {$user->nama}, gunakan kode di bawah ini untuk verifikasi nomor telepon Anda:",
+            '',
+            $kode,
+            '',
+            'Berlaku selama ' . self::MASA_BERLAKU_MENIT . ' menit. Jangan bagikan kode ini kepada siapa pun.',
+            'Jika Anda tidak merasa mendaftar, abaikan pesan ini.',
+        ]);
+
+        app(FonnteService::class)->kirim($user->nomor_telepon, $pesan);
+    }
+
+    /**
      * User sedang menunggu konfirmasi kode OTP (terdaftar tapi belum verifikasi).
      */
     public function sedangMenunggu(User $user): bool

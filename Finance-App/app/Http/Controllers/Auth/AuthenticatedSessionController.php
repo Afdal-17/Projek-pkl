@@ -31,7 +31,7 @@ class AuthenticatedSessionController extends Controller
         $user = Auth::user();
 
         // User dengan kode OTP pending wajib menyelesaikan verifikasi kode OTP
-        if ($user?->role === 'user' && $user?->email && $user?->otp_kode && ! $user?->otp_verified_at) {
+        if ($user?->role === 'user' && ($user?->email || $user?->nomor_telepon) && $user?->otp_kode && ! $user?->otp_verified_at) {
             Auth::guard('web')->logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();
