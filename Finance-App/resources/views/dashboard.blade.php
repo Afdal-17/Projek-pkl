@@ -57,95 +57,133 @@
     $largest = collect($wallets)->sortByDesc('balance')->first();
 @endphp
 
-<div x-data="{ 
-    open: false, 
-    mode: 'edit',
-    csrfToken: @js(csrf_token()),
-    editing: {
-        id: null,
-        name: '',
-        type: @js(__('dashboard.digital_wallet')),
-        balance: '',
-        saldo_awal: '',
-        color: 'brand'
-    },
-    async saveWallet() {
-        const data = new URLSearchParams({
-            _token: this.csrfToken,
-            nama_dompet: this.editing.name.trim(),
-            deskripsi: this.editing.description ?? '',
-            jenis: this.editing.type === @js(__('dashboard.physical_wallet')) ? 'physical' : (this.editing.type === @js(__('dashboard.bank_account')) ? 'bank' : 'digital'),
-            warna: this.editing.color,
-        });
+<div x-data="dashboardApp">
 
-        if (this.mode === 'add') {
-            const rawBalance = String(this.editing.balance ?? '').trim();
-            const rawSaldoAwal = String(this.editing.saldo_awal ?? '').trim();
+    {{-- Objek Alpine dipindah ke blok <script> di bawah: kutip ganda di dalam JS
+         (string, komentar, querySelector) tidak lagi bisa memutus atribut HTML. --}}
+<script>
+    document.addEventListener('alpine:init', () => {
+        window.Alpine.data('dashboardApp', () => ({
+        open: false,
+        mode: 'edit',
+        csrfToken: @js(csrf_token()),
+        editing: {
+            id: null,
+            name: '',
+            type: @js(__('dashboard.digital_wallet')),
+            balance: '',
+            balanceDisplay: '',
+            saldo_awal: '',
+            saldoAwalDisplay: '',
+            color: 'brand'
+        },
 
-            if (rawBalance !== '') {
-                data.set('saldo', String(Number(rawBalance.replace(/[^0-9.-]/g, '')) || 0));
+        /* Format input nominal memakai parser bersama window.financeMoney
+           (app.js). editing.balance = nilai numerik; editing.balanceDisplay
+           = teks tampilan berpemisah ribuan sesuai locale mata uang aktif. */
+        formatBalance(value) {
+            const result = window.financeMoney.formatTyped(value);
+
+            this.editing.balance = result.display === '' ? '' : String(result.value);
+            this.editing.balanceDisplay = result.display;
+
+            if (result.display !== '') {
+                this.editing.saldo_awal = '';
+                this.editing.saldoAwalDisplay = '';
             }
-            if (rawSaldoAwal !== '') {
-                data.set('saldo_awal', String(Number(rawSaldoAwal.replace(/[^0-9.-]/g, '')) || 0));
+        },
+
+        formatSaldoAwal(value) {
+            const result = window.financeMoney.formatTyped(value);
+
+            this.editing.saldo_awal = result.display === '' ? '' : String(result.value);
+            this.editing.saldoAwalDisplay = result.display;
+
+            if (result.display !== '') {
+                this.editing.balance = '';
+                this.editing.balanceDisplay = '';
             }
-        }
-        else data.set('saldo', String(Number(String(this.editing.balance).replace(/[^0-9.-]/g, '')) || 0));
+        },
 
-        const response = await fetch(this.mode === 'add' ? @js(route('dompet.store')) : @js(route('dompet.manage', ['dompet' => '__ID__'])).replace('__ID__', this.editing.id), {
-            method: this.mode === 'add' ? 'POST' : 'PATCH',
-            headers: { 'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: data,
-        });
-
-        if (response.ok) {
-            window.location.reload();
-            return;
-        }
-
-        const result = await response.json();
-        alert(Object.values(result.errors ?? {}).flat()[0] ?? 'Wallet could not be saved.');
-    },
-
-    async deleteWallet() {
-        if (!window.confirm(@js(__('dashboard.delete_confirm')))) return;
-
-        const data = new URLSearchParams({ _token: this.csrfToken, _method: 'DELETE' });
-        const response = await fetch(@js(route('dompet.destroy', ['dompet' => '__ID__'])).replace('__ID__', this.editing.id), {
-            method: 'POST',
-            headers: { 'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: data,
-        });
-
-        if (response.ok) {
-            window.location.reload();
-            return;
-        }
-
-        const result = await response.json().catch(() => ({}));
-
-        if (response.status === 422 && result.transfer_count && window.confirm(`Wallet ini punya ${result.transfer_count} riwayat transfer. Hapus wallet beserta riwayat transfernya?`)) {
-            const forceData = new URLSearchParams({ _token: this.csrfToken, _method: 'DELETE', force: '1' });
-            const forceResponse = await fetch(@js(route('dompet.destroy', ['dompet' => '__ID__'])).replace('__ID__', this.editing.id), {
-                method: 'POST',
-                headers: { 'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: forceData,
+        async saveWallet() {
+            const data = new URLSearchParams({
+                _token: this.csrfToken,
+                nama_dompet: this.editing.name.trim(),
+                deskripsi: this.editing.description ?? '',
+                jenis: this.editing.type === @js(__('dashboard.physical_wallet')) ? 'physical' : (this.editing.type === @js(__('dashboard.bank_account')) ? 'bank' : 'digital'),
+                warna: this.editing.color,
             });
 
-            if (forceResponse.ok) {
+            if (this.mode === 'add') {
+                const balanceShown = String(this.editing.balanceDisplay ?? '').trim();
+                const saldoAwalShown = String(this.editing.saldoAwalDisplay ?? '').trim();
+
+                if (balanceShown !== '') {
+                    data.set('saldo', String(window.financeMoney.parseFormatted(balanceShown)));
+                }
+                if (saldoAwalShown !== '') {
+                    data.set('saldo_awal', String(window.financeMoney.parseFormatted(saldoAwalShown)));
+                }
+            }
+            else data.set('saldo', String(window.financeMoney.parseFormatted(this.editing.balanceDisplay)));
+
+            const response = await fetch(this.mode === 'add' ? @js(route('dompet.store')) : @js(route('dompet.manage', ['dompet' => '__ID__'])).replace('__ID__', this.editing.id), {
+                method: this.mode === 'add' ? 'POST' : 'PATCH',
+                headers: { 'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: data,
+            });
+
+            if (response.ok) {
                 window.location.reload();
                 return;
             }
 
-            const forceResult = await forceResponse.json().catch(() => ({}));
-            alert(forceResult.message ?? 'Wallet could not be deleted.');
-            return;
+            const result = await response.json();
+            alert(Object.values(result.errors ?? {}).flat()[0] ?? 'Wallet could not be saved.');
+        },
+
+        async deleteWallet() {
+            if (!window.confirm(@js(__('dashboard.delete_confirm')))) return;
+
+            const data = new URLSearchParams({ _token: this.csrfToken, _method: 'DELETE' });
+            const response = await fetch(@js(route('dompet.destroy', ['dompet' => '__ID__'])).replace('__ID__', this.editing.id), {
+                method: 'POST',
+                headers: { 'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: data,
+            });
+
+            if (response.ok) {
+                window.location.reload();
+                return;
+            }
+
+            const result = await response.json().catch(() => ({}));
+
+            if (response.status === 422 && result.transfer_count && window.confirm(`Wallet ini punya ${result.transfer_count} riwayat transfer. Hapus wallet beserta riwayat transfernya?`)) {
+                const forceData = new URLSearchParams({ _token: this.csrfToken, _method: 'DELETE', force: '1' });
+                const forceResponse = await fetch(@js(route('dompet.destroy', ['dompet' => '__ID__'])).replace('__ID__', this.editing.id), {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: forceData,
+                });
+
+                if (forceResponse.ok) {
+                    window.location.reload();
+                    return;
+                }
+
+                const forceResult = await forceResponse.json().catch(() => ({}));
+                alert(forceResult.message ?? 'Wallet could not be deleted.');
+                return;
+            }
+
+            alert(result.message ?? 'Wallet could not be deleted.');
         }
+        }));
+    });
+</script>
 
-        alert(result.message ?? 'Wallet could not be deleted.');
-    }
-}">
-
-    <div class="flex items-start justify-between">
+    <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <h1 class="text-3xl font-bold">{{ __('dashboard.title') }}</h1>
             <p class="mt-1 text-sm text-muted">{{ __('dashboard.subtitle') }}</p>
@@ -158,7 +196,9 @@
                 description: '',
                 type: @js(__('dashboard.digital_wallet')),
                 balance: '',
+                balanceDisplay: '',
                 saldo_awal: '',
+                saldoAwalDisplay: '',
                 color: 'brand'
             };
             open = true;
@@ -240,7 +280,13 @@
                         x-on:click="
                             mode = 'edit';
                             editing = @js($w);
-                            editing.balance = Number(window.financeMoney.fromBase(Number(editing.balance))).toFixed(2);
+                            /* balance dari backend (IDR base) dikonversi ke
+                               mata uang aktif lalu difORMAT sebagai ANGKA
+                               (bukan parse string) agar pemisah desimal benar */
+                            editing.balance = window.financeMoney.fromBase(Number(editing.balance));
+                            editing.balanceDisplay = window.financeMoney.formatNumber(editing.balance, { minDecimals: 0, maxDecimals: 2 });
+                            editing.saldo_awal = '';
+                            editing.saldoAwalDisplay = '';
                             open = true;"
                         class="flex h-9 w-9 items-center justify-center rounded-lg border border-line hover:bg-page">
                     <x-icon name="more" size="h-4 w-4" />
@@ -282,8 +328,8 @@
     <div x-cloak x-show="open" x-transition.opacity
          x-on:keydown.escape.window="open = false"
          x-on:click.self="open = false"
-         class="fixed inset-0 z-30 flex items-center justify-center bg-black/30 p-4">
-        <div class="w-full max-w-sm rounded-2xl border border-line bg-white p-6 shadow-xl">
+         class="fixed inset-0 z-30 flex items-center justify-center bg-black/30 p-4 py-8">
+        <div class="my-auto max-h-[calc(100vh-4rem)] w-full max-w-sm overflow-y-auto rounded-2xl border border-line bg-white p-6 shadow-xl">
             <div class="flex items-start justify-between">
                 <div>
                     <h3
@@ -313,11 +359,11 @@
                     </select>
                 </div>
 
-                <x-input label="{{ __('dashboard.current_balance') }}" name="wallet_balance" inputmode="decimal" type="text" placeholder="0.00" x-model="editing.balance" x-on:input="if (editing.balance) editing.saldo_awal = ''" />
+                <x-input label="{{ __('dashboard.current_balance') }}" name="wallet_balance" inputmode="decimal" type="text" placeholder="0" x-model="editing.balanceDisplay" x-on:input="formatBalance($event.target.value)" />
 
                 <div x-show="mode === 'add'">
                     <label class="mb-1.5 block text-sm font-medium">{{ __('dashboard.initial_balance') }}</label>
-                    <input name="saldo_awal" inputmode="decimal" type="text" placeholder="0.00" x-model="editing.saldo_awal" x-on:input="if (editing.saldo_awal) editing.balance = ''" class="w-full rounded-lg border border-line bg-white px-3 py-2.5 text-sm text-ink placeholder:text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20" />
+                    <input name="saldo_awal" inputmode="decimal" type="text" placeholder="0" x-model="editing.saldoAwalDisplay" x-on:input="formatSaldoAwal($event.target.value)" class="w-full rounded-lg border border-line bg-white px-3 py-2.5 text-sm text-ink placeholder:text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20" />
                     <p class="mt-1 text-xs text-muted">{{ __('dashboard.initial_balance_note') }}</p>
                 </div>
 

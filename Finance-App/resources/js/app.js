@@ -21,6 +21,14 @@ const formatter = new Intl.NumberFormat(locale, {
 	maximumFractionDigits: currency === 'IDR' ? 0 : 2,
 });
 
+/* Pemisah locale via Intl (id-ID: ribuan ".", desimal ","; en-US: ribuan ",",
+   desimal "."; de-DE: ribuan ".", desimal ","). formatToParts(1234.5) — angka
+   >= 1000 agar bagian "group" SELALU muncul; dengan 1.1 bagian itu kosong dan
+   pemisah ribuan jatuh ke default yang salah untuk en-US. */
+const localeParts = new Intl.NumberFormat(locale).formatToParts(1234.5);
+const decimalSep = localeParts.find((p) => p.type === 'decimal')?.value ?? ',';
+const groupSep = localeParts.find((p) => p.type === 'group')?.value ?? '';
+
 window.financeMoney = {
 	currency,
 	rate,
@@ -40,6 +48,58 @@ window.financeMoney = {
 	/* Konversi nilai IDR base ke mata uang aktif */
 	fromBase(idrAmount) {
 		return (Number(idrAmount) || 0) / rate;
+	},
+	/* Format nilai NUMERIK menjadi teks tampilan berpemisah ribuan (tanpa
+	   simbol mata uang). Berbeda dari formatTyped/formatNative: fungsi ini
+	   menerima angka (mis. 1234567.89) dan menghasilkan teks sesuai locale
+	   ("1.234.567,89" di id-ID). Aman dipakai untuk nilai dari backend. */
+	formatNumber(numericValue, { minDecimals = 0, maxDecimals = 2 } = {}) {
+		const num = Number(numericValue) || 0;
+		return new Intl.NumberFormat(locale, {
+			minimumFractionDigits: minDecimals,
+			maximumFractionDigits: maxDecimals,
+		}).format(num);
+	},
+	/* Parse string tampilan (berpemisah ribuan sesuai locale) menjadi angka.
+	   Pemisah ribuan dibuang, pemisah desimal dijadikan "." — aman untuk
+	   id-ID ("1.234,5" -> 1234.5) maupun en-US ("1,234.5" -> 1234.5). */
+	parseFormatted(display) {
+		let cleaned = String(display ?? '').trim().replace(/\s/g, '');
+		if (groupSep) cleaned = cleaned.split(groupSep).join('');
+		cleaned = cleaned.split(decimalSep).join('.');
+		const value = parseFloat(cleaned);
+		return Number.isFinite(value) ? value : 0;
+	},
+	/* Format nilai yang sedang diketik menjadi string tampilan berpemisah
+	   ribuan, sambil mempertahankan pemisah desimal yang belum diisi angka
+	   ("12," / "12.") agar user bisa lanjut mengetik desimal. Mengembalikan
+	   { value, display } — value angka hasil parse, display string tampilan. */
+	formatTyped(raw) {
+		let cleaned = String(raw ?? '').replace(/\s/g, '');
+		if (groupSep) cleaned = cleaned.split(groupSep).join('');
+		cleaned = cleaned.split(decimalSep).join('.');
+
+		const trailingDecimal = cleaned.endsWith('.') ? '.' : '';
+
+		const segments = cleaned.split('.');
+		const integer = segments[0].replace(/\D/g, '') || '0';
+		const decimal = segments.slice(1).join('').replace(/\D/g, '').slice(0, 2);
+
+		const num = parseFloat(decimal ? `${integer}.${decimal}` : integer) || 0;
+
+		if (num === 0 && !trailingDecimal) {
+			return { value: 0, display: '' };
+		}
+
+		const formatted = new Intl.NumberFormat(locale, {
+			minimumFractionDigits: decimal ? decimal.length : 0,
+			maximumFractionDigits: 2,
+		}).format(num);
+
+		return {
+			value: num,
+			display: trailingDecimal && !decimal ? formatted + decimalSep : formatted,
+		};
 	},
 };
 

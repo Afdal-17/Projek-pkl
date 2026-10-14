@@ -54,7 +54,7 @@
 >
 
     {{-- Header --}}
-    <div class="flex items-start justify-between">
+    <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <h1 class="text-3xl font-bold">{{ __('saving.title') }}</h1>
             <p class="mt-1 text-sm text-muted">{{ __('saving.subtitle') }}</p>
@@ -110,6 +110,10 @@
     {{-- Tabel target --}}
     <x-card class="mt-6 overflow-hidden">
 
+        {{-- Scroll horizontal di layar kecil agar kolom tetap terbaca --}}
+        <div class="overflow-x-auto">
+        <div class="min-w-[640px]">
+
         {{-- Kepala tabel --}}
         <div class="grid grid-cols-[1.4fr_3fr_1.4fr_1fr] gap-6 border-b border-line px-6 py-4 text-[11px] font-semibold uppercase tracking-wide text-muted">
             <span>{{ __('saving.target_name') }}</span>
@@ -163,6 +167,9 @@
             </div>
 
         </template>
+
+        </div>
+        </div>
 
         {{-- Kosong --}}
         <template x-if="targets.length === 0">

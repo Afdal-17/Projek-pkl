@@ -6,10 +6,24 @@
     <title>@yield('title', 'Admin') - Finance App</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="min-h-screen bg-gray-50 font-sans text-ink antialiased">
+<body class="min-h-screen bg-gray-50 font-sans text-ink antialiased" x-data="{ sidebarOpen: false }" x-on:keydown.escape.window="sidebarOpen = false">
+
+    {{-- Topbar mobile (hanya layar kecil) --}}
+    <header class="sticky top-0 z-30 flex items-center gap-3 border-b border-line bg-white px-4 py-3 lg:hidden">
+        <button type="button" x-on:click="sidebarOpen = true" aria-label="Buka menu"
+                class="flex h-10 w-10 items-center justify-center rounded-lg bg-page text-ink transition hover:bg-line/40">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+        <a href="/admin/dashboard"><x-logo /></a>
+    </header>
+
+    {{-- Backdrop sidebar mobile --}}
+    <div x-cloak x-show="sidebarOpen" x-on:click="sidebarOpen = false"
+         class="fixed inset-0 z-40 bg-black/30 lg:hidden"></div>
 
     {{-- Sidebar --}}
-    <aside class="fixed inset-y-0 left-0 flex w-[216px] flex-col border-r border-line bg-white p-4">
+    <aside class="fixed inset-y-0 left-0 z-50 flex w-[216px] flex-col border-r border-line bg-white p-4 transition-transform duration-200 lg:translate-x-0"
+           :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'">
 
         <a href="/admin/dashboard" class="px-2 pt-2"><x-logo /></a>
 
@@ -57,7 +71,7 @@
     </aside>
 
     {{-- Konten --}}
-    <main class="ml-[216px] p-8">
+    <main class="p-4 sm:p-6 lg:ml-[216px] lg:p-8">
         @yield('content')
     </main>
 

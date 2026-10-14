@@ -159,6 +159,9 @@
 
         
 
+        <div class="overflow-x-auto">
+        <div class="min-w-[480px]">
+
             <div class="grid grid-cols-[2fr_2.6fr_1fr] gap-4 bg-gray-50 px-4 py-3 text-xs font-semibold text-muted">
                 <span>Name</span>
                 <span>Email</span>
@@ -185,6 +188,7 @@
                 </div>
             </template>
 
+        </div>
         </div>
 
     </x-card>

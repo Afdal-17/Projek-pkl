@@ -22,7 +22,7 @@
 @endphp
 
 <!DOCTYPE html>
-<html lang="{{ $currentUser?->awal_minggu === 'sunday' ? 'en-US' : 'en-GB' }}">
+<html lang="en-GB">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -34,10 +34,10 @@
 <body class="min-h-screen bg-page font-sans text-ink antialiased">
 
     <header class="border-b border-line bg-white">
-        <div class="mx-auto flex h-16 max-w-[1312px] items-center justify-between px-8">
+        <div class="mx-auto flex h-16 max-w-[1312px] items-center justify-between px-4 sm:px-6 lg:px-8">
             <a href="/dashboard"><x-logo /></a>
 
-            <nav class="flex items-center gap-1 text-sm font-medium">
+            <nav class="hidden items-center gap-1 text-sm font-medium lg:flex">
                 @foreach ([
                     ['Dashboard', '/dashboard', ['dashboard*', 'transfer*']],
                     ['Transactions', '/transactions', ['transactions*']],
@@ -50,7 +50,35 @@
                 @endforeach
             </nav>
 
-            <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2 sm:gap-4">
+
+                {{-- Tombol hamburger + menu mobile (hanya layar kecil) --}}
+                <div class="relative lg:hidden" x-data="{ mobileOpen: false }">
+                    <button type="button" x-on:click="mobileOpen = !mobileOpen" aria-label="Menu"
+                            class="flex h-10 w-10 items-center justify-center rounded-lg bg-page text-ink transition hover:bg-line/40">
+                        <svg x-show="!mobileOpen" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+                        <svg x-cloak x-show="mobileOpen" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+                    </button>
+
+                    <div x-cloak x-show="mobileOpen" x-on:click.outside="mobileOpen = false" x-transition.opacity.scale.origin.top.right
+                         class="absolute right-0 z-40 mt-2 w-56 rounded-xl border border-line bg-white p-1 text-sm shadow-lg">
+                        @foreach ([
+                            ['Dashboard', '/dashboard', ['dashboard*', 'transfer*']],
+                            ['Transactions', '/transactions', ['transactions*']],
+                            ['Saving', '/saving', ['saving*']],
+                        ] as [$label, $url, $patterns])
+                            <a href="{{ $url }}"
+                               class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition {{ request()->is(...$patterns) ? 'bg-brand-soft text-brand' : 'text-muted hover:bg-page' }}">
+                                {{ $label }}
+                            </a>
+                        @endforeach
+                        <a href="/account" class="mt-1 block rounded-lg px-3 py-2.5 text-muted hover:bg-page">{{ __('nav.account') }}</a>
+                        <form method="POST" action="{{ route('logout') }}">
+                            @csrf
+                            <button type="submit" class="block w-full rounded-lg px-3 py-2.5 text-left text-expense hover:bg-page">{{ __('nav.sign_out') }}</button>
+                        </form>
+                    </div>
+                </div>
 
                 {{-- Lonceng Pop-up Dropdown --}}
                 <div class="relative"
@@ -171,11 +199,11 @@
                         @else
                             <span class="flex h-10 w-10 items-center justify-center rounded-full bg-brand-soft text-sm font-semibold text-brand">{{ $headerInitials }}</span>
                         @endif
-                        <span class="text-left leading-tight">
+                        <span class="hidden text-left leading-tight sm:block">
                                <span class="block text-sm font-semibold">{{ $currentUser?->nama }}</span>
-                               <span class="block text-xs text-muted">{{ $currentUser?->email }}</span>
+                               <span class="block max-w-[160px] truncate text-xs text-muted">{{ $currentUser?->email }}</span>
                         </span>
-                        <svg class="h-4 w-4 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+                        <svg class="hidden h-4 w-4 text-muted sm:block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
                     </button>
                     <div x-cloak x-show="open" x-on:click.outside="open = false"
                          class="absolute right-0 z-20 mt-2 w-44 rounded-xl border border-line bg-white p-1 text-sm shadow-lg">
@@ -190,7 +218,7 @@
         </div>
     </header>
 
-    <main class="mx-auto max-w-[1312px] px-8 py-10">
+    <main class="mx-auto max-w-[1312px] px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
         @yield('content')
     </main>
 

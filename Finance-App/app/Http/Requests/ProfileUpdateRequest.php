@@ -26,7 +26,6 @@ class ProfileUpdateRequest extends FormRequest
             'nomor_telepon' => $phone,
             'lokasi' => $location,
             'mata_uang' => $this->input('mata_uang', $this->input('currency', $this->user()->mata_uang ?? 'IDR')),
-            'awal_minggu' => $this->input('awal_minggu', $this->input('start_of_week', $this->user()->awal_minggu ?? 'monday')),
         ]);
     }
 
@@ -37,7 +36,6 @@ class ProfileUpdateRequest extends FormRequest
             'nomor_telepon' => ['nullable', 'string', 'max:32'],
             'lokasi' => ['nullable', 'string', 'max:255'],
             'mata_uang' => ['required', 'string', 'in:IDR,USD,EUR'],
-            'awal_minggu' => ['required', 'string', 'in:monday,sunday'],
             'email' => [
                 'required',
                 'string',

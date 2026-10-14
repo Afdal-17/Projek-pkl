@@ -38,7 +38,6 @@ class ProfileTest extends TestCase
             'phone' => '+628123456789',
             'location' => 'Bandung',
             'currency' => 'USD',
-            'start_of_week' => 'sunday',
         ])->assertRedirect(route('account'));
 
         $this->assertDatabaseHas('user', [
@@ -48,12 +47,11 @@ class ProfileTest extends TestCase
             'nomor_telepon' => '+628123456789',
             'lokasi' => 'Bandung',
             'mata_uang' => 'USD',
-            'awal_minggu' => 'sunday',
         ]);
 
         $this->actingAs($user)->get(route('transactions.create'))
             ->assertOk()
-            ->assertSee('<html lang="en-US">', false);
+            ->assertSee('<html lang="en-GB">', false);
     }
 
     public function test_account_avatar_can_be_uploaded_and_removed(): void

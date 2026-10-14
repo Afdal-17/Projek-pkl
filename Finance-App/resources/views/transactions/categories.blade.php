@@ -109,7 +109,7 @@
 >
 
     {{-- Header --}}
-    <div class="flex items-start justify-between">
+    <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <h1 class="text-3xl font-bold">{{ __('transactions.categories_title') }}</h1>
             <p class="mt-1 text-sm text-muted">{{ __('transactions.categories_subtitle') }}</p>
@@ -180,6 +180,10 @@
     {{-- Tabel kategori --}}
     <x-card class="mt-6 overflow-hidden">
 
+        {{-- Scroll horizontal di layar kecil agar kolom tetap terbaca --}}
+        <div class="overflow-x-auto">
+        <div class="min-w-[720px]">
+
         <div class="grid grid-cols-[72px_2fr_1.2fr_1.4fr_1.6fr] gap-4 border-b border-line px-6 py-4 text-xs font-semibold text-muted">
             <span>{{ __('transactions.icon') }}</span>
             <span>{{ __('transactions.name') }}</span>
@@ -227,12 +231,15 @@
             <p class="px-6 py-12 text-center text-sm text-muted">{{ __('transactions.no_categories') }}</p>
         </template>
 
+        </div>
+        </div>
+
         {{-- Footer + paginasi --}}
-        <div class="flex items-center justify-between px-6 py-4 text-sm">
+        <div class="flex flex-wrap items-center justify-between gap-3 px-6 py-4 text-sm">
 
             <span class="text-xs text-muted" x-text="rangeText"></span>
 
-            <div class="flex items-center gap-2">
+            <div class="flex flex-wrap items-center gap-2">
 
                 <button type="button" x-on:click="goTo(page - 1)" x-bind:disabled="page === 1"
                         class="rounded-lg px-3 py-2 text-xs text-muted hover:bg-page disabled:cursor-not-allowed disabled:opacity-40">

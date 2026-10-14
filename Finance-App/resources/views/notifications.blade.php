@@ -72,13 +72,13 @@
 >
 
     {{-- Header --}}
-    <div class="flex items-start justify-between">
+    <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <h1 class="text-3xl font-bold">Notifications</h1>
             <p class="mt-1 text-sm text-muted">Stay up to date with your money activity.</p>
         </div>
 
-        <div class="flex items-center gap-3">
+        <div class="flex flex-wrap items-center gap-3">
 
             {{-- Filter jenis --}}
             <div class="relative">
@@ -178,7 +178,7 @@
 
                         {{-- Detail target tabungan --}}
                         <template x-if="n.goal">
-                            <div class="grid grid-cols-[1.4fr_3fr_1.4fr] items-center gap-6">
+                            <div class="grid grid-cols-1 gap-4 sm:grid-cols-[1.4fr_3fr_1.4fr] sm:items-center sm:gap-6">
 
                                 <div class="flex items-center gap-3">
                                     <span class="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-soft text-brand">

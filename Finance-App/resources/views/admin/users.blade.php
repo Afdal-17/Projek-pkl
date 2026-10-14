@@ -132,7 +132,7 @@
     <x-card class="mt-6 overflow-hidden">
 
         {{-- Judul + pencarian --}}
-        <div class="flex items-center justify-between p-6">
+        <div class="flex flex-wrap items-center justify-between gap-3 p-6">
 
             <div class="flex items-center gap-3">
                 <h2 class="text-xl font-bold">{{ __('admin.title') }}</h2>
@@ -140,7 +140,7 @@
                       x-text="users.length + ' users'"></span>
             </div>
 
-            <div class="relative w-72">
+            <div class="relative w-full sm:w-72">
                 <x-icon name="search" size="h-4 w-4"
                     class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
 
@@ -157,6 +157,9 @@
 
         {{-- Tabel --}}
         <div class="border-t border-line">
+
+            <div class="overflow-x-auto">
+            <div class="min-w-[680px]">
 
             <div class="grid grid-cols-[2fr_2.6fr_1fr_1.3fr] gap-4 bg-gray-50 px-6 py-3 text-xs font-semibold text-muted">
                 <span>{{ __('admin.name') }}</span>
@@ -226,6 +229,9 @@
 
                 </div>
             </template>
+
+            </div>
+            </div>
 
             <template x-if="filtered.length === 0">
                 <p class="border-t border-line px-6 py-10 text-center text-sm text-muted">No users found.</p>

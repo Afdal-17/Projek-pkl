@@ -65,13 +65,13 @@
     <x-card class="mt-8 overflow-hidden">
 
         {{-- Header + search --}}
-        <div class="flex items-center justify-between border-b border-line px-6 py-4">
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-line px-6 py-4">
             <div>
                 <h2 class="text-xl font-bold">Unverified Users</h2>
                 <p class="mt-0.5 text-xs text-muted" x-text="filtered.length + ' users menunggu verifikasi'"></p>
             </div>
 
-            <div class="relative w-64">
+            <div class="relative w-full sm:w-64">
                 <input
                     type="text"
                     x-model="search"
@@ -84,6 +84,8 @@
         </div>
 
         {{-- Table header --}}
+        <div class="overflow-x-auto">
+        <div class="min-w-[640px]">
         <div x-show="filtered.length > 0" class="grid grid-cols-[2fr_2.6fr_1.5fr_1fr] gap-4 bg-gray-50 px-6 py-3 text-xs font-semibold text-muted">
             <span>Name</span>
             <span>Email</span>
@@ -122,6 +124,9 @@
 
             </div>
         </template>
+
+        </div>
+        </div>
 
         {{-- Empty state --}}
         <div x-show="filtered.length === 0" class="border-t border-line px-6 py-10 text-center text-sm text-muted">

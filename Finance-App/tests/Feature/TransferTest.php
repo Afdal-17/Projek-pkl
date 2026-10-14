@@ -6,6 +6,7 @@ use App\Models\Dompet;
 use App\Models\Transaksi;
 use App\Models\Transfer;
 use App\Models\User;
+use App\Services\CurrencyService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -207,7 +208,69 @@ class TransferTest extends TestCase
         $this->assertArrayNotHasKey('ban_reason', $results[0]);
     }
 
-    private function userWithWallet(string $email, string $walletName, int $balance): array
+    public function test_transfer_from_eur_sender_to_idr_receiver_converts_correctly(): void
+    {
+        // Pengirim memakai EUR, penerima memakai IDR. Seluruh nilai di database
+        // disimpan dalam IDR (base), jadi transfer harus dikonversi dengan tepat.
+        [$pengirim, $dompetAsal] = $this->userWithWallet('eu@example.com', 'Dompet EUR', 1000000, 'EUR');
+        [$penerima, $dompetTujuan] = $this->userWithWallet('id@example.com', 'Dompet IDR', 50000, 'IDR');
+
+        $this->assertSame('EUR', $pengirim->mata_uang);
+        $this->assertSame('IDR', $penerima->mata_uang);
+
+        // Backend menerima "jumlah" dalam mata uang aktif pengirim (EUR) lalu
+        // mengonversinya ke IDR base. 50 EUR dengan rate EUR harus menjadi 50*rate.
+        $rateEur = CurrencyService::rates()['EUR'];
+        $jumlahEur = 50.0;
+        $jumlahDalamIdr = $jumlahEur * $rateEur;
+
+        $this->actingAs($pengirim)->post(route('transfer.store'), [
+            'id_dompet_asal' => $dompetAsal->id_dompet,
+            'id_dompet_tujuan' => $dompetTujuan->id_dompet,
+            'jumlah' => $jumlahEur,
+            'tanggal_transfer' => '2026-10-02 09:00:00',
+        ])->assertRedirect(route('transfer.index'));
+
+        $transfer = Transfer::firstOrFail();
+        // Nilai tersimpan dalam IDR, presisi 2 desimal
+        $this->assertEqualsWithDelta($jumlahDalamIdr, (float) $transfer->jumlah, 0.01);
+
+        // Saldo kedua dompet (keduanya disimpan dalam IDR) berkurang & bertambah
+        // sebesar nilai yang sama dalam IDR — bukan sebesar "50" mentah.
+        $saldoAsal = (float) Dompet::findOrFail($dompetAsal->id_dompet)->saldo;
+        $saldoTujuan = (float) Dompet::findOrFail($dompetTujuan->id_dompet)->saldo;
+
+        $this->assertEqualsWithDelta(1000000 - $jumlahDalamIdr, $saldoAsal, 0.01);
+        $this->assertEqualsWithDelta(50000 + $jumlahDalamIdr, $saldoTujuan, 0.01);
+
+        // Total keseluruhan uang tetap terjaga (tidak ada nilai hilang/tambahan
+        // akibat pembulatan antar mata uang).
+        $this->assertEqualsWithDelta(1050000, $saldoAsal + $saldoTujuan, 0.01);
+    }
+
+    public function test_transfer_rejects_amount_exceeding_source_balance_in_sender_currency(): void
+    {
+        // Dompet asal berisi 1.000.000 IDR. Dalam EUR (rate 20000) itu hanya
+        // setara 50 EUR, jadi mengirim 60 EUR harus ditolak karena melebihi saldo.
+        [$pengirim, $dompetAsal] = $this->userWithWallet('eux@example.com', 'Dompet EUR Kecil', 1000000, 'EUR');
+        [$penerima, $dompetTujuan] = $this->userWithWallet('idx@example.com', 'Dompet IDR Tujuan', 0, 'IDR');
+
+        $rateEur = CurrencyService::rates()['EUR'];
+        $melebihi = (1000000 / $rateEur) + 10; // jauh di atas saldo yang tersedia
+
+        $this->actingAs($pengirim)->post(route('transfer.store'), [
+            'id_dompet_asal' => $dompetAsal->id_dompet,
+            'id_dompet_tujuan' => $dompetTujuan->id_dompet,
+            'jumlah' => $melebihi,
+            'tanggal_transfer' => '2026-10-02 09:00:00',
+        ])->assertSessionHasErrors('jumlah');
+
+        $this->assertDatabaseCount('transfer', 0);
+        // Saldo tidak berubah sama sekali
+        $this->assertEqualsWithDelta(1000000, (float) Dompet::findOrFail($dompetAsal->id_dompet)->saldo, 0.01);
+    }
+
+    private function userWithWallet(string $email, string $walletName, int $balance, string $currency = 'IDR'): array
     {
         $user = User::create([
             'nama' => $email,
@@ -216,6 +279,7 @@ class TransferTest extends TestCase
             'role' => 'user',
             'status' => true,
             'email_verified_at' => now(),
+            'mata_uang' => $currency,
         ]);
         $wallet = Dompet::create([
             'id_user' => $user->id_user,

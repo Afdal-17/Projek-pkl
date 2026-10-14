@@ -18,7 +18,6 @@
             phone: @js($user->nomor_telepon && $user->nomor_telepon !== 'null' ? $user->nomor_telepon : ''),
             location: @js($user->lokasi && $user->lokasi !== 'null' ? $user->lokasi : ''),
             currency: @js($user->mata_uang),
-            startOfWeek: @js($user->awal_minggu),
         },
         avatarUrl: @js($avatarUrl),
         csrfToken: @js(csrf_token()),
@@ -69,7 +68,6 @@
                     phone: this.form.phone,
                     location: this.form.location,
                     mata_uang: this.form.currency,
-                    awal_minggu: this.form.startOfWeek,
                 }),
             });
 
@@ -131,7 +129,7 @@
     </div>
 
     {{-- Header --}}
-    <div class="flex items-start justify-between">
+    <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <h1 class="text-3xl font-bold">{{ __('account.title') }}</h1>
             <p class="mt-1 text-sm text-muted">{{ __('account.subtitle') }}</p>
@@ -267,15 +265,6 @@
                                     <option value="IDR">IDR (Rp)</option>
                                     <option value="USD">USD ($)</option>
                                     <option value="EUR">EUR (€)</option>
-                                </select>
-                            </dd>
-                        </div>
-                        <div class="flex items-center justify-between">
-                            <dt class="text-muted">{{ __('account.start_of_week') }}</dt>
-                            <dd>
-                                <select x-model="form.startOfWeek" class="border-0 bg-transparent py-0 pl-0 pr-6 text-right text-sm font-semibold focus:ring-0">
-                                    <option value="monday">Monday</option>
-                                    <option value="sunday">Sunday</option>
                                 </select>
                             </dd>
                         </div>

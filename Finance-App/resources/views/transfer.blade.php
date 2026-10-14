@@ -4,8 +4,14 @@
 
 @section('content')
 
-<div
-    x-data="{
+<div x-data="transferForm">
+
+    {{-- Objek Alpine dipindah ke blok <script> di bawah. Selama objeknya berada di
+         dalam atribut HTML, kutip ganda apa pun di dalamnya (string, komentar,
+         querySelector) akan memutus atribut dan menumpahkan JS sebagai teks. --}}
+<script>
+    document.addEventListener('alpine:init', () => {
+        window.Alpine.data('transferForm', () => ({
         mode: 'wallet',
         from: @js((string) ($wallets->first()['id'] ?? '')),
         to: @js((string) ($wallets->skip(1)->first()['id'] ?? $wallets->first()['id'] ?? '')),
@@ -44,21 +50,13 @@
             return window.financeMoney.formatNative(Number(this.amount) || 0);
         },
 
-        get currentLocale() {
-            const currency = document.querySelector("meta[name='finance-currency']")?.content ?? 'IDR';
-            return currency === 'USD' ? 'en-US' : (currency === 'EUR' ? 'de-DE' : 'id-ID');
-        },
-
         formatAmount(value) {
-            // Hapus semua karakter non-digit
-            const cleaned = value.replace(/[^\d]/g, '');
-            const num = cleaned === '' ? 0 : parseInt(cleaned, 10);
-            
-            // Simpan nilai numerik
-            this.amount = num;
-            
-            // Format dengan thousand separator sesuai locale mata uang
-            this.amountDisplay = num === 0 ? '' : num.toLocaleString(this.currentLocale);
+            // Parser dibagikan lewat window.financeMoney.formatTyped (app.js),
+            // satu-satunya sumber aturan pemisah ribuan/desimal lintas halaman.
+            const result = window.financeMoney.formatTyped(value);
+
+            this.amount = result.value;
+            this.amountDisplay = result.display;
         },
 
         toggleMode() {
@@ -178,8 +176,9 @@
 
             window.location.href = '/transactions';
         }
-    }"
->
+        }));
+    });
+</script>
 
     {{-- Header --}}
     <div>
@@ -214,7 +213,7 @@
 
 
             {{-- Dari ... ke ... --}}
-            <div class="mt-2 flex items-center gap-3 rounded-xl bg-page p-2">
+            <div class="mt-2 flex flex-col gap-3 rounded-xl bg-page p-2 sm:flex-row sm:items-center">
 
                 {{-- Dari wallet --}}
                 <div class="relative flex-1">
@@ -235,9 +234,9 @@
                 </div>
 
                 {{-- Penghubung --}}
-                <div class="flex flex-col items-center gap-0.5 text-xs">
+                <div class="flex flex-row items-center justify-center gap-0.5 text-xs sm:flex-col">
                     <span class="flex h-6 w-6 items-center justify-center rounded-full border border-ink">
-                        <x-icon name="arrow-right" size="h-3 w-3" />
+                        <x-icon name="arrow-right" size="h-3 w-3" class="rotate-90 sm:rotate-0" />
                     </span>
                     <span>to</span>
                 </div>

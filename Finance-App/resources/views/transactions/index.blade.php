@@ -184,7 +184,7 @@
 
 
     {{-- Judul + 3 tombol --}}
-    <div class="flex items-start justify-between">
+    <div class="flex flex-wrap items-start justify-between gap-4">
 
         <div>
             <h1 class="text-3xl font-bold">{{ __('transactions.title') }}</h1>
@@ -194,7 +194,7 @@
             </p>
         </div>
 
-        <div class="flex items-center gap-3">
+        <div class="flex flex-wrap items-center gap-3">
 
             {{-- Membuka halaman Manage Kategori (tombol Add Category ada di sana) --}}
             <a
@@ -222,9 +222,9 @@
     {{-- Pencarian + filter --}}
     <x-card class="mt-6 p-4">
 
-        <div class="flex items-center gap-4">
+        <div class="flex flex-wrap items-center gap-4">
 
-            <div class="relative flex-1">
+            <div class="relative min-w-0 flex-1">
 
                 <x-icon
                     name="search"
@@ -241,12 +241,12 @@
 
             </div>
 
-            <span class="text-xs text-muted" x-text="filtered.length + ' ' + @js(__('transactions.results_count'))"></span>
+            <span class="shrink-0 text-xs text-muted" x-text="filtered.length + ' ' + @js(__('transactions.results_count'))"></span>
 
         </div>
 
 
-        <div class="mt-3 flex items-center gap-2 text-sm">
+        <div class="mt-3 flex flex-wrap items-center gap-2 text-sm">
 
             {{-- All: aktif kalau tidak ada filter, klik untuk reset --}}
             <button
@@ -415,11 +415,11 @@
 
             <template x-for="t in g.items" :key="t.id">
 
-                <div class="mt-3 flex items-center gap-4 border-b border-line pb-3">
+                <div class="mt-3 flex items-start gap-3 border-b border-line pb-3 sm:items-center sm:gap-4">
 
                     {{-- Ikon --}}
                     <span
-                        class="flex h-10 w-10 items-center justify-center rounded-lg"
+                        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
                         :class="boxClass(t.type)"
                     >
                         <x-icon name="utensils" size="h-4 w-4" x-show="iconFor(t) === 'utensils'" />
@@ -433,11 +433,12 @@
                         <x-icon name="banknote" size="h-4 w-4" x-show="iconFor(t) === 'banknote'" x-cloak />
                     </span>
 
-                    {{-- Nama --}}
-                    <p class="flex-1 font-medium" x-text="t.name"></p>
+                    {{-- Nama + chip dibungkus agar di mobile menumpuk, di desktop sejajar --}}
+                    <div class="min-w-0 flex-1">
+                        <p class="font-medium" x-text="t.name"></p>
 
-                    {{-- Chip kategori + dompet --}}
-                    <div class="flex items-center gap-2">
+                        {{-- Chip kategori + dompet --}}
+                        <div class="mt-1 flex flex-wrap items-center gap-2 sm:mt-0">
 
                         <span
                             class="rounded-full px-2.5 py-1 text-xs font-medium"
@@ -465,11 +466,12 @@
                             </div>
                         </template>
 
+                        </div>
                     </div>
 
                     {{-- Nominal --}}
                     <p
-                        class="w-36 text-right text-lg font-semibold"
+                        class="w-28 shrink-0 text-right text-base font-semibold sm:w-36 sm:text-lg"
                         :class="amountClass(t.type, t.jenis)"
                         x-text="sign(t.type, t.jenis) + rp(t.amount)"
                     ></p>
@@ -492,11 +494,11 @@
 
 
     {{-- Pagination --}}
-    <div class="mt-6 flex items-center justify-between text-sm">
+    <div class="mt-6 flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
 
         <span class="text-muted" x-text="rangeText"></span>
 
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
 
             <x-button
                 variant="outline"
