@@ -117,6 +117,29 @@ class NotifikasiTest extends TestCase
         $this->assertTrue($target->load('dompet')->tercapai);
     }
 
+    public function test_notification_popup_renders_on_main_layout_pages(): void
+    {
+        [$user, $wallet] = $this->userWithWallet('layout-popup@example.com', 'Main Wallet', 50000);
+
+        $routes = [
+            route('user.dashboard'),
+            route('transactions.index'),
+            route('saving.index'),
+            route('notifications.index'),
+            route('transfer.index'),
+            route('account'),
+        ];
+
+        foreach ($routes as $url) {
+            $this->actingAs($user)
+                ->withSession(['notif_popup' => 'Pengeluaran "Makan Siang" sebesar Rp 25.000 berhasil dicatat.'])
+                ->get($url)
+                ->assertOk()
+                ->assertSee('Expense &quot;Makan Siang&quot; of Rp 25.000 was successfully recorded.', false)
+                ->assertSee('href="/notifications"', false);
+        }
+    }
+
     private function userWithWallet(string $email, string $walletName, int $balance): array
     {
         $user = User::create([
@@ -137,3 +160,4 @@ class NotifikasiTest extends TestCase
         return [$user, $wallet];
     }
 }
+

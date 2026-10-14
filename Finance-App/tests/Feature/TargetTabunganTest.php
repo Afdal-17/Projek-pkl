@@ -120,4 +120,22 @@ class TargetTabunganTest extends TestCase
         ]);
         $this->assertSame(1, Notifikasi::where('id_user', $user->id_user)->where('tipe', 'target')->count());
     }
+
+    public function test_saving_page_renders_with_notif_popup_session(): void
+    {
+        $user = User::create([
+            'nama' => 'Saving Popup User',
+            'email' => 'saving-popup@example.com',
+            'password' => 'password',
+            'role' => 'user',
+            'status' => true,
+            'email_verified_at' => now(),
+        ]);
+
+        $this->actingAs($user)
+            ->withSession(['notif_popup' => 'Target Dana Darurat telah tercapai.'])
+            ->get(route('saving.index'))
+            ->assertOk()
+            ->assertSee('Target Dana Darurat has been reached.');
+    }
 }

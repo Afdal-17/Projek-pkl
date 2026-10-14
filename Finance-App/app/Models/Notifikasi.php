@@ -34,12 +34,67 @@ class Notifikasi extends Model
         return $this->belongsTo(User::class, 'id_user', 'id_user');
     }
 
+    public static function formatMessage(mixed $pesan = null): string
+    {
+        if (is_object($pesan)) {
+            $pesan = $pesan->pesan ?? (string) $pesan;
+        }
+
+        $pesan = (string) ($pesan ?? '');
+
+        if ($pesan === '') {
+            return '';
+        }
+
+        // Expense recorded: Pengeluaran "..." sebesar Rp ... berhasil dicatat.
+        if (preg_match('/^Pengeluaran "([^"]+)" sebesar Rp ([\d\.,]+) berhasil dicatat\.$/u', $pesan, $m)) {
+            return "Expense \"{$m[1]}\" of Rp {$m[2]} was successfully recorded.";
+        }
+
+        // Income recorded: Pemasukan "..." sebesar Rp ... berhasil dicatat.
+        if (preg_match('/^Pemasukan "([^"]+)" sebesar Rp ([\d\.,]+) berhasil dicatat\.$/u', $pesan, $m)) {
+            return "Income \"{$m[1]}\" of Rp {$m[2]} was successfully recorded.";
+        }
+
+        // Transaction updated: Transaksi "..." telah diperbarui.
+        if (preg_match('/^Transaksi "([^"]+)" telah diperbarui\.$/u', $pesan, $m)) {
+            return "Transaction \"{$m[1]}\" has been updated.";
+        }
+
+        // Transaction deleted: Transaksi "..." sebesar Rp ... telah dihapus.
+        if (preg_match('/^Transaksi "([^"]+)" sebesar Rp ([\d\.,]+) telah dihapus\.$/u', $pesan, $m)) {
+            return "Transaction \"{$m[1]}\" of Rp {$m[2]} has been deleted.";
+        }
+
+        // Transfer between own wallets: Transfer Rp ... dari ... ke ... berhasil.
+        if (preg_match('/^Transfer Rp ([\d\.,]+) dari (.+) ke (.+) berhasil\.$/u', $pesan, $m)) {
+            return "Transfer of Rp {$m[1]} from {$m[2]} to {$m[3]} was successful.";
+        }
+
+        // Transfer to recipient: Transfer berhasil ke ... dari ... sebesar Rp ...
+        if (preg_match('/^Transfer berhasil ke (.+) dari (.+) sebesar Rp ([\d\.,]+)\.$/u', $pesan, $m)) {
+            return "Transfer to {$m[1]} from {$m[2]} of Rp {$m[3]} was successful.";
+        }
+
+        // Transfer received: Anda di transfer oleh ... sebesar Rp ...
+        if (preg_match('/^Anda di transfer oleh (.+) sebesar Rp ([\d\.,]+)\.$/u', $pesan, $m)) {
+            return "You received a transfer of Rp {$m[2]} from {$m[1]}.";
+        }
+
+        // Target reached: Target ... telah tercapai.
+        if (preg_match('/^Target (.+) telah tercapai\.$/u', $pesan, $m)) {
+            return "Target {$m[1]} has been reached.";
+        }
+
+        return $pesan;
+    }
+
     /**
-     * Formatted display message — handles legacy Indonesian messages by returning them as-is.
+     * Formatted display message using formatMessage.
      */
     public function getFormattedPesanAttribute(): string
     {
-        return (string) $this->pesan;
+        return self::formatMessage($this->pesan ?? '');
     }
 
     /**
@@ -51,8 +106,13 @@ class Notifikasi extends Model
             return 'Savings goal reached';
         }
 
-        if (str_starts_with((string) $this->pesan, 'Transfer ') ||
-            str_starts_with((string) $this->pesan, 'Anda di transfer oleh ')) {
+        if (
+            str_starts_with($this->pesan ?? '', 'Transfer ') ||
+            str_starts_with($this->pesan ?? '', 'Transfer of ') ||
+            str_starts_with($this->pesan ?? '', 'Transfer to ') ||
+            str_starts_with($this->pesan ?? '', 'You received a transfer ') ||
+            str_starts_with($this->pesan ?? '', 'Anda di transfer oleh ')
+        ) {
             return 'Transfer success!';
         }
 
@@ -68,8 +128,13 @@ class Notifikasi extends Model
             return 'saving';
         }
 
-        if (str_starts_with((string) $this->pesan, 'Transfer ') ||
-            str_starts_with((string) $this->pesan, 'Anda di transfer oleh ')) {
+        if (
+            str_starts_with($this->pesan ?? '', 'Transfer ') ||
+            str_starts_with($this->pesan ?? '', 'Transfer of ') ||
+            str_starts_with($this->pesan ?? '', 'Transfer to ') ||
+            str_starts_with($this->pesan ?? '', 'You received a transfer ') ||
+            str_starts_with($this->pesan ?? '', 'Anda di transfer oleh ')
+        ) {
             return 'transfer';
         }
 
