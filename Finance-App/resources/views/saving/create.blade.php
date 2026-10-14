@@ -131,22 +131,70 @@
             <div class="mt-6">
                 <label for="target_wallet" class="mb-2 block text-sm font-medium">{{ __('saving.wallet') }}</label>
 
-                <div class="relative">
-                    <x-icon name="wallet" size="h-4 w-4"
-                        class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-
-                    <select
+                <div
+                    class="relative"
+                    x-data="{
+                        open: false,
+                        dropUp: false,
+                        toggle(el) {
+                            this.open = !this.open;
+                            if (this.open) {
+                                const rect = el.getBoundingClientRect();
+                                this.dropUp = (window.innerHeight - rect.bottom) < 260;
+                            }
+                        }
+                    }"
+                    @click.outside="open = false"
+                    @keydown.escape.window="open = false"
+                >
+                    <button
                         id="target_wallet"
-                        x-model="wallet"
-                        class="w-full appearance-none rounded-lg border border-line bg-white py-3 pl-9 pr-10 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+                        type="button"
+                        @click="toggle($el)"
+                        class="flex w-full items-center justify-between rounded-lg border border-line bg-white py-3 pl-9 pr-3 text-sm text-left shadow-sm transition hover:border-brand/40 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 cursor-pointer"
+                        :class="open ? 'border-brand ring-2 ring-brand/20' : ''"
                     >
+                        <x-icon name="wallet" size="h-4 w-4"
+                            class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+                        <span class="truncate font-medium text-ink" x-text="wallets.find(w => String(w.id) === String(wallet))?.name ?? 'Select wallet'"></span>
+                        <x-icon name="chevron-down" size="h-4 w-4" class="text-muted shrink-0 transition-transform duration-200" x-bind:class="open ? 'rotate-180' : ''" />
+                    </button>
+
+                    <div
+                        x-show="open"
+                        x-cloak
+                        x-transition:enter="transition ease-out duration-150"
+                        x-transition:enter-start="opacity-0 scale-95"
+                        x-transition:enter-end="opacity-100 scale-100"
+                        x-transition:leave="transition ease-in duration-100"
+                        x-transition:leave-start="opacity-100 scale-100"
+                        x-transition:leave-end="opacity-0 scale-95"
+                        class="absolute left-0 right-0 z-50 max-h-60 overflow-y-auto rounded-xl border border-line bg-white p-1.5 shadow-2xl ring-1 ring-black/5"
+                        :class="dropUp ? 'bottom-full mb-2 origin-bottom' : 'top-full mt-2 origin-top'"
+                    >
+                        <div class="space-y-0.5">
+                            <template x-for="item in wallets" :key="item.name">
+                                <button
+                                    type="button"
+                                    @click="wallet = String(item.id); open = false"
+                                    class="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-sm transition text-left cursor-pointer"
+                                    :class="String(wallet) === String(item.id) ? 'bg-brand-soft text-brand font-semibold' : 'text-ink hover:bg-page font-medium'"
+                                >
+                                    <span x-text="item.name" class="truncate font-medium"></span>
+                                    <div class="flex items-center gap-1.5 shrink-0">
+                                        <span class="text-xs text-muted" x-text="rp(item.balance)"></span>
+                                        <x-icon x-show="String(wallet) === String(item.id)" name="check" size="h-4 w-4" class="text-brand" />
+                                    </div>
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+
+                    <select id="target_wallet_native" x-model="wallet" class="sr-only" tabindex="-1" aria-hidden="true">
                         <template x-for="item in wallets" :key="item.name">
-                            <option :value="item.id" :selected="String(item.id) === wallet" x-text="item.name"></option>
+                            <option :value="String(item.id)" :selected="String(item.id) === wallet" x-text="item.name"></option>
                         </template>
                     </select>
-
-                    <x-icon name="chevron-down" size="h-4 w-4"
-                        class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted" />
                 </div>
             </div>
 

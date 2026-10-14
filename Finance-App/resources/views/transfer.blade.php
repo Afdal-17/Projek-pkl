@@ -217,21 +217,69 @@
             <div class="mt-2 flex items-center gap-3 rounded-xl bg-page p-2">
 
                 {{-- Dari wallet --}}
-                <div class="relative flex-1">
-                    <x-icon name="wallet" size="h-4 w-4"
-                        class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-
-                    <select
-                        x-model="from"
-                        class="w-full appearance-none rounded-lg border border-line bg-white py-2.5 pl-9 pr-9 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+                <div
+                    class="relative flex-1 min-w-0"
+                    x-data="{
+                        open: false,
+                        dropUp: false,
+                        toggle(el) {
+                            this.open = !this.open;
+                            if (this.open) {
+                                const rect = el.getBoundingClientRect();
+                                this.dropUp = (window.innerHeight - rect.bottom) < 260;
+                            }
+                        }
+                    }"
+                    @click.outside="open = false"
+                    @keydown.escape.window="open = false"
+                >
+                    <button
+                        type="button"
+                        @click="toggle($el)"
+                        class="flex w-full items-center justify-between rounded-lg border border-line bg-white py-2.5 pl-9 pr-3 text-sm text-left shadow-sm transition hover:border-brand/40 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 cursor-pointer"
+                        :class="open ? 'border-brand ring-2 ring-brand/20' : ''"
                     >
+                        <x-icon name="wallet" size="h-4 w-4"
+                            class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+                        <span class="truncate font-medium text-ink" x-text="fromLabel"></span>
+                        <x-icon name="chevron-down" size="h-4 w-4" class="text-muted shrink-0 transition-transform duration-200" x-bind:class="open ? 'rotate-180' : ''" />
+                    </button>
+
+                    <div
+                        x-show="open"
+                        x-cloak
+                        x-transition:enter="transition ease-out duration-150"
+                        x-transition:enter-start="opacity-0 scale-95"
+                        x-transition:enter-end="opacity-100 scale-100"
+                        x-transition:leave="transition ease-in duration-100"
+                        x-transition:leave-start="opacity-100 scale-100"
+                        x-transition:leave-end="opacity-0 scale-95"
+                        class="absolute left-0 right-0 z-50 max-h-60 overflow-y-auto rounded-xl border border-line bg-white p-1.5 shadow-2xl ring-1 ring-black/5"
+                        :class="dropUp ? 'bottom-full mb-2 origin-bottom' : 'top-full mt-2 origin-top'"
+                    >
+                        <div class="space-y-0.5">
+                            <template x-for="item in wallets" :key="item.name">
+                                <button
+                                    type="button"
+                                    @click="from = item.id; open = false"
+                                    class="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-sm transition text-left cursor-pointer"
+                                    :class="String(from) === String(item.id) ? 'bg-brand-soft text-brand font-semibold' : 'text-ink hover:bg-page font-medium'"
+                                >
+                                    <span x-text="item.name" class="truncate"></span>
+                                    <div class="flex items-center gap-1.5 shrink-0">
+                                        <span class="text-xs text-muted" x-text="window.financeMoney.format(Number(item.balance) || 0)"></span>
+                                        <x-icon x-show="String(from) === String(item.id)" name="check" size="h-4 w-4" class="text-brand" />
+                                    </div>
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+
+                    <select x-model="from" class="sr-only" tabindex="-1" aria-hidden="true">
                         <template x-for="item in wallets" :key="item.name">
                             <option :value="item.id" :selected="String(item.id) === String(from)" x-text="item.name"></option>
                         </template>
                     </select>
-
-                    <x-icon name="chevron-down" size="h-4 w-4"
-                        class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted" />
                 </div>
 
                 {{-- Penghubung --}}
@@ -243,21 +291,70 @@
                 </div>
 
                 {{-- Tujuan: wallet --}}
-                <div class="relative flex-1" x-show="mode === 'wallet'">
-                    <x-icon name="wallet" size="h-4 w-4"
-                        class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-
-                    <select
-                        x-model="to"
-                        class="w-full appearance-none rounded-lg border border-line bg-white py-2.5 pl-9 pr-9 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+                <div
+                    class="relative flex-1 min-w-0"
+                    x-show="mode === 'wallet'"
+                    x-data="{
+                        open: false,
+                        dropUp: false,
+                        toggle(el) {
+                            this.open = !this.open;
+                            if (this.open) {
+                                const rect = el.getBoundingClientRect();
+                                this.dropUp = (window.innerHeight - rect.bottom) < 260;
+                            }
+                        }
+                    }"
+                    @click.outside="open = false"
+                    @keydown.escape.window="open = false"
+                >
+                    <button
+                        type="button"
+                        @click="toggle($el)"
+                        class="flex w-full items-center justify-between rounded-lg border border-line bg-white py-2.5 pl-9 pr-3 text-sm text-left shadow-sm transition hover:border-brand/40 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 cursor-pointer"
+                        :class="open ? 'border-brand ring-2 ring-brand/20' : ''"
                     >
+                        <x-icon name="wallet" size="h-4 w-4"
+                            class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+                        <span class="truncate font-medium text-ink" x-text="wallets.find(w => String(w.id) === String(to))?.name ?? 'Select wallet'"></span>
+                        <x-icon name="chevron-down" size="h-4 w-4" class="text-muted shrink-0 transition-transform duration-200" x-bind:class="open ? 'rotate-180' : ''" />
+                    </button>
+
+                    <div
+                        x-show="open"
+                        x-cloak
+                        x-transition:enter="transition ease-out duration-150"
+                        x-transition:enter-start="opacity-0 scale-95"
+                        x-transition:enter-end="opacity-100 scale-100"
+                        x-transition:leave="transition ease-in duration-100"
+                        x-transition:leave-start="opacity-100 scale-100"
+                        x-transition:leave-end="opacity-0 scale-95"
+                        class="absolute left-0 right-0 z-50 max-h-60 overflow-y-auto rounded-xl border border-line bg-white p-1.5 shadow-2xl ring-1 ring-black/5"
+                        :class="dropUp ? 'bottom-full mb-2 origin-bottom' : 'top-full mt-2 origin-top'"
+                    >
+                        <div class="space-y-0.5">
+                            <template x-for="item in wallets" :key="item.name">
+                                <button
+                                    type="button"
+                                    @click="to = item.id; open = false"
+                                    class="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-sm transition text-left cursor-pointer"
+                                    :class="String(to) === String(item.id) ? 'bg-brand-soft text-brand font-semibold' : 'text-ink hover:bg-page font-medium'"
+                                >
+                                    <span x-text="item.name" class="truncate"></span>
+                                    <div class="flex items-center gap-1.5 shrink-0">
+                                        <span class="text-xs text-muted" x-text="window.financeMoney.format(Number(item.balance) || 0)"></span>
+                                        <x-icon x-show="String(to) === String(item.id)" name="check" size="h-4 w-4" class="text-brand" />
+                                    </div>
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+
+                    <select x-model="to" class="sr-only" tabindex="-1" aria-hidden="true">
                         <template x-for="item in wallets" :key="item.name">
                             <option :value="item.id" :selected="String(item.id) === String(to)" x-text="item.name"></option>
                         </template>
                     </select>
-
-                    <x-icon name="chevron-down" size="h-4 w-4"
-                        class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted" />
                 </div>
 
                 {{-- Tujuan: user --}}
@@ -333,23 +430,71 @@
                     </div>
 
                     {{-- Pilih dompet penerima --}}
-                    <div x-show="!recipient?.is_banned" class="mt-3 flex items-center gap-2">
-                        <label class="shrink-0 text-xs font-medium text-muted">Destination wallet</label>
-                        <div class="relative flex-1">
-                            <x-icon name="wallet" size="h-4 w-4"
-                                class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-brand" />
-
-                            <select
-                                x-model="recipientWalletId"
-                                class="w-full appearance-none rounded-lg border border-line bg-white py-2 pl-9 pr-9 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+                    <div x-show="!recipient?.is_banned" class="mt-3 flex flex-col sm:flex-row sm:items-center gap-2">
+                        <label class="shrink-0 text-xs font-medium text-muted sm:w-28">Destination wallet</label>
+                        <div
+                            class="relative w-full sm:flex-1 min-w-0"
+                            x-data="{
+                                open: false,
+                                dropUp: false,
+                                toggle(el) {
+                                    this.open = !this.open;
+                                    if (this.open) {
+                                        const rect = el.getBoundingClientRect();
+                                        this.dropUp = (window.innerHeight - rect.bottom) < 220;
+                                    }
+                                }
+                            }"
+                            @click.outside="open = false"
+                            @keydown.escape.window="open = false"
+                        >
+                            <button
+                                type="button"
+                                @click="toggle($el)"
+                                class="flex w-full items-center justify-between rounded-lg border border-line bg-white py-2 pl-9 pr-3 text-sm text-left shadow-sm transition hover:border-brand/40 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 cursor-pointer"
+                                :class="open ? 'border-brand ring-2 ring-brand/20' : ''"
                             >
+                                <x-icon name="wallet" size="h-4 w-4"
+                                    class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-brand" />
+                                <span class="truncate font-medium text-ink" x-text="recipient?.wallets?.find(w => String(w.id) === String(recipientWalletId))?.name ?? 'Select destination wallet'"></span>
+                                <x-icon name="chevron-down" size="h-4 w-4" class="text-muted shrink-0 transition-transform duration-200" x-bind:class="open ? 'rotate-180' : ''" />
+                            </button>
+
+                            <div
+                                x-show="open"
+                                x-cloak
+                                x-transition:enter="transition ease-out duration-150"
+                                x-transition:enter-start="opacity-0 scale-95"
+                                x-transition:enter-end="opacity-100 scale-100"
+                                x-transition:leave="transition ease-in duration-100"
+                                x-transition:leave-start="opacity-100 scale-100"
+                                x-transition:leave-end="opacity-0 scale-95"
+                                class="absolute left-0 right-0 z-50 max-h-60 overflow-y-auto rounded-xl border border-line bg-white p-1.5 shadow-2xl ring-1 ring-black/5"
+                                :class="dropUp ? 'bottom-full mb-2 origin-bottom' : 'top-full mt-2 origin-top'"
+                            >
+                                <div class="space-y-0.5">
+                                    <template x-for="w in recipient?.wallets ?? []" :key="w.id">
+                                        <button
+                                            type="button"
+                                            @click="recipientWalletId = String(w.id); open = false"
+                                            class="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-sm transition text-left cursor-pointer"
+                                            :class="String(recipientWalletId) === String(w.id) ? 'bg-brand-soft text-brand font-semibold' : 'text-ink hover:bg-page font-medium'"
+                                        >
+                                            <span x-text="w.name" class="truncate font-medium"></span>
+                                            <div class="flex items-center gap-1.5 shrink-0">
+                                                <span class="text-xs text-muted" x-text="window.financeMoney.format(Number(w.balance) || 0)"></span>
+                                                <x-icon x-show="String(recipientWalletId) === String(w.id)" name="check" size="h-4 w-4" class="text-brand" />
+                                            </div>
+                                        </button>
+                                    </template>
+                                </div>
+                            </div>
+
+                            <select x-model="recipientWalletId" class="sr-only" tabindex="-1" aria-hidden="true">
                                 <template x-for="w in recipient?.wallets ?? []" :key="w.id">
-                                    <option :value="String(w.id)" x-text="w.name"></option>
+                                    <option :value="String(w.id)" :selected="String(w.id) === String(recipientWalletId)" x-text="w.name"></option>
                                 </template>
                             </select>
-
-                            <x-icon name="chevron-down" size="h-4 w-4"
-                                class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted" />
                         </div>
                     </div>
                 </div>

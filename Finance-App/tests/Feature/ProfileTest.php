@@ -62,7 +62,7 @@ class ProfileTest extends TestCase
         $user = User::factory()->create();
 
         $this->actingAs($user)->postJson(route('account.avatar.update'), [
-            'avatar' => UploadedFile::fake()->create('avatar.png', 20, 'image/png'),
+            'avatar' => UploadedFile::fake()->image('avatar.png'),
         ])->assertOk();
 
         $avatarPath = $user->fresh()->avatar_path;

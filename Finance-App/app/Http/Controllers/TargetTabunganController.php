@@ -8,6 +8,7 @@ use App\Models\Dompet;
 use App\Models\TargetTabungan;
 use App\Services\CurrencyService;
 use App\Services\NotifikasiService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
@@ -63,7 +64,7 @@ class TargetTabunganController extends Controller
         ]);
     }
 
-    public function store(StoreTargetTabunganRequest $request, NotifikasiService $notifikasiService): RedirectResponse
+    public function store(StoreTargetTabunganRequest $request, NotifikasiService $notifikasiService): RedirectResponse|JsonResponse
     {
         $data = $request->validated();
         $wallet = Dompet::where('id_user', Auth::id())->findOrFail($data['id_dompet']);
@@ -89,6 +90,10 @@ class TargetTabunganController extends Controller
 
         if ($target->status === 'tercapai') {
             $notifikasiService->targetTercapai($target);
+        }
+
+        if ($request->expectsJson() || $request->wantsJson()) {
+            return response()->json(['success' => true, 'id' => $target->id_target]);
         }
 
         return redirect()->route('target-tabungan.index');
@@ -149,9 +154,13 @@ class TargetTabunganController extends Controller
         return redirect()->route('target-tabungan.index');
     }
 
-    public function destroy(TargetTabungan $targetTabungan): RedirectResponse
+    public function destroy(TargetTabungan $targetTabungan): RedirectResponse|JsonResponse
     {
         $this->ownedTarget($targetTabungan)->delete();
+
+        if (request()->expectsJson() || request()->wantsJson()) {
+            return response()->json(['status' => 'deleted']);
+        }
 
         return redirect()->route('target-tabungan.index');
     }

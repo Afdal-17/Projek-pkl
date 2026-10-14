@@ -51,4 +51,57 @@ class AuthenticationTest extends TestCase
         $this->assertGuest();
         $response->assertRedirect('/');
     }
+
+    public function test_admin_can_authenticate_and_is_redirected_to_admin_dashboard(): void
+    {
+        $admin = User::factory()->create([
+            'role' => 'admin',
+            'email_verified_at' => now(),
+            'status' => true,
+        ]);
+
+        $response = $this->post('/login', [
+            'email' => $admin->email,
+            'password' => 'password',
+        ]);
+
+        $this->assertAuthenticatedAs($admin);
+        $response->assertRedirect(route('admin.dashboard', absolute: false));
+    }
+
+    public function test_admin_with_user_intended_url_is_redirected_to_admin_dashboard(): void
+    {
+        $admin = User::factory()->create([
+            'role' => 'admin',
+            'email_verified_at' => now(),
+            'status' => true,
+        ]);
+
+        $response = $this->withSession(['url.intended' => route('user.dashboard')])
+            ->post('/login', [
+                'email' => $admin->email,
+                'password' => 'password',
+            ]);
+
+        $this->assertAuthenticatedAs($admin);
+        $response->assertRedirect(route('admin.dashboard', absolute: false));
+    }
+
+    public function test_admin_with_admin_intended_url_is_redirected_to_intended_admin_url(): void
+    {
+        $admin = User::factory()->create([
+            'role' => 'admin',
+            'email_verified_at' => now(),
+            'status' => true,
+        ]);
+
+        $response = $this->withSession(['url.intended' => route('admin.users')])
+            ->post('/login', [
+                'email' => $admin->email,
+                'password' => 'password',
+            ]);
+
+        $this->assertAuthenticatedAs($admin);
+        $response->assertRedirect(route('admin.users', absolute: false));
+    }
 }

@@ -81,19 +81,69 @@
         <div class="flex items-center gap-3">
 
             {{-- Filter jenis --}}
-            <div class="relative">
-                <select
-                    x-model="filter"
-                    class="appearance-none rounded-lg border border-line bg-white py-2.5 pl-4 pr-10 text-sm font-medium focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+            <div
+                class="relative w-full sm:w-auto"
+                x-data="{
+                    open: false,
+                    dropUp: false,
+                    filterLabels: {
+                        'all': 'All',
+                        'transaction': 'Transactions',
+                        'transfer': 'Transfers',
+                        'saving': 'Savings'
+                    },
+                    toggle(el) {
+                        this.open = !this.open;
+                        if (this.open) {
+                            const rect = el.getBoundingClientRect();
+                            this.dropUp = (window.innerHeight - rect.bottom) < 220;
+                        }
+                    }
+                }"
+                @click.outside="open = false"
+                @keydown.escape.window="open = false"
+            >
+                <button
+                    type="button"
+                    @click="toggle($el)"
+                    class="flex w-full items-center justify-between gap-3 rounded-xl border border-line bg-white py-2.5 pl-4 pr-3 text-sm font-medium text-ink shadow-sm transition hover:border-brand/40 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 sm:w-36 cursor-pointer"
+                    :class="open ? 'border-brand ring-2 ring-brand/20' : ''"
                 >
+                    <span x-text="filterLabels[filter] ?? 'All'" class="truncate"></span>
+                    <x-icon name="chevron-down" size="h-3.5 w-3.5" class="text-muted shrink-0 transition-transform duration-200" x-bind:class="open ? 'rotate-180' : ''" />
+                </button>
+
+                <div
+                    x-show="open"
+                    x-cloak
+                    x-transition:enter="transition ease-out duration-150"
+                    x-transition:enter-start="opacity-0 scale-95"
+                    x-transition:enter-end="opacity-100 scale-100"
+                    x-transition:leave="transition ease-in duration-100"
+                    x-transition:leave-start="opacity-100 scale-100"
+                    x-transition:leave-end="opacity-0 scale-95"
+                    class="absolute right-0 z-50 w-36 rounded-xl border border-line bg-white p-1 shadow-xl ring-1 ring-black/5"
+                    :class="dropUp ? 'bottom-full mb-2 origin-bottom-right' : 'top-full mt-2 origin-top-right'"
+                >
+                    <template x-for="(lbl, key) in filterLabels" :key="key">
+                        <button
+                            type="button"
+                            @click="filter = key; open = false"
+                            class="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm transition text-left cursor-pointer"
+                            :class="filter === key ? 'bg-brand-soft text-brand font-semibold' : 'text-ink hover:bg-page font-medium'"
+                        >
+                            <span x-text="lbl"></span>
+                            <x-icon x-show="filter === key" name="check" size="h-3.5 w-3.5" class="text-brand shrink-0" />
+                        </button>
+                    </template>
+                </div>
+
+                <select x-model="filter" class="sr-only" tabindex="-1" aria-hidden="true">
                     <option value="all">All</option>
                     <option value="transaction">Transactions</option>
                     <option value="transfer">Transfers</option>
                     <option value="saving">Savings</option>
                 </select>
-
-                <x-icon name="chevron-down" size="h-4 w-4"
-                    class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted" />
             </div>
 
             {{-- Read / Unread --}}

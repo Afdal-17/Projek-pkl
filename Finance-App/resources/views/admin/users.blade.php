@@ -132,15 +132,15 @@
     <x-card class="mt-6 overflow-hidden">
 
         {{-- Judul + pencarian --}}
-        <div class="flex items-center justify-between p-6">
+        <div class="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6">
 
             <div class="flex items-center gap-3">
                 <h2 class="text-xl font-bold">{{ __('admin.title') }}</h2>
-                <span class="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-muted"
+                <span class="shrink-0 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-muted"
                       x-text="users.length + ' users'"></span>
             </div>
 
-            <div class="relative w-72">
+            <div class="relative w-full sm:w-72">
                 <x-icon name="search" size="h-4 w-4"
                     class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
 
@@ -158,7 +158,7 @@
         {{-- Tabel --}}
         <div class="border-t border-line">
 
-            <div class="grid grid-cols-[2fr_2.6fr_1fr_1.3fr] gap-4 bg-gray-50 px-6 py-3 text-xs font-semibold text-muted">
+            <div class="hidden grid-cols-[2fr_2.6fr_1fr_1.3fr] gap-4 bg-gray-50 px-6 py-3 text-xs font-semibold text-muted md:grid">
                 <span>{{ __('admin.name') }}</span>
                 <span>{{ __('admin.email') }}</span>
                 <span>{{ __('admin.status') }}</span>
@@ -166,28 +166,28 @@
             </div>
 
             <template x-for="u in filtered" :key="u.id">
-                <div class="grid grid-cols-[2fr_2.6fr_1fr_1.3fr] items-center gap-4 border-t border-line px-6 py-3 text-sm">
+                <div class="flex flex-col gap-3 border-t border-line p-4 text-sm md:grid md:grid-cols-[2fr_2.6fr_1fr_1.3fr] md:items-center md:gap-4 md:px-6 md:py-3">
 
                     <div class="flex items-center gap-3">
                         <template x-if="u.banned">
-                            <span class="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 text-xs font-semibold text-gray-400"
+                            <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-200 text-xs font-semibold text-gray-400"
                                   x-text="u.name.charAt(0).toUpperCase()"></span>
                         </template>
                         <template x-if="!u.banned && u.avatar">
-                            <img :src="u.avatar" :alt="u.name" class="h-8 w-8 rounded-full object-cover ring-1 ring-line">
+                            <img :src="u.avatar" :alt="u.name" class="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-line">
                         </template>
                         <template x-if="!u.banned && !u.avatar">
-                            <span class="flex h-8 w-8 items-center justify-center rounded-full bg-brand-soft text-xs font-semibold text-brand"
-                                  x-text="u.name.charAt(0).toUpperCase()"></span>
+                            <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-soft text-xs font-semibold text-brand"
+                                  x-text="u.name ? u.name.charAt(0).toUpperCase() : '?'"></span>
                         </template>
-                        <span class="font-medium" x-text="u.name"></span>
+                        <span class="truncate font-medium" x-text="u.name"></span>
                     </div>
 
-                    <span class="text-muted" x-text="u.email"></span>
+                    <span class="truncate text-muted md:text-ink" x-text="u.email"></span>
 
-                    <span>
+                    <div>
                         <span
-                            class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
+                            class="inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold"
                             :class="u.status === 'Active' ? 'bg-income-soft text-income' : (u.status === 'Banned' ? 'bg-expense-soft text-expense' : 'bg-gray-100 text-muted')"
                             x-text="u.status"
                         ></span>
@@ -196,9 +196,9 @@
                                 <span x-text="u.ban_days_remaining + ' hari tersisa'"></span>
                             </div>
                         </template>
-                    </span>
+                    </div>
 
-                    <div class="flex items-center gap-2">
+                    <div class="flex flex-wrap items-center gap-2 mt-2 md:mt-0">
 
                         <button type="button" x-show="u.banned" title="Unban User" x-on:click="toggleStatus(u)" :disabled="!u.canToggle"
                                 class="flex h-8 w-8 items-center justify-center rounded-md bg-income-soft text-income hover:opacity-80" x-cloak>
@@ -235,23 +235,53 @@
 
 
         {{-- Footer + pagination (statis dulu) --}}
-        <div class="flex items-center justify-between border-t border-line px-6 py-4 text-xs text-muted">
+        <div class="flex flex-col items-center justify-between gap-4 border-t border-line p-4 text-xs text-muted sm:flex-row sm:px-6">
 
-            <span x-text="'Showing ' + filtered.length + ' of ' + users.length + ' users'"></span>
+            <span class="text-center sm:text-left" x-text="'Showing ' + filtered.length + ' of ' + users.length + ' users'"></span>
 
-            <div class="flex items-center gap-2">
-                <span class="flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-white">
-                    <x-icon name="arrow-left" size="h-3.5 w-3.5" />
-                </span>
-                <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-soft font-medium text-brand">{{ $users->currentPage() }}</span>
-                @if ($users->hasMorePages())
-                    <a href="{{ $users->nextPageUrl() }}" class="flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-white">
-                        <x-icon name="arrow-right" size="h-3.5 w-3.5" />
-                    </a>
+            <div class="w-full sm:w-auto">
+                {{-- Desktop Pagination --}}
+                <div class="hidden sm:flex flex-wrap items-center justify-center gap-2">
+                    @if ($users->onFirstPage())
+                        <span class="flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-white opacity-50">
+                            <x-icon name="arrow-left" size="h-3.5 w-3.5" />
+                        </span>
+                    @else
+                        <a href="{{ $users->previousPageUrl() }}" class="flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-white hover:bg-page">
+                            <x-icon name="arrow-left" size="h-3.5 w-3.5" />
+                        </a>
+                    @endif
+                    
+                    <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-soft font-medium text-brand">{{ $users->currentPage() }}</span>
+                    
+                    @if ($users->hasMorePages())
+                        <a href="{{ $users->nextPageUrl() }}" class="flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-white hover:bg-page">
+                            <x-icon name="arrow-right" size="h-3.5 w-3.5" />
+                        </a>
+                    @else
+                        <span class="flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-white opacity-50">
+                            <x-icon name="arrow-right" size="h-3.5 w-3.5" />
+                        </span>
+                    @endif
+                </div>
+
+                {{-- Mobile Pagination (Dots) --}}
+                @if (method_exists($users, 'lastPage') && $users->lastPage() > 1)
+                <div class="flex sm:hidden items-center justify-center gap-1.5 overflow-x-auto py-2 snap-x hide-scrollbar">
+                    @for ($i = 1; $i <= $users->lastPage(); $i++)
+                        <a href="{{ $users->url($i) }}" class="h-2 shrink-0 rounded-full transition-all duration-300 snap-center {{ $i == $users->currentPage() ? 'w-4 bg-brand' : 'w-2 bg-gray-200' }}"></a>
+                    @endfor
+                </div>
                 @else
-                    <span class="flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-white">
-                        <x-icon name="arrow-right" size="h-3.5 w-3.5" />
-                    </span>
+                <div class="flex sm:hidden items-center justify-center gap-2">
+                    @if (!$users->onFirstPage())
+                        <a href="{{ $users->previousPageUrl() }}" class="h-2 w-2 rounded-full bg-gray-300"></a>
+                    @endif
+                    <span class="h-2 w-4 rounded-full bg-brand"></span>
+                    @if ($users->hasMorePages())
+                        <a href="{{ $users->nextPageUrl() }}" class="h-2 w-2 rounded-full bg-gray-300"></a>
+                    @endif
+                </div>
                 @endif
             </div>
 
@@ -266,7 +296,7 @@
          x-on:click.self="banningId = null"
          class="fixed inset-0 z-30 flex items-center justify-center bg-black/30 p-4">
 
-        <div class="w-full max-w-sm rounded-2xl border border-line bg-white p-6 shadow-xl">
+        <div class="w-full max-w-sm max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl border border-line bg-white p-6 shadow-xl">
 
             <div class="flex items-start justify-between">
                 <div>

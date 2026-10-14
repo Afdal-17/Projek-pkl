@@ -6,23 +6,7 @@
 @php
     $currency = auth()->user()->mata_uang ?? 'IDR';
 
-    $currencySymbols = [
-        'IDR' => 'Rp',
-        'USD' => '$',
-        'EUR' => '€',
-    ];
-
-    $currencySymbol = $currencySymbols[$currency] ?? 'Rp';
-
-    $decimalSeparator = $currency === 'USD' ? '.' : ',';
-    $thousandsSeparator = $currency === 'USD' ? ',' : '.';
-
-    $formatMoney = fn ($amount) => $currencySymbol.' '.number_format(
-        (float) $amount,
-        $currency === 'IDR' ? 0 : 2,
-        $decimalSeparator,
-        $thousandsSeparator
-    );
+    $formatMoney = fn ($amount) => finance_money($amount);
 
     $tones = [
         'brand'   => [

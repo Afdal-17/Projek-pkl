@@ -3,6 +3,8 @@
 return [
     'title' => 'Admin - User Management',
     'subtitle' => 'Manage user accounts, suspensions, and bans.',
+    'name' => 'Name',
+    'email' => 'Email',
     'search' => 'Search users...',
     'all_roles' => 'All Roles',
     'admin' => 'Admin',
