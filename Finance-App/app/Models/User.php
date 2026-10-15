@@ -33,7 +33,6 @@ class User extends Authenticatable
         'lokasi',
         'avatar_path',
         'mata_uang',
-        'awal_minggu',
         'last_seen_at',
         'banned_at',
         'ban_reason',

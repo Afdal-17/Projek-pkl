@@ -34,8 +34,7 @@
 @endphp
 
 <!DOCTYPE html>
-<html lang="{{ $currentUser?->awal_minggu === 'sunday' ? 'en-US' : 'en-GB' }}">
-
+<html lang="en-GB">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -88,7 +87,6 @@
                 @endforeach
 
             </nav>
-
 
             {{-- Right Header --}}
             <div class="flex min-w-0 shrink-0 items-center gap-2 sm:gap-4">
@@ -373,21 +371,15 @@
                             </span>
 
                         @endif
-
-
                         {{-- User Info --}}
                         <span class="hidden min-w-0 text-left leading-tight sm:block">
-
                             <span class="block truncate text-sm font-semibold">
                                 {{ $currentUser?->nama ?? 'User' }}
                             </span>
-
-                            <span class="block truncate text-xs text-muted">
+                            <span class="block max-w-[160px] truncate text-xs text-muted">
                                 {{ $currentUser?->email ?? 'Personal account' }}
                             </span>
-
                         </span>
-
 
                         {{-- Arrow --}}
                         <svg
@@ -399,7 +391,6 @@
                         >
                             <path d="m6 9 6 6 6-6"/>
                         </svg>
-
                     </button>
 
 
@@ -613,12 +604,9 @@
 
     </header>
 
-
     {{-- Main Content --}}
     <main class="mx-auto max-w-[1312px] px-4 py-6 sm:px-8 sm:py-10 w-full min-w-0 overflow-x-hidden">
-
         @yield('content')
-
     </main>
 
 

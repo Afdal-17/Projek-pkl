@@ -12,24 +12,14 @@
         form: {
             name: @js($user->nama),
             email: @js($user->email),
-            phone: @js($user->nomor_telepon),
-            location: @js($user->lokasi),
+            phone: @js($user->nomor_telepon && $user->nomor_telepon !== 'null' ? $user->nomor_telepon : ''),
+            location: @js($user->lokasi && $user->lokasi !== 'null' ? $user->lokasi : ''),
             currency: @js($user->mata_uang ?? 'IDR'),
-            startOfWeek: @js($user->awal_minggu ?? 'monday'),
         },
         currencies: [
             { value: 'IDR', label: 'IDR (Rp)', symbol: 'Rp', desc: 'Indonesian Rupiah' },
             { value: 'USD', label: 'USD ($)', symbol: '$', desc: 'US Dollar' },
             { value: 'EUR', label: 'EUR (€)', symbol: '€', desc: 'Euro' },
-        ],
-        daysOfWeek: [
-            { value: 'monday', label: 'Monday', short: 'Mo' },
-            { value: 'tuesday', label: 'Tuesday', short: 'Tu' },
-            { value: 'wednesday', label: 'Wednesday', short: 'We' },
-            { value: 'thursday', label: 'Thursday', short: 'Th' },
-            { value: 'friday', label: 'Friday', short: 'Fr' },
-            { value: 'saturday', label: 'Saturday', short: 'Sa' },
-            { value: 'sunday', label: 'Sunday', short: 'Su' },
         ],
         avatarUrl: @js($avatarUrl),
         csrfToken: @js(csrf_token()),
@@ -50,7 +40,6 @@
                         phone: this.form.phone,
                         location: this.form.location,
                         currency: this.form.currency,
-                        start_of_week: this.form.startOfWeek,
                     }),
                 });
 
@@ -282,7 +271,7 @@
                                 </span>
                                 <div>
                                     <h2 class="text-lg font-semibold text-ink">Finance preferences</h2>
-                                    <p class="text-xs text-muted">Set reporting currency and week starting cycle</p>
+                                    <p class="text-xs text-muted">Set your reporting currency</p>
                                 </div>
                             </div>
                         </div>
@@ -383,102 +372,6 @@
                                     <select x-model="form.currency" name="currency" class="sr-only" tabindex="-1" aria-hidden="true">
                                         <template x-for="item in currencies" :key="item.value">
                                             <option :value="item.value" x-text="item.label"></option>
-                                        </template>
-                                    </select>
-                                </div>
-                            </div>
-
-                            {{-- Start of Week Row --}}
-                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-line/70 bg-page/40 p-3.5 transition hover:bg-page/60">
-                                <div>
-                                    <span class="text-sm font-semibold text-ink">Start of week</span>
-                                    <p class="text-xs text-muted">First day for weekly summaries and budgeting charts</p>
-                                </div>
-
-                                <div
-                                    class="relative shrink-0"
-                                    x-data="{
-                                        open: false,
-                                        dropUp: false,
-                                        toggle(el) {
-                                            this.open = !this.open;
-                                            if (this.open) {
-                                                const rect = el.getBoundingClientRect();
-                                                this.dropUp = (window.innerHeight - rect.bottom) < 280;
-                                            }
-                                        }
-                                    }"
-                                    @click.outside="open = false"
-                                    @keydown.escape.window="open = false"
-                                >
-                                    <button
-                                        type="button"
-                                        @click="toggle($el)"
-                                        class="flex items-center justify-between gap-3 min-w-[150px] rounded-xl border border-line bg-white px-3.5 py-2 text-sm font-semibold text-ink shadow-sm transition hover:border-brand/50 hover:bg-page/40 focus:outline-none focus:ring-2 focus:ring-brand/20 cursor-pointer"
-                                    >
-                                        <div class="flex items-center gap-2 min-w-0">
-                                            <span
-                                                class="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-brand-soft text-[11px] font-bold text-brand"
-                                                x-text="daysOfWeek.find(d => d.value === form.startOfWeek)?.short ?? 'Mo'"
-                                            ></span>
-                                            <span
-                                                class="truncate"
-                                                x-text="daysOfWeek.find(d => d.value === form.startOfWeek)?.label ?? 'Monday'"
-                                            ></span>
-                                        </div>
-                                        <x-icon
-                                            name="chevron-down"
-                                            size="h-4 w-4"
-                                            class="text-muted shrink-0 transition-transform duration-200"
-                                            x-bind:class="open ? 'rotate-180' : ''"
-                                        />
-                                    </button>
-
-                                    <div
-                                        x-show="open"
-                                        x-cloak
-                                        x-transition:enter="transition ease-out duration-150"
-                                        x-transition:enter-start="opacity-0 scale-95"
-                                        x-transition:enter-end="opacity-100 scale-100"
-                                        x-transition:leave="transition ease-in duration-100"
-                                        x-transition:leave-start="opacity-100 scale-100"
-                                        x-transition:leave-end="opacity-0 scale-95"
-                                        class="absolute right-0 z-50 min-w-[200px] max-h-64 overflow-y-auto rounded-2xl border border-line bg-white p-1.5 shadow-2xl ring-1 ring-black/5"
-                                        :class="dropUp ? 'bottom-full mb-2 origin-bottom-right' : 'top-full mt-2 origin-top-right'"
-                                    >
-                                        <div class="px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted">
-                                            Select start day
-                                        </div>
-                                        <div class="space-y-0.5">
-                                            <template x-for="day in daysOfWeek" :key="day.value">
-                                                <button
-                                                    type="button"
-                                                    @click="form.startOfWeek = day.value; open = false"
-                                                    class="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-sm transition text-left cursor-pointer"
-                                                    :class="form.startOfWeek === day.value ? 'bg-brand-soft text-brand font-semibold' : 'text-ink hover:bg-page font-medium'"
-                                                >
-                                                    <div class="flex items-center gap-2.5">
-                                                        <span
-                                                            class="flex h-6 w-6 items-center justify-center rounded-md text-xs font-bold transition"
-                                                            :class="form.startOfWeek === day.value ? 'bg-brand text-white' : 'bg-page text-muted'"
-                                                            x-text="day.short"
-                                                        ></span>
-                                                        <span x-text="day.label"></span>
-                                                    </div>
-                                                    <x-icon
-                                                        x-show="form.startOfWeek === day.value"
-                                                        name="check"
-                                                        size="h-4 w-4"
-                                                        class="text-brand shrink-0"
-                                                    />
-                                                </button>
-                                            </template>
-                                        </div>
-                                    </div>
-
-                                    <select x-model="form.startOfWeek" name="start_of_week" class="sr-only" tabindex="-1" aria-hidden="true">
-                                        <template x-for="day in daysOfWeek" :key="day.value">
-                                            <option :value="day.value" x-text="day.label"></option>
                                         </template>
                                     </select>
                                 </div>

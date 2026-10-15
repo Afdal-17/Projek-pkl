@@ -157,41 +157,42 @@
 
             <a href="{{ route('admin.users') }}" class="text-sm font-medium text-brand hover:underline">View all</a>
         </div>
+                <div class="mt-4 overflow-x-auto border-t border-line">
+                    <div class="min-w-[480px]">
+                        <div class="hidden grid-cols-[2fr_2.6fr_1fr] gap-4 bg-gray-50 px-4 py-3 text-xs font-semibold text-muted md:grid">
+                            <span>Name</span>
+                            <span>Email</span>
+                            <span>Status</span>
+                        </div>
 
-        <div class="mt-4 border-t border-line">
-            <div class="hidden grid-cols-[2fr_2.6fr_1fr] gap-4 bg-gray-50 px-4 py-3 text-xs font-semibold text-muted md:grid">
-                <span>Name</span>
-                <span>Email</span>
-                <span>Status</span>
-            </div>
+                        <template x-for="u in users" :key="u.id">
+                            <div class="flex flex-col gap-2 border-b border-line px-4 py-3 text-sm md:grid md:grid-cols-[2fr_2.6fr_1fr] md:items-center md:gap-4 md:border-b-0 md:border-t">
+                                <div class="flex items-center gap-3">
+                                    <template x-if="u.avatar">
+                                        <img :src="u.avatar" :alt="u.name" class="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-line">
+                                    </template>
 
-            <template x-for="u in users" :key="u.id">
-                <div class="flex flex-col gap-2 border-b border-line px-4 py-3 text-sm md:grid md:grid-cols-[2fr_2.6fr_1fr] md:items-center md:gap-4 md:border-b-0 md:border-t">
+                                    <template x-if="!u.avatar">
+                                        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-soft text-xs font-semibold text-brand"
+                                            x-text="u.name ? u.name.charAt(0).toUpperCase() : '?'"></span>
+                                    </template>
 
-                    <div class="flex items-center gap-3">
-                        <template x-if="u.avatar">
-                            <img :src="u.avatar" :alt="u.name" class="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-line">
+                                    <span class="truncate font-medium" x-text="u.name"></span>
+                                </div>
+
+                                <span class="truncate text-muted md:text-ink" x-text="u.email"></span>
+
+                                <div>
+                                    <span
+                                        class="inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                                        :class="u.status === 'Active' ? 'bg-income-soft text-income' : 'bg-gray-100 text-muted'"
+                                        x-text="u.status"
+                                    ></span>
+                                </div>
+                            </div>
                         </template>
-                        <template x-if="!u.avatar">
-                            <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-soft text-xs font-semibold text-brand"
-                                  x-text="u.name ? u.name.charAt(0).toUpperCase() : '?'"></span>
-                        </template>
-                        <span class="truncate font-medium" x-text="u.name"></span>
-                    </div>
-
-                    <span class="truncate text-muted md:text-ink" x-text="u.email"></span>
-
-                    <div>
-                        <span
-                            class="inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold"
-                            :class="u.status === 'Active' ? 'bg-income-soft text-income' : 'bg-gray-100 text-muted'"
-                            x-text="u.status"
-                        ></span>
                     </div>
                 </div>
-            </template>
-        </div>
-
     </x-card>
 
 </div>

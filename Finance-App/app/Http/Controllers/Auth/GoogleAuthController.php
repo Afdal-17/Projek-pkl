@@ -71,7 +71,6 @@ class GoogleAuthController extends Controller
                 'status' => false,
                 'email_verified_at' => null,
                 'mata_uang' => 'IDR',
-                'awal_minggu' => 'monday',
             ]);
 
             if (! empty($email)) {

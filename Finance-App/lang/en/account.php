@@ -23,6 +23,5 @@ return [
     'update_password' => 'Update password',
     'language' => 'Language',
     'default_currency' => 'Default currency',
-    'start_of_week' => 'Start of week',
     'success_popup' => 'Profile successfully updated!',
 ];

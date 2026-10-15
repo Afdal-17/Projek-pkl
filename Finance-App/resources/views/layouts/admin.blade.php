@@ -76,7 +76,7 @@
     </aside>
 
     {{-- Konten --}}
-    <main class="p-4 sm:p-8 lg:ml-[216px]">
+    <main class="p-4 sm:p-6 lg:ml-[216px] lg:p-8">
         @yield('content')
     </main>
 

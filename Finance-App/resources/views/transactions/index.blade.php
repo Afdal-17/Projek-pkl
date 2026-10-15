@@ -464,7 +464,6 @@
 
                     {{-- Category + Wallet chips (Desktop) --}}
                     <div class="hidden shrink-0 items-center gap-2 md:flex">
-
                         <span
                             class="rounded-full px-2.5 py-1 text-xs font-medium"
                             :class="t.type === 'income' ? 'bg-income-soft text-income' : 'bg-gray-100 text-muted'"
@@ -478,19 +477,15 @@
 
                         <template x-if="t.type === 'transfer' && t.to">
                             <div class="flex items-center gap-2">
-
                                 <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-ink">
                                     <x-icon name="arrow-right" size="h-3 w-3" />
                                 </span>
-
                                 <span
                                     class="rounded-full bg-brand-soft px-2.5 py-1 text-xs font-medium text-brand"
                                     x-text="t.to"
                                 ></span>
-
                             </div>
                         </template>
-
                     </div>
 
                     {{-- Nominal --}}
