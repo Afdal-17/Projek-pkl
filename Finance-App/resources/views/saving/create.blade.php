@@ -48,8 +48,8 @@
 
             if (!this.name.trim()) {
                 window.financeAlert({
-                    title: 'Name Target Required',
-                    message: 'Name target harus diisi.',
+                    title: 'Target Name Required',
+                    message: 'Please enter a target name.',
                     variant: 'danger',
                 });
                 return;
@@ -58,7 +58,7 @@
             if (!target || target <= 0) {
                 window.financeAlert({
                     title: 'Invalid Target Amount',
-                    message: 'Saving target harus lebih dari 0.',
+                    message: 'Target amount must be greater than 0.',
                     variant: 'danger',
                 });
                 return;
@@ -67,7 +67,7 @@
             if (initial < 0 || initial > target) {
                 window.financeAlert({
                     title: 'Invalid Initial Savings',
-                    message: 'Initial savings tidak boleh melebihi target.',
+                    message: 'Initial deposit cannot exceed the target amount.',
                     variant: 'danger',
                 });
                 return;
@@ -76,7 +76,7 @@
             if (initial > this.walletBalanceDisplay) {
                 window.financeAlert({
                     title: 'Insufficient Balance',
-                    message: 'Initial savings tidak boleh melebihi saldo wallet.',
+                    message: 'Initial deposit cannot exceed the selected wallet balance.',
                     variant: 'danger',
                 });
                 return;

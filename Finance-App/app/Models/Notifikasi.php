@@ -103,7 +103,7 @@ class Notifikasi extends Model
     public function getDisplayTitleAttribute(): string
     {
         if ($this->tipe === 'target') {
-            return 'Savings goal reached';
+            return 'Savings goal reached 🤩';
         }
 
         if (

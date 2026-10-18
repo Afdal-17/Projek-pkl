@@ -32,8 +32,9 @@
         async verifyUser(user) {
             const confirmed = await window.financeConfirm({
                 title: 'Verify User?',
-                message: 'Verifikasi akun ' + user.name + ' untuk mengaktifkan akun mereka?',
+                message: 'Are you sure you want to verify ' + user.name + '\'s account to enable access?',
                 confirmText: 'Verify',
+                cancelText: 'Cancel',
                 variant: 'income',
             });
             if (!confirmed) return;
@@ -47,17 +48,17 @@
             });
 
             if (response.ok) {
-                // Hapus dari list
+                // Remove from list
                 this.users = this.users.filter(u => u.id !== user.id);
                 window.financeToast({
-                    message: 'User ' + user.name + ' berhasil diverifikasi.',
+                    message: 'User ' + user.name + ' has been successfully verified.',
                     variant: 'income',
                 });
             } else {
                 const result = await response.json().catch(() => ({}));
                 window.financeAlert({
                     title: 'Verification Failed',
-                    message: result.message || 'Gagal memverifikasi user.',
+                    message: result.message || 'Failed to verify user.',
                     variant: 'danger',
                 });
             }
@@ -69,7 +70,7 @@
     <div class="flex items-start justify-between">
         <div>
             <h1 class="text-3xl font-bold">Verify Users</h1>
-            <p class="mt-1 text-sm text-muted">Verifikasi user yang mendaftar untuk mengaktifkan akun mereka.</p>
+            <p class="mt-1 text-sm text-muted">Verify registered users to activate their accounts.</p>
         </div>
     </div>
 
@@ -81,7 +82,7 @@
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-4 sm:px-6">
             <div>
                 <h2 class="text-xl font-bold">Unverified Users</h2>
-                <p class="mt-0.5 text-xs text-muted" x-text="filtered.length + ' users menunggu verifikasi'"></p>
+                <p class="mt-0.5 text-xs text-muted" x-text="filtered.length + (filtered.length === 1 ? ' user waiting for verification' : ' users waiting for verification')"></p>
             </div>
 
             <div class="relative w-full sm:w-64">

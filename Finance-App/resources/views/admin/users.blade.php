@@ -105,14 +105,29 @@
             }
         },
 
+        formatBanReason(reason) {
+            if (!reason) return 'No reason provided';
+            const normalized = reason.trim().toLowerCase();
+            const map = {
+                'tidak bayar': 'Non-payment / unpaid balance',
+                'tidak bayar tagihan': 'Non-payment / unpaid bill',
+                'melanggar ketentuan layanan': 'Violation of terms of service',
+                'melanggar ketentuan penggunaan aplikasi': 'Violation of application terms of use',
+                'aktivitas mencurigakan': 'Suspicious account activity',
+                'spam atau penyalahgunaan': 'Spam or platform abuse'
+            };
+            return map[normalized] || reason;
+        },
+
         async remove(id) {
             const user = this.users.find(u => u.id === id);
             if (!user?.canDelete) return;
 
             const confirmed = await window.financeConfirm({
-                title: 'Hapus User?',
-                message: 'Apakah Anda yakin ingin menghapus akun ' + user.name + '? User ini tidak login selama 1 tahun. Tindakan ini tidak dapat dibatalkan.',
-                confirmText: 'Hapus User',
+                title: 'Delete User?',
+                message: 'Are you sure you want to delete the account for ' + user.name + '? This user has not logged in for 1 year. This action cannot be undone.',
+                confirmText: 'Delete User',
+                cancelText: 'Cancel',
                 variant: 'danger',
             });
             if (!confirmed) return;
@@ -125,7 +140,7 @@
             if (response.ok) {
                 this.users = this.users.filter(u => u.id !== id);
                 window.financeToast({
-                    message: 'User ' + user.name + ' berhasil dihapus.',
+                    message: 'User ' + user.name + ' has been successfully deleted.',
                     variant: 'income',
                 });
             } else {
@@ -216,7 +231,7 @@
                             ></span>
                             <template x-if="u.banned && u.ban_days_remaining !== null">
                                 <div class="mt-0.5 text-[10px] text-muted font-medium">
-                                    <span x-text="u.ban_days_remaining + ' hari tersisa'"></span>
+                                    <span x-text="u.ban_days_remaining + (u.ban_days_remaining === 1 ? ' day remaining' : ' days remaining')"></span>
                                 </div>
                             </template>
                         </div>
@@ -236,7 +251,7 @@
                         ></span>
                         <template x-if="u.banned && u.ban_days_remaining !== null">
                             <div class="mt-1 text-xs text-muted">
-                                <span x-text="u.ban_days_remaining + ' hari tersisa'"></span>
+                                <span x-text="u.ban_days_remaining + (u.ban_days_remaining === 1 ? ' day remaining' : ' days remaining')"></span>
                             </div>
                         </template>
                     </div>
@@ -259,17 +274,17 @@
                         </button>
 
                         {{-- View ban details button --}}
-                        <button type="button" title="View ban details" x-show="u.banned && u.ban_reason" x-on:click="window.financeAlert({ title: 'Alasan Suspend (' + u.name + ')', message: u.ban_reason, variant: 'warn' })"
+                        <button type="button" title="View suspension details" x-show="u.banned && u.ban_reason" x-on:click="window.financeAlert({ title: 'Suspension Reason (' + u.name + ')', message: formatBanReason(u.ban_reason), variant: 'warn' })"
                                 class="inline-flex items-center gap-1.5 rounded-lg bg-warn-soft px-2.5 py-1.5 text-xs font-semibold text-warn hover:bg-warn hover:text-white transition active:scale-95" x-cloak>
                             <x-icon name="alert-circle" size="h-3.5 w-3.5" />
-                            <span class="md:hidden">Alasan</span>
+                            <span class="md:hidden">Reason</span>
                         </button>
 
                         {{-- Delete button (inactive or banned users) --}}
                         <button type="button" title="Delete User" x-show="u.status === 'Inactive' || u.banned" x-on:click="remove(u.id)" :disabled="!u.canDelete"
                                 class="inline-flex items-center gap-1.5 rounded-lg bg-expense-soft px-2.5 py-1.5 text-xs font-semibold text-expense hover:bg-expense hover:text-white transition active:scale-95">
                             <x-icon name="trash" size="h-3.5 w-3.5" />
-                            <span class="md:hidden">Hapus</span>
+                            <span class="md:hidden">Delete</span>
                         </button>
 
                     </div>
@@ -363,8 +378,8 @@
             <div class="mt-5 space-y-4">
                 <div>
                     <label class="mb-1.5 block text-sm font-medium">Reason for Suspension (30 days)</label>
-                    <textarea x-model="banReason" rows="4" required placeholder="Explain the suspending reason this acount..." class="w-full rounded-lg border border-line bg-white px-3 py-2.5 text-sm text-ink placeholder:text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"></textarea>
-                    <p class="mt-1 text-xs text-muted">The user will see: "Your account has been blocked for 30 days due to [this reason]"</p>
+                    <textarea x-model="banReason" rows="4" required placeholder="Explain the reason for suspending this account..." class="w-full rounded-lg border border-line bg-white px-3 py-2.5 text-sm text-ink placeholder:text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"></textarea>
+                    <p class="mt-1 text-xs text-muted">The user will see: "Your account has been suspended for 30 days due to [this reason]"</p>
                 </div>
             </div>
 

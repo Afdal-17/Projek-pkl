@@ -140,6 +140,44 @@ class NotifikasiTest extends TestCase
         }
     }
 
+    public function test_notifications_page_renders_search_and_100_percent_goal_data(): void
+    {
+        [$user, $dompet] = $this->userWithWallet('goal-notif@example.com', 'Tabungan', 15000000);
+        $target = TargetTabungan::create([
+            'id_user' => $user->id_user,
+            'id_dompet' => $dompet->id_dompet,
+            'nama_target' => 'New Laptop',
+            'deskripsi' => 'Work equipment',
+            'nominal_target' => 15000000,
+            'nominal_terkumpul' => 15000000,
+            'saldo_awal_dompet' => 0,
+            'status' => 'tercapai',
+        ]);
+
+        Notifikasi::create([
+            'id_user' => $user->id_user,
+            'tipe' => 'target',
+            'pesan' => 'Target New Laptop telah tercapai.',
+            'sudah_dibaca' => false,
+            'tanggal' => now(),
+        ]);
+
+        $response = $this->actingAs($user)->get(route('notifications.index'));
+
+        $response->assertOk()
+            ->assertSee('Search notifications...')
+            ->assertSee('Savings goal reached')
+            ->assertSee('New Laptop')
+            ->assertSee('Work equipment')
+            ->assertSee('Category')
+            ->assertSee('Unread')
+            ->assertSee('Read')
+            ->assertSee('Goal')
+            ->assertSee('Transfer')
+            ->assertSee('Transaction')
+            ->assertSee('Mark all as read');
+    }
+
     private function userWithWallet(string $email, string $walletName, int $balance): array
     {
         $user = User::create([

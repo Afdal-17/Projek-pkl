@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Notifikasi;
+use App\Models\TargetTabungan;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
@@ -11,17 +12,63 @@ class NotifikasiController extends Controller
 {
     public function frontendIndex(): View
     {
+        $userTargets = TargetTabungan::where('id_user', Auth::id())
+            ->with('dompet')
+            ->get();
+
         $notifications = Notifikasi::where('id_user', Auth::id())
             ->latest('id_notifikasi')
             ->get()
-            ->map(fn (Notifikasi $notification): array => [
-                'id' => $notification->id_notifikasi,
-                'type' => $notification->display_type,
-                'title' => $notification->display_title,
-                'text' => $notification->formatted_pesan,
-                'scope' => $notification->tanggal->diffForHumans(),
-                'read' => $notification->sudah_dibaca,
-            ]);
+            ->map(function (Notifikasi $notification) use ($userTargets): array {
+                $goal = null;
+
+                if ($notification->tipe === 'target' || $notification->display_type === 'saving') {
+                    $targetName = null;
+                    if (preg_match('/^Target (.+?) (?:telah tercapai|has been reached)\.?$/ui', $notification->pesan ?? '', $matches)) {
+                        $targetName = trim($matches[1]);
+                    }
+
+                    $matchedTarget = $targetName
+                        ? $userTargets->first(fn ($t) => strcasecmp($t->nama_target, $targetName) === 0)
+                        : $userTargets->first();
+
+                    if (!$matchedTarget && $targetName) {
+                        $matchedTarget = $userTargets->first(fn ($t) => stripos($t->nama_target, $targetName) !== false || stripos($targetName, $t->nama_target) !== false);
+                    }
+
+                    if (!$matchedTarget) {
+                        $matchedTarget = $userTargets->first(fn ($t) => $t->tercapai || $t->status === 'tercapai') ?: $userTargets->first();
+                    }
+
+                    if ($matchedTarget) {
+                        $targetNominal = (float) $matchedTarget->nominal_target;
+                        $savedNominal = max((float) $matchedTarget->jumlah_terkumpul, $targetNominal);
+                        $goal = [
+                            'name' => $matchedTarget->nama_target,
+                            'note' => $matchedTarget->deskripsi ?: 'Savings target',
+                            'saved' => $savedNominal,
+                            'target' => $targetNominal > 0 ? $targetNominal : $savedNominal,
+                        ];
+                    } elseif ($targetName) {
+                        $goal = [
+                            'name' => $targetName,
+                            'note' => 'Savings target',
+                            'saved' => 100,
+                            'target' => 100,
+                        ];
+                    }
+                }
+
+                return [
+                    'id' => $notification->id_notifikasi,
+                    'type' => $notification->display_type,
+                    'title' => $notification->display_title,
+                    'text' => $notification->formatted_pesan,
+                    'scope' => $notification->tanggal->diffForHumans(),
+                    'read' => $notification->sudah_dibaca,
+                    'goal' => $goal,
+                ];
+            });
 
         return view('notifications', [
             'notifications' => $notifications,
