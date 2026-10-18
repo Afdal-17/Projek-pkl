@@ -49,7 +49,7 @@
                 default => 'Digital wallet',
             },
             'description' => $wallet->deskripsi,
-            'balance' => (float) $wallet->saldo,
+            'balance' => (string) $wallet->saldo,
             'icon' => match ($wallet->jenis) {
                 'physical' => 'banknote',
                 'bank' => 'landmark',
@@ -82,9 +82,47 @@
         ));
 
     $largest = collect($wallets)
-        ->sortByDesc('balance')
+        ->sort(fn ($a, $b) => bccomp((string) $b['balance'], (string) $a['balance'], 2))
         ->first();
+
+    // Skalasi Ukuran Font Dinamis berbasis panjang karakter nominal (Solusi A No. 2)
+    $getMainBalanceClass = function (string $formatted): string {
+        $len = mb_strlen(trim($formatted));
+        if ($len <= 11) {
+            return 'text-3xl sm:text-4xl lg:text-[2.5rem]';
+        }
+        if ($len <= 15) {
+            return 'text-2xl sm:text-3xl lg:text-4xl';
+        }
+        if ($len <= 18) {
+            return 'text-xl sm:text-2xl lg:text-3xl';
+        }
+        return 'text-lg sm:text-xl lg:text-2xl';
+    };
+
+    $getCardBalanceClass = function (string $formatted): string {
+        $len = mb_strlen(trim($formatted));
+        if ($len <= 11) {
+            return 'text-2xl';
+        }
+        if ($len <= 15) {
+            return 'text-xl sm:text-2xl';
+        }
+        if ($len <= 18) {
+            return 'text-lg sm:text-xl';
+        }
+        return 'text-base sm:text-lg';
+    };
+
+    $getListAmountClass = function (string $formatted): string {
+        $len = mb_strlen(trim($formatted));
+        if ($len <= 13) {
+            return 'text-sm font-semibold';
+        }
+        return 'text-xs sm:text-sm font-semibold';
+    };
 @endphp
+
 
 <div x-data="dashboardApp">
 
@@ -94,6 +132,27 @@
             open: false,
             mode: 'edit',
             csrfToken: @js(csrf_token()),
+            isSubmitting: false,
+            isDeleting: false,
+
+            confirmDialog: {
+                open: false,
+                title: '',
+                message: '',
+                confirmText: 'Delete',
+                cancelText: 'Cancel',
+                variant: 'danger',
+                resolve: null,
+            },
+
+            alertDialog: {
+                open: false,
+                title: '',
+                message: '',
+                buttonText: 'Got it',
+                resolve: null,
+            },
+
             editing: {
                 id: null,
                 name: '',
@@ -106,9 +165,78 @@
                 color: 'brand'
             },
 
+            askConfirm({ title, message, confirmText = 'Delete', cancelText = 'Cancel', variant = 'danger' }) {
+                if (this.confirmDialog.open) {
+                    return Promise.resolve(false);
+                }
+
+                if (typeof this.confirmDialog.resolve === 'function') {
+                    const prevResolve = this.confirmDialog.resolve;
+                    this.confirmDialog.resolve = null;
+                    prevResolve(false);
+                }
+
+                return new Promise((resolve) => {
+                    this.confirmDialog = {
+                        open: true,
+                        title,
+                        message,
+                        confirmText,
+                        cancelText,
+                        variant,
+                        resolve,
+                    };
+                });
+            },
+
+            closeConfirm(choice = false) {
+                if (this.isDeleting && choice !== true) return;
+
+                const resolver = this.confirmDialog.resolve;
+                this.confirmDialog.resolve = null;
+
+                if (choice) {
+                    this.isDeleting = true;
+                } else {
+                    this.confirmDialog.open = false;
+                    this.isDeleting = false;
+                }
+
+                if (typeof resolver === 'function') {
+                    resolver(choice);
+                }
+            },
+
+            showAlert({ title = 'Notice', message, buttonText = 'Got it' }) {
+                if (typeof this.alertDialog.resolve === 'function') {
+                    const prevResolve = this.alertDialog.resolve;
+                    this.alertDialog.resolve = null;
+                    prevResolve();
+                }
+
+                return new Promise((resolve) => {
+                    this.alertDialog = {
+                        open: true,
+                        title,
+                        message,
+                        buttonText,
+                        resolve,
+                    };
+                });
+            },
+
+            closeAlert() {
+                const resolver = this.alertDialog.resolve;
+                this.alertDialog.resolve = null;
+                this.alertDialog.open = false;
+                if (typeof resolver === 'function') {
+                    resolver();
+                }
+            },
+
             formatBalance(value) {
                 const result = window.financeMoney.formatTyped(value);
-                this.editing.balance = result.display === '' ? '' : String(result.value);
+                this.editing.balance = result.display === '' ? '' : result.value;
                 this.editing.balanceDisplay = result.display;
                 if (result.display !== '') {
                     this.editing.saldo_awal = '';
@@ -118,7 +246,7 @@
 
             formatSaldoAwal(value) {
                 const result = window.financeMoney.formatTyped(value);
-                this.editing.saldo_awal = result.display === '' ? '' : String(result.value);
+                this.editing.saldo_awal = result.display === '' ? '' : result.value;
                 this.editing.saldoAwalDisplay = result.display;
                 if (result.display !== '') {
                     this.editing.balance = '';
@@ -127,6 +255,8 @@
             },
 
             async saveWallet() {
+                if (this.isSubmitting || this.isDeleting || this.confirmDialog.open) return;
+
                 const data = new URLSearchParams({
                     _token: this.csrfToken,
                     nama_dompet: this.editing.name.trim(),
@@ -144,85 +274,91 @@
                     const saldoAwalShown = String(this.editing.saldoAwalDisplay ?? '').trim();
 
                     if (balanceShown !== '') {
-                        data.set('saldo', String(window.financeMoney.parseFormatted(balanceShown)));
+                        data.set('saldo', window.financeMoney.parseFormatted(balanceShown));
                     }
                     if (saldoAwalShown !== '') {
-                        data.set('saldo_awal', String(window.financeMoney.parseFormatted(saldoAwalShown)));
+                        data.set('saldo_awal', window.financeMoney.parseFormatted(saldoAwalShown));
                     }
                 } else {
-                    data.set('saldo', String(window.financeMoney.parseFormatted(this.editing.balanceDisplay ?? this.editing.balance)));
+                    data.set('saldo', window.financeMoney.parseFormatted(this.editing.balanceDisplay ?? this.editing.balance));
                 }
 
-                const response = await fetch(
-                    this.mode === 'add'
-                        ? @js(route('dompet.store'))
-                        : @js(route('dompet.manage', ['dompet' => '__ID__'])).replace('__ID__', this.editing.id),
-                    {
-                        method: this.mode === 'add' ? 'POST' : 'PATCH',
-                        headers: {
-                            'Accept': 'application/json',
-                            'Content-Type': 'application/x-www-form-urlencoded'
-                        },
-                        body: data,
-                        redirect: 'manual'
+                this.isSubmitting = true;
+
+                try {
+                    const response = await fetch(
+                        this.mode === 'add'
+                            ? @js(route('dompet.store'))
+                            : @js(route('dompet.manage', ['dompet' => '__ID__'])).replace('__ID__', this.editing.id),
+                        {
+                            method: this.mode === 'add' ? 'POST' : 'PATCH',
+                            headers: {
+                                'Accept': 'application/json',
+                                'Content-Type': 'application/x-www-form-urlencoded'
+                            },
+                            body: data,
+                            redirect: 'manual'
+                        }
+                    );
+
+                    if (response.ok || response.type === 'opaqueredirect') {
+                        window.location.reload();
+                        return;
                     }
-                );
 
-                if (response.ok || response.type === 'opaqueredirect') {
-                    window.location.reload();
-                    return;
+                    const result = await response.json().catch(() => ({}));
+                    const errorMessage = Object.values(result.errors ?? {}).flat()[0]
+                        ?? result.message
+                        ?? 'Wallet could not be saved.';
+
+                    await this.showAlert({
+                        title: 'Unable to Save Wallet',
+                        message: errorMessage,
+                        buttonText: 'Got it',
+                    });
+                } catch (e) {
+                    await this.showAlert({
+                        title: 'Network Error',
+                        message: 'A network error occurred while saving the wallet. Please try again.',
+                        buttonText: 'Dismiss',
+                    });
+                } finally {
+                    this.isSubmitting = false;
                 }
-
-                const result = await response.json().catch(() => ({}));
-                alert(
-                    Object.values(result.errors ?? {}).flat()[0]
-                    ?? result.message
-                    ?? 'Wallet could not be saved.'
-                );
             },
 
             async deleteWallet() {
-                if (!window.confirm(@js(__('dashboard.delete_confirm')))) {
+                if (this.isDeleting || this.confirmDialog.open || this.isSubmitting) return;
+
+                let confirmed = false;
+                try {
+                    confirmed = await this.askConfirm({
+                        title: 'Delete Wallet',
+                        message: @js(__('dashboard.delete_confirm')) || 'Are you sure you want to delete this wallet? This action cannot be undone.',
+                        confirmText: 'Delete',
+                        cancelText: 'Cancel',
+                        variant: 'danger',
+                    });
+                } catch (err) {
+                    confirmed = false;
+                }
+
+                if (!confirmed) {
+                    this.confirmDialog.open = false;
+                    this.isDeleting = false;
+                    this.confirmDialog.resolve = null;
                     return;
                 }
 
-                const data = new URLSearchParams({
-                    _token: this.csrfToken,
-                    _method: 'DELETE'
-                });
+                this.isDeleting = true;
 
-                const response = await fetch(
-                    @js(route('dompet.destroy', ['dompet' => '__ID__'])).replace('__ID__', this.editing.id),
-                    {
-                        method: 'POST',
-                        headers: {
-                            'Accept': 'application/json',
-                            'Content-Type': 'application/x-www-form-urlencoded'
-                        },
-                        body: data,
-                        redirect: 'manual'
-                    }
-                );
-
-                if (response.ok || response.type === 'opaqueredirect') {
-                    window.location.reload();
-                    return;
-                }
-
-                const result = await response.json().catch(() => ({}));
-
-                if (
-                    response.status === 422 &&
-                    result.transfer_count &&
-                    window.confirm(`Wallet ini punya ${result.transfer_count} riwayat transfer. Hapus wallet beserta riwayat transfernya?`)
-                ) {
-                    const forceData = new URLSearchParams({
+                try {
+                    const data = new URLSearchParams({
                         _token: this.csrfToken,
-                        _method: 'DELETE',
-                        force: '1'
+                        _method: 'DELETE'
                     });
 
-                    const forceResponse = await fetch(
+                    const response = await fetch(
                         @js(route('dompet.destroy', ['dompet' => '__ID__'])).replace('__ID__', this.editing.id),
                         {
                             method: 'POST',
@@ -230,22 +366,104 @@
                                 'Accept': 'application/json',
                                 'Content-Type': 'application/x-www-form-urlencoded'
                             },
-                            body: forceData,
+                            body: data,
                             redirect: 'manual'
                         }
                     );
 
-                    if (forceResponse.ok || forceResponse.type === 'opaqueredirect') {
+                    if (response.ok || response.type === 'opaqueredirect') {
                         window.location.reload();
                         return;
                     }
 
-                    const forceResult = await forceResponse.json().catch(() => ({}));
-                    alert(forceResult.message ?? 'Wallet could not be deleted.');
-                    return;
-                }
+                    const result = await response.json().catch(() => ({}));
 
-                alert(result.message ?? 'Wallet could not be deleted.');
+                    if (response.status === 422 && result.transfer_count) {
+                        this.isDeleting = false;
+                        this.confirmDialog.open = false;
+                        this.confirmDialog.resolve = null;
+                        const count = result.transfer_count;
+
+                        let forceConfirmed = false;
+                        try {
+                            forceConfirmed = await this.askConfirm({
+                                title: 'Delete Wallet with Transfer History',
+                                message: `This wallet has ${count} transfer record${count > 1 ? 's' : ''}. Deleting it will permanently remove the wallet and all associated transfer records. Are you sure you want to proceed?`,
+                                confirmText: 'Delete Anyway',
+                                cancelText: 'Cancel',
+                                variant: 'danger',
+                            });
+                        } catch (err) {
+                            forceConfirmed = false;
+                        }
+
+                        if (!forceConfirmed) {
+                            this.confirmDialog.open = false;
+                            this.isDeleting = false;
+                            this.confirmDialog.resolve = null;
+                            return;
+                        }
+
+                        this.isDeleting = true;
+
+                        const forceData = new URLSearchParams({
+                            _token: this.csrfToken,
+                            _method: 'DELETE',
+                            force: '1'
+                        });
+
+                        const forceResponse = await fetch(
+                            @js(route('dompet.destroy', ['dompet' => '__ID__'])).replace('__ID__', this.editing.id),
+                            {
+                                method: 'POST',
+                                headers: {
+                                    'Accept': 'application/json',
+                                    'Content-Type': 'application/x-www-form-urlencoded'
+                                },
+                                body: forceData,
+                                redirect: 'manual'
+                            }
+                        );
+
+                        if (forceResponse.ok || forceResponse.type === 'opaqueredirect') {
+                            window.location.reload();
+                            return;
+                        }
+
+                        const forceResult = await forceResponse.json().catch(() => ({}));
+                        this.isDeleting = false;
+                        this.confirmDialog.open = false;
+                        this.confirmDialog.resolve = null;
+                        await this.showAlert({
+                            title: 'Unable to Delete Wallet',
+                            message: forceResult.message ?? 'Wallet could not be deleted.',
+                            buttonText: 'Dismiss',
+                        });
+                        return;
+                    }
+
+                    this.isDeleting = false;
+                    this.confirmDialog.open = false;
+                    this.confirmDialog.resolve = null;
+                    await this.showAlert({
+                        title: 'Unable to Delete Wallet',
+                        message: result.message ?? 'Wallet could not be deleted.',
+                        buttonText: 'Dismiss',
+                    });
+                } catch (e) {
+                    this.isDeleting = false;
+                    this.confirmDialog.open = false;
+                    this.confirmDialog.resolve = null;
+                    await this.showAlert({
+                        title: 'Network Error',
+                        message: 'A network error occurred while deleting the wallet. Please try again.',
+                        buttonText: 'Dismiss',
+                    });
+                } finally {
+                    this.isDeleting = false;
+                    this.confirmDialog.open = false;
+                    this.confirmDialog.resolve = null;
+                }
             }
         }));
     });
@@ -340,13 +558,16 @@
 
 
             {{-- Total saldo --}}
+            @php
+                $formattedTotalSaldo = $formatMoney($summary['total_saldo']);
+            @endphp
             <div class="mt-8 min-w-0 overflow-hidden">
 
                 <p
-                    class="truncate text-[clamp(1.75rem,7vw,2.5rem)] font-bold leading-none tracking-tight"
-                    title="{{ $formatMoney($summary['total_saldo']) }}"
+                    class="truncate {{ $getMainBalanceClass($formattedTotalSaldo) }} font-bold leading-none tracking-tight tabular-nums"
+                    title="{{ $formattedTotalSaldo }}"
                 >
-                    {{ $formatMoney($summary['total_saldo']) }}
+                    {{ $formattedTotalSaldo }}
                 </p>
 
             </div>
@@ -362,12 +583,9 @@
                         size="h-3.5 w-3.5 shrink-0"
                     />
 
-                    <span class="min-w-0 break-words">
-                        {{ $formatMoney($summary['total_pemasukan_bulan_ini']) }}
-
-                        <span class="text-muted">
-                            this month
-                        </span>
+                    <span class="min-w-0 truncate tabular-nums">
+                        <span class="font-semibold whitespace-nowrap">{{ $formatMoney($summary['total_pemasukan_bulan_ini']) }}</span>
+                        <span class="text-muted ml-1 whitespace-nowrap">this month</span>
                     </span>
 
                 </div>
@@ -380,12 +598,9 @@
                         size="h-3.5 w-3.5 shrink-0"
                     />
 
-                    <span class="min-w-0 break-words">
-                        {{ $formatMoney($summary['total_pengeluaran_bulan_ini']) }}
-
-                        <span class="text-muted">
-                            this month
-                        </span>
+                    <span class="min-w-0 truncate tabular-nums">
+                        <span class="font-semibold whitespace-nowrap">{{ $formatMoney($summary['total_pengeluaran_bulan_ini']) }}</span>
+                        <span class="text-muted ml-1 whitespace-nowrap">this month</span>
                     </span>
 
                 </div>
@@ -442,44 +657,38 @@
 
                 @foreach ($categories as [$name, $type, $amount])
 
-                    <li class="flex items-start justify-between gap-5">
+                    <li class="flex items-start justify-between gap-4">
 
-                        <span class="min-w-0 font-medium leading-5">
+                        <span class="min-w-0 font-medium leading-5 truncate" title="{{ $name }}">
                             {{ $name }}
                         </span>
 
-                        <span
-                            class="
-                                flex
-                                min-w-0
-                                max-w-[58%]
-                                items-start
-                                gap-2
-                                text-right
-                                {{ $type === 'income'
-                                    ? 'text-income'
-                                    : 'text-expense' }}
-                            "
-                        >
-
-                            <x-icon
-                                :name="$type === 'income'
-                                    ? 'arrow-up'
-                                    : 'arrow-down'"
-                                size="h-3.5 w-3.5 shrink-0 mt-0.5"
-                            />
-
-                            <span class="break-words leading-5">
-
-                                {{ $amount }}
-
-                                <span class="text-muted">
-                                    this month
-                                </span>
-
+                        <div class="flex flex-col items-end shrink-0 text-right">
+                            <span
+                                class="
+                                    flex
+                                    items-center
+                                    gap-1
+                                    tabular-nums
+                                    whitespace-nowrap
+                                    {{ $type === 'income'
+                                        ? 'text-income'
+                                        : 'text-expense' }}
+                                    {{ $getListAmountClass($amount) }}
+                                "
+                            >
+                                <x-icon
+                                    :name="$type === 'income'
+                                        ? 'arrow-up'
+                                        : 'arrow-down'"
+                                    size="h-3.5 w-3.5 shrink-0"
+                                />
+                                <span>{{ $amount }}</span>
                             </span>
-
-                        </span>
+                            <span class="text-[11px] text-muted leading-tight whitespace-nowrap">
+                                this month
+                            </span>
+                        </div>
 
                     </li>
 
@@ -521,8 +730,14 @@
             </div>
 
 
-            <p class="mt-8 whitespace-nowrap text-2xl font-bold tracking-tight">
-                {{ $formatMoney($totalSaved) }}
+            @php
+                $formattedTotalSaved = $formatMoney($totalSaved);
+            @endphp
+            <p
+                class="mt-8 truncate {{ $getCardBalanceClass($formattedTotalSaved) }} font-bold tracking-tight tabular-nums"
+                title="{{ $formattedTotalSaved }}"
+            >
+                {{ $formattedTotalSaved }}
             </p>
 
             <p class="mt-3 text-xs text-income">{{ count($summary['target_tabungan']) }} savings targets tracked</p>
@@ -595,7 +810,7 @@
                         x-on:click="
                             mode = 'edit';
                             editing = @js($w);
-                            editing.balance = window.financeMoney.fromBase(Number(editing.balance));
+                            editing.balance = window.financeMoney.fromBase(editing.balance);
                             editing.balanceDisplay = window.financeMoney.formatNumber(editing.balance, { minDecimals: 0, maxDecimals: 2 });
                             editing.saldo_awal = '';
                             editing.saldoAwalDisplay = '';
@@ -622,8 +837,14 @@
                     Available balance
                 </p>
 
-                <p class="mt-1 whitespace-nowrap text-2xl font-bold tracking-tight">
-                    {{ $formatMoney($w['balance']) }}
+                @php
+                    $formattedWalletBalance = $formatMoney($w['balance']);
+                @endphp
+                <p
+                    class="mt-1 truncate {{ $getCardBalanceClass($formattedWalletBalance) }} font-bold tracking-tight tabular-nums"
+                    title="{{ $formattedWalletBalance }}"
+                >
+                    {{ $formattedWalletBalance }}
                 </p>
 
 
@@ -702,12 +923,11 @@
 
         <p class="mt-5 text-sm leading-6 text-muted">
 
-            @if ($largest && $total > 0)
-
+            @if ($largest && bccomp((string) $total, '0', 2) > 0)
                 {{ $largest['name'] }}
                 currently holds the largest share of your available balance
                 at
-                {{ round($largest['balance'] / $total * 100, 1) }}%.
+                {{ round((float) bcdiv(bcmul((string) $largest['balance'], '100', 4), (string) $total, 4), 1) }}%.
 
             @else
 
@@ -726,8 +946,8 @@
         x-cloak
         x-show="open"
         x-transition.opacity
-        x-on:keydown.escape.window="open = false"
-        x-on:click.self="open = false"
+        x-on:keydown.escape.window="if (!confirmDialog.open && !alertDialog.open && !isSubmitting && !isDeleting) open = false"
+        x-on:click.self="if (!confirmDialog.open && !alertDialog.open && !isSubmitting && !isDeleting) open = false"
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
     >
 
@@ -768,7 +988,8 @@
 
                 <button
                     type="button"
-                    x-on:click="open = false"
+                    x-on:click="if (!confirmDialog.open && !alertDialog.open && !isSubmitting && !isDeleting) open = false"
+                    x-bind:disabled="confirmDialog.open || alertDialog.open || isSubmitting || isDeleting"
                     class="
                         flex
                         h-9
@@ -780,6 +1001,7 @@
                         border
                         border-line
                         hover:bg-page
+                        disabled:opacity-50 disabled:cursor-not-allowed
                     "
                 >
                     <x-icon
@@ -950,8 +1172,13 @@
                     x-show="mode === 'edit'"
                     x-on:click="deleteWallet()"
                     class="w-full sm:w-auto"
+                    x-bind:disabled="isSubmitting || isDeleting || confirmDialog.open"
                 >
-                    Delete
+                    <span x-show="!isDeleting">Delete</span>
+                    <span x-show="isDeleting" class="inline-flex items-center gap-1.5" x-cloak>
+                        <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+                        Deleting...
+                    </span>
                 </x-button>
 
 
@@ -961,6 +1188,7 @@
                         variant="outline"
                         x-on:click="open = false"
                         class="flex-1 sm:flex-none"
+                        x-bind:disabled="isSubmitting || isDeleting || confirmDialog.open"
                     >
                         Cancel
                     </x-button>
@@ -968,14 +1196,20 @@
                     <x-button
                         x-on:click="saveWallet()"
                         class="flex-1 sm:flex-none"
+                        x-bind:disabled="isSubmitting || isDeleting || confirmDialog.open"
                     >
                         <span
+                            x-show="!isSubmitting"
                             x-text="
                                 mode === 'add'
                                     ? 'Add Wallet'
                                     : 'Save changes'
                             "
                         ></span>
+                        <span x-show="isSubmitting" class="inline-flex items-center gap-1.5" x-cloak>
+                            <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+                            Saving...
+                        </span>
                     </x-button>
 
                 </div>
@@ -984,6 +1218,133 @@
 
         </div>
 
+    </div>
+
+    {{-- =========================================================
+        CUSTOM CONFIRMATION DIALOG (DOMPET)
+    ========================================================== --}}
+    <div
+        x-cloak
+        x-show="confirmDialog.open"
+        x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="transition ease-in duration-150"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        x-on:keydown.escape.window.stop="if (confirmDialog.open && !isDeleting) { closeConfirm(false); $event.stopPropagation(); }"
+        x-on:click.self="if (!isDeleting) closeConfirm(false)"
+        class="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+    >
+        <div
+            class="w-full max-w-sm rounded-2xl border border-line bg-white p-6 shadow-2xl"
+            x-transition:enter="transition ease-out duration-200"
+            x-transition:enter-start="opacity-0 scale-95"
+            x-transition:enter-end="opacity-100 scale-100"
+            x-transition:leave="transition ease-in duration-150"
+            x-transition:leave-start="opacity-100 scale-100"
+            x-transition:leave-end="opacity-0 scale-95"
+        >
+            <div class="flex items-start justify-between gap-4">
+                <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-expense-soft text-expense">
+                    <x-icon name="trash" size="h-5 w-5" />
+                </div>
+
+                <button
+                    type="button"
+                    x-on:click="if (!isDeleting) closeConfirm(false)"
+                    class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-line text-muted hover:bg-page hover:text-ink transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    x-bind:disabled="isDeleting"
+                >
+                    <x-icon name="x" size="h-4 w-4" />
+                </button>
+            </div>
+
+            <div class="mt-4">
+                <h4 class="text-lg font-bold text-ink" x-text="confirmDialog.title"></h4>
+                <p class="mt-2 text-sm text-muted leading-relaxed" x-text="confirmDialog.message"></p>
+            </div>
+
+            <div class="mt-6 flex flex-col-reverse gap-2.5 sm:flex-row sm:justify-end">
+                <x-button
+                    variant="outline"
+                    x-on:click="if (!isDeleting) closeConfirm(false)"
+                    class="w-full justify-center sm:w-auto"
+                    x-bind:disabled="isDeleting"
+                >
+                    <span x-text="confirmDialog.cancelText"></span>
+                </x-button>
+
+                <x-button
+                    variant="danger"
+                    x-on:click="if (!isDeleting) closeConfirm(true)"
+                    class="w-full justify-center sm:w-auto"
+                    x-bind:disabled="isDeleting"
+                >
+                    <span x-show="!isDeleting" x-text="confirmDialog.confirmText"></span>
+                    <span x-show="isDeleting" class="inline-flex items-center gap-1.5" x-cloak>
+                        <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+                        Deleting...
+                    </span>
+                </x-button>
+            </div>
+        </div>
+    </div>
+
+    {{-- =========================================================
+        CUSTOM ALERT / ERROR DIALOG (DOMPET)
+    ========================================================== --}}
+    <div
+        x-cloak
+        x-show="alertDialog.open"
+        x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="transition ease-in duration-150"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        x-on:keydown.escape.window.stop="if (alertDialog.open) { closeAlert(); $event.stopPropagation(); }"
+        x-on:click.self="closeAlert()"
+        class="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+    >
+        <div
+            class="w-full max-w-sm rounded-2xl border border-line bg-white p-6 shadow-2xl"
+            x-transition:enter="transition ease-out duration-200"
+            x-transition:enter-start="opacity-0 scale-95"
+            x-transition:enter-end="opacity-100 scale-100"
+            x-transition:leave="transition ease-in duration-150"
+            x-transition:leave-start="opacity-100 scale-100"
+            x-transition:leave-end="opacity-0 scale-95"
+        >
+            <div class="flex items-start justify-between gap-4">
+                <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-expense-soft text-expense">
+                    <x-icon name="alert-circle" size="h-5 w-5" />
+                </div>
+
+                <button
+                    type="button"
+                    x-on:click="closeAlert()"
+                    class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-line text-muted hover:bg-page hover:text-ink transition"
+                >
+                    <x-icon name="x" size="h-4 w-4" />
+                </button>
+            </div>
+
+            <div class="mt-4">
+                <h4 class="text-lg font-bold text-ink" x-text="alertDialog.title"></h4>
+                <p class="mt-2 text-sm text-muted leading-relaxed" x-text="alertDialog.message"></p>
+            </div>
+
+            <div class="mt-6 flex justify-end">
+                <x-button
+                    variant="dark"
+                    x-on:click="closeAlert()"
+                    class="w-full justify-center sm:w-auto"
+                >
+                    <span x-text="alertDialog.buttonText"></span>
+                </x-button>
+            </div>
+        </div>
     </div>
 
 </div>

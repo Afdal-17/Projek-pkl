@@ -89,7 +89,11 @@
 
             if (!response.ok) {
                 const result = await response.json().catch(() => ({}));
-                alert(result.message || 'Category could not be saved.');
+                window.financeAlert({
+                    title: 'Save Category Failed',
+                    message: result.message || 'Category could not be saved.',
+                    variant: 'danger',
+                });
                 return;
             }
 
@@ -104,7 +108,11 @@
 
             if (!response.ok) {
                 const result = await response.json().catch(() => ({}));
-                alert(result.message || 'Category could not be deleted.');
+                window.financeAlert({
+                    title: 'Delete Category Failed',
+                    message: result.message || 'Category could not be deleted.',
+                    variant: 'danger',
+                });
                 return;
             }
 

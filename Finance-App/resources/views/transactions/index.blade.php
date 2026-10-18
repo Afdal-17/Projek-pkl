@@ -222,7 +222,7 @@
     {{-- Pencarian + filter --}}
     <x-card class="mt-6 p-4">
 
-        <div class="flex flex-col gap-4 sm:flex-row sm:items-center">
+        <div class="flex items-center justify-between gap-4">
 
             <div class="relative flex-1 min-w-0">
 
@@ -236,18 +236,35 @@
                     type="text"
                     x-model="search"
                     placeholder="{{ __('transactions.search_placeholder') }}"
-                    class="w-full rounded-lg border border-line bg-white py-2.5 pl-9 pr-3 text-sm placeholder:text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+                    class="w-full rounded-lg border border-line bg-white py-2.5 pl-9 pr-8 text-sm placeholder:text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
                 >
+
+                <button
+                    type="button"
+                    x-show="search"
+                    x-cloak
+                    x-on:click="search = ''"
+                    class="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-dark p-1"
+                >
+                    <x-icon name="x" size="h-3.5 w-3.5" />
+                </button>
 
             </div>
 
-            <span class="text-xs text-muted shrink-0" x-text="filtered.length + ' ' + @js(__('transactions.results_count'))"></span>
+            <span class="hidden sm:inline-block text-xs text-muted shrink-0" x-text="filtered.length + ' ' + @js(__('transactions.results_count'))"></span>
 
         </div>
 
+        {{-- Indikator hasil filter/search di mobile hanya muncul jika ada filter aktif --}}
+        <div x-show="hasFilter" x-cloak class="mt-2.5 flex items-center justify-between text-xs text-muted sm:hidden">
+            <span x-text="filtered.length + ' ' + @js(__('transactions.results_count'))"></span>
+            <button type="button" x-on:click="clearFilters()" class="text-brand font-medium">
+                Reset
+            </button>
+        </div>
 
-        <div class="mt-4 flex overflow-x-auto pb-1 text-sm sm:flex-wrap sm:overflow-x-visible sm:pb-0" style="-webkit-overflow-scrolling: touch;">
-            <div class="flex items-center gap-2 pr-4 sm:pr-0">
+
+        <div class="mt-4 flex flex-wrap items-center gap-2 text-sm">
 
                 {{-- All: aktif kalau tidak ada filter, klik untuk reset --}}
                 <button
@@ -276,7 +293,7 @@
                     <div
                         x-cloak
                         x-show="open === 'category'"
-                        class="absolute left-0 z-20 mt-2 max-h-72 w-52 overflow-y-auto rounded-xl border border-line bg-white p-1 shadow-lg"
+                        class="absolute left-0 z-30 mt-2 max-h-72 w-52 overflow-y-auto rounded-xl border border-line bg-white p-1 shadow-xl"
                     >
                         <button
                             type="button"
@@ -320,7 +337,7 @@
                     <div
                         x-cloak
                         x-show="open === 'wallet'"
-                        class="absolute left-0 z-20 mt-2 w-44 rounded-xl border border-line bg-white p-1 shadow-lg sm:left-auto sm:right-0"
+                        class="absolute left-0 z-30 mt-2 w-44 rounded-xl border border-line bg-white p-1 shadow-xl sm:left-auto sm:right-0"
                     >
                         <button
                             type="button"
@@ -364,7 +381,7 @@
                     <div
                         x-cloak
                         x-show="open === 'date'"
-                        class="absolute left-0 z-20 mt-2 w-64 rounded-xl border border-line bg-white p-4 shadow-lg sm:left-auto sm:right-0"
+                        class="absolute left-0 z-30 mt-2 w-64 rounded-xl border border-line bg-white p-4 shadow-xl sm:left-auto sm:right-0"
                     >
                         <label class="block text-xs font-medium text-muted">{{ __('transactions.from') }}</label>
                         <input
@@ -391,7 +408,6 @@
 
                 </div>
 
-            </div>
         </div>
 
     </x-card>

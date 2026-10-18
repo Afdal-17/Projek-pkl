@@ -157,42 +157,50 @@
 
             <a href="{{ route('admin.users') }}" class="text-sm font-medium text-brand hover:underline">View all</a>
         </div>
-                <div class="mt-4 overflow-x-auto border-t border-line">
-                    <div class="min-w-[480px]">
-                        <div class="hidden grid-cols-[2fr_2.6fr_1fr] gap-4 bg-gray-50 px-4 py-3 text-xs font-semibold text-muted md:grid">
-                            <span>Name</span>
-                            <span>Email</span>
-                            <span>Status</span>
+        <div class="mt-4 border-t border-line">
+            <div class="hidden grid-cols-[2fr_2.6fr_1fr] gap-4 bg-gray-50 px-4 py-3 text-xs font-semibold text-muted md:grid">
+                <span>Name</span>
+                <span>Email</span>
+                <span>Status</span>
+            </div>
+
+            <template x-for="u in users" :key="u.id">
+                <div class="flex flex-col gap-1.5 border-b border-line px-3 py-3 text-sm sm:px-4 md:grid md:grid-cols-[2fr_2.6fr_1fr] md:items-center md:gap-4 md:border-b-0 md:border-t">
+                    <div class="flex items-start justify-between gap-3 min-w-0 md:items-center md:justify-start">
+                        <div class="flex items-start gap-3 min-w-0 flex-1 md:items-center">
+                            <template x-if="u.avatar">
+                                <img :src="u.avatar" :alt="u.name" class="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-line mt-0.5 md:mt-0">
+                            </template>
+
+                            <template x-if="!u.avatar">
+                                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-soft text-xs font-semibold text-brand mt-0.5 md:mt-0"
+                                    x-text="u.name ? u.name.charAt(0).toUpperCase() : '?'"></span>
+                            </template>
+
+                            <span class="font-medium text-ink break-words leading-snug" :title="u.name" x-text="u.name"></span>
                         </div>
 
-                        <template x-for="u in users" :key="u.id">
-                            <div class="flex flex-col gap-2 border-b border-line px-4 py-3 text-sm md:grid md:grid-cols-[2fr_2.6fr_1fr] md:items-center md:gap-4 md:border-b-0 md:border-t">
-                                <div class="flex items-center gap-3">
-                                    <template x-if="u.avatar">
-                                        <img :src="u.avatar" :alt="u.name" class="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-line">
-                                    </template>
+                        <div class="md:hidden shrink-0 self-start mt-0.5">
+                            <span
+                                class="inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
+                                :class="u.status === 'Active' ? 'bg-income-soft text-income' : 'bg-gray-100 text-muted'"
+                                x-text="u.status"
+                            ></span>
+                        </div>
+                    </div>
 
-                                    <template x-if="!u.avatar">
-                                        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-soft text-xs font-semibold text-brand"
-                                            x-text="u.name ? u.name.charAt(0).toUpperCase() : '?'"></span>
-                                    </template>
+                    <span class="truncate text-xs sm:text-sm text-muted md:text-ink min-w-0" :title="u.email" x-text="u.email"></span>
 
-                                    <span class="truncate font-medium" x-text="u.name"></span>
-                                </div>
-
-                                <span class="truncate text-muted md:text-ink" x-text="u.email"></span>
-
-                                <div>
-                                    <span
-                                        class="inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold"
-                                        :class="u.status === 'Active' ? 'bg-income-soft text-income' : 'bg-gray-100 text-muted'"
-                                        x-text="u.status"
-                                    ></span>
-                                </div>
-                            </div>
-                        </template>
+                    <div class="hidden md:block">
+                        <span
+                            class="inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                            :class="u.status === 'Active' ? 'bg-income-soft text-income' : 'bg-gray-100 text-muted'"
+                            x-text="u.status"
+                        ></span>
                     </div>
                 </div>
+            </template>
+        </div>
     </x-card>
 
 </div>

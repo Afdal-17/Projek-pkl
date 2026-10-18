@@ -51,7 +51,7 @@ class NotifikasiTest extends TestCase
         $this->actingAs($penerima)->get(route('notifications.index'))
             ->assertOk()
             ->assertSee('Transfer success!')
-            ->assertSee($recipientNotification->pesan);
+            ->assertSee($recipientNotification->formatted_pesan);
         $this->actingAs($penerima)->patch(route('notifications.read', $recipientNotification))->assertRedirect();
         $this->assertTrue((bool) $recipientNotification->fresh()->sudah_dibaca);
     }

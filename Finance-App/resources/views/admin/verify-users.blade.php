@@ -30,7 +30,13 @@
         },
 
         async verifyUser(user) {
-            if (!confirm('Verifikasi user ' + user.name + '?')) return;
+            const confirmed = await window.financeConfirm({
+                title: 'Verify User?',
+                message: 'Verifikasi akun ' + user.name + ' untuk mengaktifkan akun mereka?',
+                confirmText: 'Verify',
+                variant: 'income',
+            });
+            if (!confirmed) return;
 
             const response = await fetch('/admin/users/' + user.id + '/verify', {
                 method: 'PATCH',
@@ -43,10 +49,17 @@
             if (response.ok) {
                 // Hapus dari list
                 this.users = this.users.filter(u => u.id !== user.id);
-                alert('User berhasil diverifikasi dan dipindahkan ke Manage User.');
+                window.financeToast({
+                    message: 'User ' + user.name + ' berhasil diverifikasi.',
+                    variant: 'income',
+                });
             } else {
                 const result = await response.json().catch(() => ({}));
-                alert(result.message || 'Gagal memverifikasi user.');
+                window.financeAlert({
+                    title: 'Verification Failed',
+                    message: result.message || 'Gagal memverifikasi user.',
+                    variant: 'danger',
+                });
             }
         }
     }"
@@ -65,7 +78,7 @@
     <x-card class="mt-8 overflow-hidden">
 
         {{-- Header + search --}}
-        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-line px-6 py-4">
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-4 sm:px-6">
             <div>
                 <h2 class="text-xl font-bold">Unverified Users</h2>
                 <p class="mt-0.5 text-xs text-muted" x-text="filtered.length + ' users menunggu verifikasi'"></p>
@@ -83,49 +96,65 @@
             </div>
         </div>
 
-        {{-- Table header --}}
-        <div class="overflow-x-auto">
-        <div class="min-w-[640px]">
-        <div x-show="filtered.length > 0" class="grid grid-cols-[2fr_2.6fr_1.5fr_1fr] gap-4 bg-gray-50 px-6 py-3 text-xs font-semibold text-muted">
-            <span>Name</span>
-            <span>Email</span>
-            <span>Registered</span>
-            <span>Action</span>
-        </div>
-
-        {{-- Table body --}}
-        <template x-for="u in filtered" :key="u.id">
-            <div class="grid grid-cols-[2fr_2.6fr_1.5fr_1fr] items-center gap-4 border-t border-line px-6 py-3 text-sm">
-
-                <div class="flex items-center gap-3">
-                    <template x-if="u.avatar">
-                        <img :src="u.avatar" :alt="u.name" class="h-8 w-8 rounded-full object-cover ring-1 ring-line">
-                    </template>
-                    <template x-if="!u.avatar">
-                        <span class="flex h-8 w-8 items-center justify-center rounded-full bg-warn-soft text-xs font-semibold text-warn"
-                              x-text="u.name.charAt(0).toUpperCase()"></span>
-                    </template>
-                    <span class="font-medium" x-text="u.name"></span>
-                </div>
-
-                <span class="text-muted" x-text="u.email"></span>
-
-                <div>
-                    <span class="text-muted" x-text="u.created_diff"></span>
-                    <div class="text-xs text-muted" x-text="u.created_at"></div>
-                </div>
-
-                <div class="flex items-center gap-2">
-                    <button type="button" title="Verify User" x-on:click="verifyUser(u)"
-                            class="flex h-8 w-8 items-center justify-center rounded-md bg-income-soft text-income hover:opacity-80">
-                        <x-icon name="check" size="h-4 w-4" />
-                    </button>
-                </div>
-
+        {{-- Table header (desktop only) --}}
+        <div class="border-t border-line">
+            <div x-show="filtered.length > 0" class="hidden grid-cols-[2fr_2.4fr_1.8fr_1fr] items-center gap-4 bg-gray-50 px-6 py-3 text-xs font-semibold text-muted md:grid">
+                <span>Name</span>
+                <span>Email</span>
+                <span>Registered</span>
+                <span>Action</span>
             </div>
-        </template>
 
-        </div>
+            {{-- Table body / Mobile list --}}
+            <template x-for="u in filtered" :key="u.id">
+                <div class="flex flex-col gap-2 border-b border-line p-4 text-sm sm:px-6 md:grid md:grid-cols-[2fr_2.4fr_1.8fr_1fr] md:items-center md:gap-4 md:border-b-0 md:border-t md:py-3.5">
+
+                    {{-- Row 1: Avatar + Name (left) and Verify Action (right on mobile) --}}
+                    <div class="flex items-start justify-between gap-3 min-w-0 md:items-center md:justify-start">
+                        <div class="flex items-start gap-3 min-w-0 flex-1 md:items-center">
+                            <template x-if="u.avatar">
+                                <img :src="u.avatar" :alt="u.name" class="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-line mt-0.5 md:mt-0">
+                            </template>
+                            <template x-if="!u.avatar">
+                                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-warn-soft text-xs font-semibold text-warn mt-0.5 md:mt-0"
+                                      x-text="u.name ? u.name.charAt(0).toUpperCase() : '?'"></span>
+                            </template>
+                            <span class="font-medium text-ink break-words leading-snug" :title="u.name" x-text="u.name"></span>
+                        </div>
+
+                        {{-- Mobile action button --}}
+                        <div class="md:hidden shrink-0 self-start">
+                            <button type="button" title="Verify User" x-on:click="verifyUser(u)"
+                                    class="inline-flex items-center gap-1.5 rounded-lg bg-income-soft px-3 py-1.5 text-xs font-semibold text-income hover:bg-income hover:text-white transition active:scale-95">
+                                <x-icon name="check" size="h-3.5 w-3.5" />
+                                <span>Verify</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {{-- Row 2: Email --}}
+                    <div class="min-w-0">
+                        <span class="truncate block text-xs sm:text-sm text-muted md:text-ink" :title="u.email" x-text="u.email"></span>
+                    </div>
+
+                    {{-- Row 3: Registered Time --}}
+                    <div class="text-xs text-muted flex flex-wrap items-center gap-1.5 md:block">
+                        <span class="font-medium text-ink/80 md:font-normal md:text-muted" x-text="u.created_diff"></span>
+                        <span class="md:hidden text-gray-300">•</span>
+                        <span class="text-muted" x-text="u.created_at"></span>
+                    </div>
+
+                    {{-- Desktop action button --}}
+                    <div class="hidden md:flex items-center gap-2">
+                        <button type="button" title="Verify User" x-on:click="verifyUser(u)"
+                                class="inline-flex items-center gap-1.5 rounded-lg bg-income-soft px-3 py-1.5 text-xs font-semibold text-income hover:bg-income hover:text-white transition active:scale-95">
+                            <x-icon name="check" size="h-3.5 w-3.5" />
+                            <span>Verify</span>
+                        </button>
+                    </div>
+
+                </div>
+            </template>
         </div>
 
         {{-- Empty state --}}

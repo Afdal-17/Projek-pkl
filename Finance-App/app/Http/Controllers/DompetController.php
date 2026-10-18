@@ -16,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
+use Illuminate\Validation\ValidationException;
 
 class DompetController extends Controller
 {
@@ -62,15 +63,38 @@ class DompetController extends Controller
         ]);
     }
 
+    
     public function store(StoreDompetRequest $request): RedirectResponse
     {
         $data = $request->validated();
-        $saldoAwal = isset($data['saldo_awal']) && $data['saldo_awal'] !== null && $data['saldo_awal'] !== ''
-            ? CurrencyService::toBase((float) $data['saldo_awal'])
-            : 0.0;
-        $saldo = isset($data['saldo']) && $data['saldo'] !== null && $data['saldo'] !== ''
-            ? CurrencyService::toBase((float) $data['saldo'])
-            : $saldoAwal;
+
+        $currency = CurrencyService::normalize(
+            Auth::user()->mata_uang ?? CurrencyService::BASE
+        );
+
+        $saldoAwal = $data['saldo_awal'] ?? null;
+        $saldo = $data['saldo'] ?? null;
+
+        // Saldo IDR tidak perlu dikonversi menggunakan float.
+        // Untuk mata uang lain, konversi lama tetap digunakan sementara.
+        if ($saldoAwal !== null && $saldoAwal !== '') {
+            $saldoAwal = $currency === CurrencyService::BASE
+                ? bcadd((string) $saldoAwal, '0', 2)
+                : CurrencyService::toBase((float) $saldoAwal);
+        } else {
+            $saldoAwal = '0.00';
+        }
+
+        if ($saldo !== null && $saldo !== '') {
+            $saldo = $currency === CurrencyService::BASE
+                ? bcadd((string) $saldo, '0', 2)
+                : CurrencyService::toBase((float) $saldo);
+        } else {
+            $saldo = $saldoAwal;
+        }
+
+        $this->validateSaldoBase($saldoAwal, 'saldo_awal');
+        $this->validateSaldoBase($saldo, 'saldo');
 
         DB::transaction(function () use ($data, $saldoAwal, $saldo): void {
             $dompet = Dompet::create([
@@ -80,7 +104,7 @@ class DompetController extends Controller
                 'saldo' => $saldo,
             ]);
 
-            if ($saldoAwal > 0) {
+            if (bccomp($saldoAwal, '0.00', 2) > 0) {
                 Transaksi::create([
                     'id_kategori' => null,
                     'id_dompet' => $dompet->id_dompet,
@@ -94,6 +118,7 @@ class DompetController extends Controller
 
         return redirect()->route('dompet.index');
     }
+
 
     public function show(Dompet $dompet): View
     {
@@ -114,6 +139,7 @@ class DompetController extends Controller
         return redirect()->route('dompet.index');
     }
 
+    
     public function frontendUpdate(Request $request, Dompet $dompet, NotifikasiService $notifikasiService): JsonResponse
     {
         abort_unless($dompet->id_user === (int) Auth::id(), 404);
@@ -123,10 +149,15 @@ class DompetController extends Controller
             'deskripsi' => ['nullable', 'string'],
             'jenis' => ['required', 'string', 'in:physical,digital,bank'],
             'warna' => ['required', 'string', 'regex:/^(brand|income|warn|expense|dark|#[0-9a-fA-F]{6})$/'],
-            'saldo' => ['required', 'numeric', 'min:0'],
+            'saldo' => [
+                'required',
+                'regex:/^\d+(?:\.\d{1,2})?$/',
+            ],
         ]);
 
         $data['warna'] = strtolower($data['warna']);
+
+        $this->validateSaldoBase($data['saldo'], 'saldo');
 
         $warnaDipakai = Dompet::where('id_user', Auth::id())
             ->where('warna', $data['warna'])
@@ -134,20 +165,25 @@ class DompetController extends Controller
             ->exists();
 
         if ($warnaDipakai) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'warna' => 'Wallet tidak bisa diedit karena warna penentu sama.',
             ]);
         }
 
-        $newBalance = CurrencyService::toBase((float) $data['saldo']);
+        $currency = CurrencyService::normalize(
+            Auth::user()->mata_uang ?? CurrencyService::BASE
+        );
+
+        $newBalance = CurrencyService::toBaseExact($data['saldo'], $currency);
 
         DB::transaction(function () use ($data, $dompet, $notifikasiService, $newBalance): void {
             $wallet = Dompet::where('id_user', Auth::id())
                 ->whereKey($dompet->id_dompet)
                 ->lockForUpdate()
                 ->firstOrFail();
-            $oldBalance = (float) $wallet->saldo;
-            $delta = round($newBalance - $oldBalance, 2);
+
+            $oldBalance = (string) $wallet->saldo;
+            $delta = bcsub($newBalance, $oldBalance, 2);
 
             $wallet->update([
                 'nama_dompet' => $data['nama_dompet'],
@@ -157,25 +193,30 @@ class DompetController extends Controller
                 'saldo' => $newBalance,
             ]);
 
-            if ($delta !== 0.0) {
+            if (bccomp($delta, '0.00', 2) !== 0) {
                 Transaksi::create([
                     'id_kategori' => null,
                     'id_dompet' => $wallet->id_dompet,
                     'nama_transaksi' => 'Penyesuaian saldo wallet',
-                    'jumlah' => abs($delta),
-                    'jenis' => $delta > 0 ? 'pemasukan' : 'pengeluaran',
+                    'jumlah' => bccomp($delta, '0.00', 2) > 0
+                        ? $delta
+                        : bcsub('0.00', $delta, 2),
+                    'jenis' => bccomp($delta, '0.00', 2) > 0
+                        ? 'pemasukan'
+                        : 'pengeluaran',
                     'tanggal' => now(),
                 ]);
 
                 TargetTabungan::where('id_user', $wallet->id_user)
                     ->where('id_dompet', $wallet->id_dompet)
                     ->get()
-                    ->each(fn (TargetTabungan $target) => $notifikasiService->targetBaruTercapai($target, $oldBalance));
+                    ->each(fn (TargetTabungan $target) => $notifikasiService->targetBaruTercapai($target, (float) $oldBalance));
             }
         });
 
         return response()->json(['status' => 'wallet-updated']);
     }
+
 
     public function destroy(Request $request, Dompet $dompet): RedirectResponse|JsonResponse
     {
@@ -209,5 +250,20 @@ class DompetController extends Controller
         }
 
         return redirect()->back()->with('status', 'Wallet telah dihapus.');
+    }
+    private const MAX_SALDO = '9999999999999999999999999999.99';
+
+    private function validateSaldoBase(string|int|float $amount, string $field): void
+    {
+        $amount = trim((string) $amount);
+
+        if (
+            ! preg_match('/^\d+(?:\.\d{1,2})?$/', $amount)
+            || bccomp($amount, self::MAX_SALDO, 2) > 0
+        ) {
+            throw ValidationException::withMessages([
+                $field => 'Saldo harus berupa angka positif dan tidak melebihi batas maksimum yang didukung.',
+            ]);
+        }
     }
 }

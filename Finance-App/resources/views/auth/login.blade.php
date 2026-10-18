@@ -1,5 +1,5 @@
 <x-guest-layout>
-    <div class="mb-6">
+    <div class="mb-6 text-center">
         <h2 class="text-2xl font-bold tracking-tight text-gray-900">Welcome back</h2>
         <p class="text-sm text-gray-500 mt-1">Sign in to continue to your finances.</p>
     </div>
@@ -39,8 +39,8 @@
                             <x-icon name="ban" size="h-5 w-5" />
                         </div>
                         <div>
-                            <h3 class="text-lg font-bold text-ink">Akun Ditangguhkan</h3>
-                            <p class="text-xs text-muted">Akses akun Anda dibatasi sementara</p>
+                            <h3 class="text-lg font-bold text-ink">Account Suspended</h3>
+                            <p class="text-xs text-muted">Your account access has been temporarily restricted</p>
                         </div>
                     </div>
                     <button type="button" x-on:click="show = false" class="flex h-8 w-8 items-center justify-center rounded-lg border border-line text-muted hover:bg-page hover:text-ink transition">
@@ -50,29 +50,29 @@
 
                 <div class="mt-4 space-y-3">
                     <div class="rounded-xl border border-red-200 bg-red-50/70 p-4">
-                        <p class="text-xs font-semibold uppercase tracking-wider text-red-600">Alasan dari Admin</p>
+                        <p class="text-xs font-semibold uppercase tracking-wider text-red-600">Reason from Admin</p>
                         <p class="mt-1 text-sm font-medium text-red-950">{{ $banReason }}</p>
                     </div>
 
                     <div class="rounded-xl border border-line bg-page/50 p-3.5 text-xs text-muted space-y-1.5">
                         <div class="flex justify-between">
-                            <span>Durasi Penangguhan:</span>
-                            <span class="font-semibold text-ink">30 Hari</span>
+                            <span>Suspension Duration:</span>
+                            <span class="font-semibold text-ink">30 Days</span>
                         </div>
                         <div class="flex justify-between">
-                            <span>Sisa Waktu:</span>
-                            <span class="font-semibold text-expense">{{ $daysRemaining }} hari lagi</span>
+                            <span>Time Remaining:</span>
+                            <span class="font-semibold text-expense">{{ $daysRemaining }} days left</span>
                         </div>
                     </div>
                 </div>
 
                 <div class="mt-6 flex flex-col sm:flex-row gap-2.5">
-                    <a href="mailto:admin@example.com?subject=Bantuan%20Akun%20Terblokir" class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-dark px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-black transition">
+                    <a href="mailto:admin@example.com?subject=Blocked%20Account%20Help" class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-dark px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-black transition">
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-                        Hubungi Admin
+                        Contact Admin
                     </a>
                     <button type="button" x-on:click="show = false" class="rounded-xl border border-line px-4 py-2.5 text-sm font-medium text-ink hover:bg-page transition">
-                        Tutup
+                        Close
                     </button>
                 </div>
 
@@ -88,16 +88,44 @@
         @csrf
 
         <!-- Email Address -->
-        <div class="space-y-1" x-show="mode === 'email'">
-            <label for="email" class="block text-sm font-medium text-gray-700">{{ __('Email') }}</label>
-            <input id="email" x-ref="emailInput" class="block w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand focus:ring-1 focus:ring-brand text-sm shadow-sm transition placeholder:text-gray-400" type="text" name="email" :value="old('email')" autofocus autocomplete="username" placeholder="alex@example.com" />
+        <div class="space-y-1" x-show="mode === 'email'" x-cloak>
+            <label for="email" class="block text-sm font-medium text-gray-700">
+                {{ __('Email') }}
+            </label>
+
+            <input
+                id="email"
+                x-ref="emailInput"
+                class="block w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand focus:ring-1 focus:ring-brand text-sm shadow-sm transition placeholder:text-gray-400"
+                type="email"
+                name="email"
+                value="{{ old('email') }}"
+                autocomplete="username"
+                placeholder="alex@example.com"
+                :disabled="mode !== 'email'"
+            />
+
             <x-input-error :messages="$errors->get('email')" class="mt-1" />
         </div>
 
         <!-- Phone Number -->
         <div class="space-y-1" x-show="mode === 'phone'" x-cloak>
-            <label for="phone" class="block text-sm font-medium text-gray-700">Phone Number</label>
-            <input id="phone" x-ref="phoneInput" class="block w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand focus:ring-1 focus:ring-brand text-sm shadow-sm transition placeholder:text-gray-400" type="tel" name="phone" :value="old('phone')" autocomplete="tel" placeholder="08123456789 atau +628123456789" />
+            <label for="phone" class="block text-sm font-medium text-gray-700">
+                Phone Number
+            </label>
+
+            <input
+                id="phone"
+                x-ref="phoneInput"
+                class="block w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand focus:ring-1 focus:ring-brand text-sm shadow-sm transition placeholder:text-gray-400"
+                type="tel"
+                name="phone"
+                value="{{ old('phone') }}"
+                autocomplete="tel"
+                placeholder="08123456789 or +628123456789"
+                :disabled="mode !== 'phone'"
+            />
+
             <x-input-error :messages="$errors->get('phone')" class="mt-1" />
         </div>
 

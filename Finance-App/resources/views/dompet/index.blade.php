@@ -35,7 +35,13 @@
                             <a href="{{ route('dompet.edit', $item) }}" class="text-brand hover:underline">{{ __('dompet.edit') }}</a>
                             <form class="inline" method="POST" action="{{ route('dompet.destroy', $item) }}">
                                 @csrf @method('DELETE')
-                                <button type="submit" class="text-expense hover:underline" x-on:click="if (!confirm(@js(__('dompet.delete_confirm')))) { $event.preventDefault(); }">{{ __('dompet.delete') }}</button>
+                                <button type="button" class="text-expense hover:underline" x-on:click="window.financeConfirm({
+                                    title: @js(__('dompet.delete') . ' ' . __('dompet.title')),
+                                    message: @js(__('dompet.delete_confirm')),
+                                    confirmText: @js(__('dompet.delete')),
+                                    variant: 'danger',
+                                    onConfirm: () => $el.closest('form').submit()
+                                })">{{ __('dompet.delete') }}</button>
                             </form>
                         </td>
                     </tr>

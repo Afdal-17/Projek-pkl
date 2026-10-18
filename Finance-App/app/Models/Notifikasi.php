@@ -46,14 +46,14 @@ class Notifikasi extends Model
             return '';
         }
 
-        // Expense recorded: Pengeluaran "..." sebesar Rp ... berhasil dicatat.
-        if (preg_match('/^Pengeluaran "([^"]+)" sebesar Rp ([\d\.,]+) berhasil dicatat\.$/u', $pesan, $m)) {
-            return "Expense \"{$m[1]}\" of Rp {$m[2]} was successfully recorded.";
+        // Expense recorded: Pengeluaran "..." sebesar ... berhasil dicatat.
+        if (preg_match('/^Pengeluaran "([^"]+)" sebesar (.+?) berhasil dicatat\.$/u', $pesan, $m)) {
+            return "Expense \"{$m[1]}\" of {$m[2]} was successfully recorded.";
         }
 
-        // Income recorded: Pemasukan "..." sebesar Rp ... berhasil dicatat.
-        if (preg_match('/^Pemasukan "([^"]+)" sebesar Rp ([\d\.,]+) berhasil dicatat\.$/u', $pesan, $m)) {
-            return "Income \"{$m[1]}\" of Rp {$m[2]} was successfully recorded.";
+        // Income recorded: Pemasukan "..." sebesar ... berhasil dicatat.
+        if (preg_match('/^Pemasukan "([^"]+)" sebesar (.+?) berhasil dicatat\.$/u', $pesan, $m)) {
+            return "Income \"{$m[1]}\" of {$m[2]} was successfully recorded.";
         }
 
         // Transaction updated: Transaksi "..." telah diperbarui.
@@ -61,28 +61,28 @@ class Notifikasi extends Model
             return "Transaction \"{$m[1]}\" has been updated.";
         }
 
-        // Transaction deleted: Transaksi "..." sebesar Rp ... telah dihapus.
-        if (preg_match('/^Transaksi "([^"]+)" sebesar Rp ([\d\.,]+) telah dihapus\.$/u', $pesan, $m)) {
-            return "Transaction \"{$m[1]}\" of Rp {$m[2]} has been deleted.";
+        // Transaction deleted: Transaksi "..." sebesar ... telah dihapus.
+        if (preg_match('/^Transaksi "([^"]+)" sebesar (.+?) telah dihapus\.$/u', $pesan, $m)) {
+            return "Transaction \"{$m[1]}\" of {$m[2]} has been deleted.";
         }
 
-        // Transfer between own wallets: Transfer Rp ... dari ... ke ... berhasil.
-        if (preg_match('/^Transfer Rp ([\d\.,]+) dari (.+) ke (.+) berhasil\.$/u', $pesan, $m)) {
-            return "Transfer of Rp {$m[1]} from {$m[2]} to {$m[3]} was successful.";
+        // Transfer between own wallets: Transfer ... dari ... ke ... berhasil.
+        if (preg_match('/^Transfer (.+?) dari (.+?) ke (.+?) berhasil\.$/u', $pesan, $m)) {
+            return "Transfer of {$m[1]} from {$m[2]} to {$m[3]} was successful.";
         }
 
-        // Transfer to recipient: Transfer berhasil ke ... dari ... sebesar Rp ...
-        if (preg_match('/^Transfer berhasil ke (.+) dari (.+) sebesar Rp ([\d\.,]+)\.$/u', $pesan, $m)) {
-            return "Transfer to {$m[1]} from {$m[2]} of Rp {$m[3]} was successful.";
+        // Transfer to recipient: Transfer berhasil ke ... dari ... sebesar ...
+        if (preg_match('/^Transfer berhasil ke (.+?) dari (.+?) sebesar (.+?)\.$/u', $pesan, $m)) {
+            return "Transfer to {$m[1]} from {$m[2]} of {$m[3]} was successful.";
         }
 
-        // Transfer received: Anda di transfer oleh ... sebesar Rp ...
-        if (preg_match('/^Anda di transfer oleh (.+) sebesar Rp ([\d\.,]+)\.$/u', $pesan, $m)) {
-            return "You received a transfer of Rp {$m[2]} from {$m[1]}.";
+        // Transfer received: Anda di transfer oleh ... sebesar ...
+        if (preg_match('/^Anda di transfer oleh (.+?) sebesar (.+?)\.$/u', $pesan, $m)) {
+            return "You received a transfer of {$m[2]} from {$m[1]}.";
         }
 
         // Target reached: Target ... telah tercapai.
-        if (preg_match('/^Target (.+) telah tercapai\.$/u', $pesan, $m)) {
+        if (preg_match('/^Target (.+?) telah tercapai\.$/u', $pesan, $m)) {
             return "Target {$m[1]} has been reached.";
         }
 

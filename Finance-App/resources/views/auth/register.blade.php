@@ -1,5 +1,5 @@
 <x-guest-layout>
-    <div class="mb-6">
+    <div class="mb-6 text-center">
         <h2 class="text-2xl font-bold tracking-tight text-gray-900">Create an account</h2>
         <p class="text-sm text-gray-500 mt-1">Start building better money habits today.</p>
     </div>
@@ -30,7 +30,7 @@
         <!-- Phone Number (Phone mode) -->
         <div class="mt-4 space-y-1" x-show="mode === 'phone'" x-cloak>
             <label for="phone" class="block text-sm font-medium text-gray-700">Phone Number</label>
-            <input id="phone" x-ref="phoneInput" class="block w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand focus:ring-1 focus:ring-brand text-sm shadow-sm transition placeholder:text-gray-400" type="tel" name="phone" :value="old('phone')" autocomplete="tel" placeholder="08123456789 atau +628123456789" />
+            <input id="phone" x-ref="phoneInput" class="block w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand focus:ring-1 focus:ring-brand text-sm shadow-sm transition placeholder:text-gray-400" type="tel" name="phone" :value="old('phone')" autocomplete="tel" placeholder="08123456789 or +628123456789" />
             <x-input-error :messages="$errors->get('phone')" class="mt-1" />
             <x-input-error :messages="$errors->get('nomor_telepon')" class="mt-1" />
         </div>

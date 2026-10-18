@@ -47,22 +47,38 @@
             const initial = Number(this.initial) || 0;
 
             if (!this.name.trim()) {
-                alert('Name target harus diisi.');
+                window.financeAlert({
+                    title: 'Name Target Required',
+                    message: 'Name target harus diisi.',
+                    variant: 'danger',
+                });
                 return;
             }
 
             if (!target || target <= 0) {
-                alert('Saving target harus lebih dari 0.');
+                window.financeAlert({
+                    title: 'Invalid Target Amount',
+                    message: 'Saving target harus lebih dari 0.',
+                    variant: 'danger',
+                });
                 return;
             }
 
             if (initial < 0 || initial > target) {
-                alert('Initial savings tidak boleh melebihi target.');
+                window.financeAlert({
+                    title: 'Invalid Initial Savings',
+                    message: 'Initial savings tidak boleh melebihi target.',
+                    variant: 'danger',
+                });
                 return;
             }
 
             if (initial > this.walletBalanceDisplay) {
-                alert('Initial savings tidak boleh melebihi saldo wallet.');
+                window.financeAlert({
+                    title: 'Insufficient Balance',
+                    message: 'Initial savings tidak boleh melebihi saldo wallet.',
+                    variant: 'danger',
+                });
                 return;
             }
 
@@ -83,7 +99,11 @@
 
             if (!response.ok) {
                 const result = await response.json();
-                alert(Object.values(result.errors ?? {}).flat()[0] ?? 'Saving target could not be saved.');
+                window.financeAlert({
+                    title: 'Saving Failed',
+                    message: Object.values(result.errors ?? {}).flat()[0] ?? 'Saving target could not be saved.',
+                    variant: 'danger',
+                });
                 return;
             }
 

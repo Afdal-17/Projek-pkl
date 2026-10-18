@@ -16,13 +16,9 @@ class NotifikasiController extends Controller
             ->get()
             ->map(fn (Notifikasi $notification): array => [
                 'id' => $notification->id_notifikasi,
-                'type' => $notification->tipe === 'target'
-                    ? 'saving'
-                    : (str_starts_with($notification->pesan, 'Transfer ')
-                        || str_starts_with($notification->pesan, 'Anda di transfer oleh ') ? 'transfer' : 'transaction'),
-                'title' => $notification->tipe === 'target' ? 'Savings goal reached' : (str_starts_with($notification->pesan, 'Transfer ')
-                    || str_starts_with($notification->pesan, 'Anda di transfer oleh ') ? 'Transfer success!' : 'Transaction update'),
-                'text' => $notification->pesan,
+                'type' => $notification->display_type,
+                'title' => $notification->display_title,
+                'text' => $notification->formatted_pesan,
                 'scope' => $notification->tanggal->diffForHumans(),
                 'read' => $notification->sudah_dibaca,
             ]);

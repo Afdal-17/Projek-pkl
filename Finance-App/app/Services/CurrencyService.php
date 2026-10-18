@@ -107,6 +107,90 @@ class CurrencyService
      * (base currency), sehingga perpindahan mata uang selalu akurat dan tidak
      * merusak saldo maupun riwayat transaksi.
      */
+
+    
+    /**
+     * Konversi nominal desimal tanpa mengubah nominal menjadi float.
+     * Hasil selalu berupa string desimal dengan dua angka di belakang koma.
+     */
+    public static function convertExact(
+        string|int $amount,
+        string $from,
+        string $to
+    ): string {
+        $from = self::normalize($from);
+        $to = self::normalize($to);
+        $amount = trim((string) $amount);
+
+        if (! preg_match('/^\d+(?:\.\d{1,2})?$/', $amount)) {
+            throw new \InvalidArgumentException('Nominal harus berupa angka desimal positif.');
+        }
+
+        if ($from === $to || bccomp($amount, '0', 2) === 0) {
+            return bcadd($amount, '0', 2);
+        }
+
+        $rates = self::rates();
+        $fromRate = $rates[$from] ?? null;
+        $toRate = $rates[$to] ?? null;
+
+        if (! is_numeric($fromRate) || ! is_numeric($toRate)
+            || (float) $fromRate <= 0 || (float) $toRate <= 0) {
+            throw new \RuntimeException('Kurs mata uang tidak tersedia atau tidak valid.');
+        }
+
+        // Ubah representasi kurs ke string desimal sebelum operasi BCMath.
+        $fromRateString = rtrim(rtrim(sprintf('%.10F', (float) $fromRate), '0'), '.');
+        $toRateString = rtrim(rtrim(sprintf('%.10F', (float) $toRate), '0'), '.');
+
+        // Tambahkan presisi antara agar pembagian tidak langsung dibulatkan.
+        $baseAmount = bcmul($amount, $fromRateString, 12);
+        $result = bcdiv($baseAmount, $toRateString, 12);
+
+        // Bulatkan hasil akhir ke dua angka desimal.
+        $thirdDecimal = (int) substr(
+            str_pad(explode('.', $result)[1] ?? '', 3, '0'),
+            2,
+            1
+        );
+
+        $rounded = bcadd(
+            $result,
+            $thirdDecimal >= 5 ? '0.01' : '0',
+            2
+        );
+
+        return $rounded;
+    }
+
+    /**
+     * Konversi input mata uang aktif ke IDR untuk penyimpanan.
+     */
+    public static function toBaseExact(
+        string|int $amount,
+        ?string $currency = null
+    ): string {
+        $currency = self::normalize(
+            $currency ?? (auth()->user()->mata_uang ?? self::BASE)
+        );
+
+        return self::convertExact($amount, $currency, self::BASE);
+    }
+
+    /**
+     * Konversi saldo IDR ke mata uang aktif untuk ditampilkan.
+     */
+    public static function fromBaseExact(
+        string|int $amount,
+        ?string $currency = null
+    ): string {
+        $currency = self::normalize(
+            $currency ?? (auth()->user()->mata_uang ?? self::BASE)
+        );
+
+        return self::convertExact($amount, self::BASE, $currency);
+    }
+
     public function setUserCurrency(User $user, string $newCurrency): User
     {
         $user->mata_uang = self::normalize($newCurrency);

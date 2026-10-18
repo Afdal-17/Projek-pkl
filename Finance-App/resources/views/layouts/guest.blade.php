@@ -7,15 +7,16 @@
 
         <title>{{ config('app.name', 'Finance App') }}</title>
 
+        <!-- Favicon -->
+        <link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}">
+        <link rel="alternate icon" type="image/png" href="{{ asset('favicon.png') }}">
+        <link rel="shortcut icon" href="{{ asset('favicon.ico') }}">
+
         <!-- Scripts -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
     <body class="min-h-screen bg-page font-sans text-ink antialiased">
         <div class="flex min-h-screen flex-col items-center justify-center px-4 py-10">
-            <a href="/" class="mb-6">
-                <x-logo />
-            </a>
-
             <div class="w-full max-w-[400px] rounded-2xl border border-line bg-white p-8 shadow-card">
                 {{ $slot }}
             </div>

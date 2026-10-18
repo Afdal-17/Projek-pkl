@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>@yield('title', 'Admin') - Finance App</title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}">
+    <link rel="alternate icon" type="image/png" href="{{ asset('favicon.png') }}">
+    <link rel="shortcut icon" href="{{ asset('favicon.ico') }}">
+
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="min-h-screen bg-gray-50 font-sans text-ink antialiased" x-data="{ nav: false }" x-on:keydown.escape.window="nav = false">
@@ -13,7 +19,13 @@
         <a href="{{ route('admin.dashboard') }}" class="flex items-center gap-2">
             <x-logo />
         </a>
-        <button type="button" x-on:click="nav = true" class="flex h-10 w-10 items-center justify-center rounded-lg border border-line bg-white text-muted hover:bg-page">
+        <button
+            type="button"
+            x-on:click="nav = true"
+            aria-label="Open menu"
+            title="Menu"
+            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-line bg-white text-muted hover:bg-page hover:text-ink transition active:scale-95 focus:outline-none focus:ring-2 focus:ring-brand/20"
+        >
             <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
         </button>
     </div>
@@ -80,5 +92,7 @@
         @yield('content')
     </main>
 
+    <x-pull-to-refresh />
+    <x-custom-dialog />
 </body>
 </html>

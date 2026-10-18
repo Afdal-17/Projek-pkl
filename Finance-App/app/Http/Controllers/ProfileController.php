@@ -8,8 +8,10 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rules\Password;
 use Illuminate\View\View;
 
 class ProfileController extends Controller
@@ -22,6 +24,27 @@ class ProfileController extends Controller
             'user' => $user,
             'avatarUrl' => $user->avatar_path ? asset('storage/' . $user->avatar_path) : null,
         ]);
+    }
+
+    public function adminUpdatePassword(Request $request): RedirectResponse|JsonResponse
+    {
+        $validated = $request->validateWithBag('updatePassword', [
+            'current_password' => ['required', 'current_password'],
+            'password' => ['required', Password::defaults(), 'confirmed'],
+        ]);
+
+        $request->user()->update([
+            'password' => Hash::make($validated['password']),
+        ]);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'status' => 'password-updated',
+                'message' => 'Password berhasil diperbarui.',
+            ]);
+        }
+
+        return back()->with('status', 'password-updated');
     }
 
     public function frontendEdit(Request $request): View

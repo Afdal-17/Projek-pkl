@@ -20,6 +20,8 @@ Route::middleware(['auth', CheckRole::class . ':admin'])->prefix('admin')->group
     Route::get('/verify-users', [AdminController::class, 'verifyUsers'])->name('admin.verify-users');
     Route::get('/profile', [ProfileController::class, 'adminEdit'])->name('admin.profile');
     Route::patch('/profile', [ProfileController::class, 'frontendUpdate'])->name('admin.profile.update');
+    Route::put('/profile/password', [ProfileController::class, 'adminUpdatePassword'])->name('admin.password.update');
+    Route::put('/password', [ProfileController::class, 'adminUpdatePassword']);
     Route::patch('/users/{user}/status', [AdminController::class, 'toggleStatus'])->name('admin.users.status');
     Route::patch('/users/{user}/ban', [AdminController::class, 'banUser'])->name('admin.users.ban');
     Route::patch('/users/{user}/verify', [AdminController::class, 'verifyUser'])->name('admin.users.verify');

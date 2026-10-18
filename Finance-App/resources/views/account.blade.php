@@ -48,7 +48,11 @@
                     setTimeout(() => window.location.reload(), 700);
                 } else {
                     const result = await response.json();
-                    alert(Object.values(result.errors ?? {}).flat()[0] ?? 'Profile could not be saved.');
+                    window.financeAlert({
+                        title: 'Save Failed',
+                        message: Object.values(result.errors ?? {}).flat()[0] ?? 'Profile could not be saved.',
+                        variant: 'danger',
+                    });
                 }
             } finally {
                 this.saving = false;
@@ -73,9 +77,17 @@
 
             if (response.ok) {
                 this.avatarUrl = (await response.json()).avatar_url;
+                window.financeToast({
+                    message: 'Photo successfully updated.',
+                    variant: 'income',
+                });
             } else {
                 const result = await response.json();
-                alert(Object.values(result.errors ?? {}).flat()[0] ?? 'Photo could not be uploaded.');
+                window.financeAlert({
+                    title: 'Upload Failed',
+                    message: Object.values(result.errors ?? {}).flat()[0] ?? 'Photo could not be uploaded.',
+                    variant: 'danger',
+                });
             }
 
             event.target.value = '';
@@ -209,8 +221,19 @@
                 <div class="mt-5 grid gap-4 md:grid-cols-2">
                     <x-input label="Full name" name="full_name" x-model="form.name" />
                     <x-input label="Email address" name="email" type="email" x-model="form.email" />
-                    <x-input label="Phone number" name="phone" x-model="form.phone" />
-                    <x-input label="Location" name="location" x-model="form.location" />
+                    <x-input
+                        label="Phone number"
+                        name="phone"
+                        placeholder="0812345678"
+                        x-model="form.phone"
+                    />
+
+                    <x-input
+                        label="Location"
+                        name="location"
+                        placeholder="Jakarta,Indonesian"
+                        x-model="form.location"
+                    />
                 </div>
             </x-card>
 

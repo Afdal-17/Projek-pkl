@@ -43,6 +43,11 @@
 
     <title>@yield('title', 'Finance App')</title>
 
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}">
+    <link rel="alternate icon" type="image/png" href="{{ asset('favicon.png') }}">
+    <link rel="shortcut icon" href="{{ asset('favicon.ico') }}">
+
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 
@@ -435,7 +440,8 @@
                     x-on:click="nav = true"
                     :aria-expanded="nav.toString()"
                     aria-label="Open menu"
-                    class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-line bg-white sm:hidden"
+                    title="Menu"
+                    class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-line bg-white text-muted hover:bg-page hover:text-ink transition active:scale-95 focus:outline-none focus:ring-2 focus:ring-brand/20 sm:hidden"
                 >
 
                     <svg
@@ -664,5 +670,7 @@
 
     @endif
 
+    <x-pull-to-refresh />
+    <x-custom-dialog />
 </body>
 </html>

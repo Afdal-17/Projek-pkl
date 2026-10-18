@@ -84,6 +84,69 @@ class WalletIntegrationTest extends TestCase
         ]);
         $this->assertSame(66.67, $target->fresh()->load('dompet')->progress);
     }
+    
+    public function test_wallet_creation_rejects_initial_balance_above_database_limit(): void
+    {
+        $user = User::create([
+            'nama' => 'Wallet Creation Limit User',
+            'email' => 'wallet-creation-limit@example.com',
+            'password' => 'password',
+            'role' => 'user',
+            'status' => true,
+            'email_verified_at' => now(),
+        ]);
+
+        $this->actingAs($user)->post(route('dompet.store'), [
+            'nama_dompet' => 'Dompet Saldo Terlalu Besar',
+            'deskripsi' => 'Tes batas saldo',
+            'jenis' => 'bank',
+            'warna' => 'warn',
+            'saldo_awal' => '10000000000000000000000000000',
+        ])->assertSessionHasErrors('saldo_awal');
+
+        $this->assertDatabaseMissing('dompet', [
+            'id_user' => $user->id_user,
+            'nama_dompet' => 'Dompet Saldo Terlalu Besar',
+        ]);
+    }
+
+    
+    public function test_wallet_balance_edit_rejects_amount_above_database_limit(): void
+    {
+        $user = User::create([
+            'nama' => 'Wallet Limit User',
+            'email' => 'wallet-limit@example.com',
+            'password' => 'password',
+            'role' => 'user',
+            'status' => true,
+            'email_verified_at' => now(),
+        ]);
+
+        $wallet = Dompet::create([
+            'id_user' => $user->id_user,
+            'nama_dompet' => 'Dompet Tes',
+            'jenis' => 'physical',
+            'warna' => 'warn',
+            'saldo_awal' => 1000,
+            'saldo' => 1000,
+        ]);
+
+        $this->actingAs($user)
+            ->patchJson(route('dompet.manage', $wallet), [
+                'nama_dompet' => 'Dompet Tes',
+                'deskripsi' => null,
+                'jenis' => 'physical',
+                'warna' => 'warn',
+                'saldo' => '10000000000000000000000000000',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('saldo');
+
+        $this->assertDatabaseHas('dompet', [
+            'id_dompet' => $wallet->id_dompet,
+            'saldo' => 1000,
+        ]);
+    }
 
     public function test_wallet_creation_persists_kind_and_color(): void
     {

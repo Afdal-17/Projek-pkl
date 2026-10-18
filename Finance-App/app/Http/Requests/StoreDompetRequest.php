@@ -7,6 +7,8 @@ use Illuminate\Validation\Rule;
 
 class StoreDompetRequest extends FormRequest
 {
+    private const MAX_SALDO = '9999999999999999999999999999.99';
+
     protected function prepareForValidation(): void
     {
         $saldoAwal = $this->input('saldo_awal');
@@ -34,6 +36,22 @@ class StoreDompetRequest extends FormRequest
 
     public function rules(): array
     {
+        $saldoRules = [
+            'nullable',
+            'regex:/^\d+(?:\.\d{1,2})?$/',
+            function (string $attribute, mixed $value, \Closure $fail): void {
+                if ($value === null || $value === '') {
+                    return;
+                }
+
+                $amount = (string) $value;
+
+                if (bccomp($amount, self::MAX_SALDO, 2) > 0) {
+                    $fail('Saldo melebihi batas maksimum yang didukung.');
+                }
+            },
+        ];
+
         return [
             'nama_dompet' => ['required', 'string', 'max:100'],
             'deskripsi' => ['nullable', 'string'],
@@ -46,8 +64,16 @@ class StoreDompetRequest extends FormRequest
                     ->where('id_user', $this->user()->id_user)
                     ->ignore($this->route('dompet')?->id_dompet, 'id_dompet'),
             ],
-            'saldo' => ['nullable', 'numeric', 'min:0', 'prohibits:saldo_awal'],
-            'saldo_awal' => ['nullable', 'numeric', 'min:0', 'prohibits:saldo'],
+
+            'saldo' => [
+                ...$saldoRules,
+                'prohibits:saldo_awal',
+            ],
+
+            'saldo_awal' => [
+                ...$saldoRules,
+                'prohibits:saldo',
+            ],
         ];
     }
 
@@ -55,11 +81,9 @@ class StoreDompetRequest extends FormRequest
     {
         return [
             'warna.unique' => 'Wallet tidak bisa ditambah karena warna penentu sama.',
-            'saldo.numeric' => 'Current balance harus berupa angka.',
-            'saldo.min' => 'Current balance tidak boleh negatif.',
+            'saldo.regex' => 'Current balance harus berupa angka dengan maksimal dua angka desimal.',
             'saldo.prohibits' => 'Hanya boleh mengisi salah satu antara Current Balance atau Saldo Awal.',
-            'saldo_awal.numeric' => 'Saldo awal harus berupa angka.',
-            'saldo_awal.min' => 'Saldo awal tidak boleh negatif.',
+            'saldo_awal.regex' => 'Saldo awal harus berupa angka dengan maksimal dua angka desimal.',
             'saldo_awal.prohibits' => 'Hanya boleh mengisi salah satu antara Current Balance atau Saldo Awal.',
         ];
     }

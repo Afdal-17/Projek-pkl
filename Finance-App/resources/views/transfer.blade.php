@@ -116,37 +116,65 @@
             let targetWalletId = this.to;
 
             if (!amount || amount <= 0) {
-                alert('Amount harus lebih dari 0.');
+                window.financeAlert({
+                    title: 'Invalid Amount',
+                    message: 'Amount must be greater than 0.',
+                    variant: 'danger',
+                });
                 return;
             }
 
             if (this.mode === 'wallet' && !targetWalletId) {
-                alert('Pilih tujuan transfer.');
+                window.financeAlert({
+                    title: 'Destination Required',
+                    message: 'Please select a destination wallet.',
+                    variant: 'danger',
+                });
                 return;
             }
 
             if (this.mode === 'user' && !this.recipient) {
-                alert('Cari dan verifikasi penerima terlebih dahulu.');
+                window.financeAlert({
+                    title: 'Recipient Required',
+                    message: 'Please search and verify the recipient first.',
+                    variant: 'danger',
+                });
                 return;
             }
 
             if (this.mode === 'user' && this.recipient?.is_banned) {
-                alert('Penerima sedang diblokir dan tidak dapat menerima transfer.');
+                window.financeAlert({
+                    title: 'Recipient Suspended',
+                    message: 'Recipient account is currently suspended and cannot receive transfers.',
+                    variant: 'danger',
+                });
                 return;
             }
 
             if (this.mode === 'user' && !this.recipientWalletId) {
-                alert('Pilih dompet tujuan penerima.');
+                window.financeAlert({
+                    title: 'Recipient Wallet Required',
+                    message: 'Please select the recipient destination wallet.',
+                    variant: 'danger',
+                });
                 return;
             }
 
             if (this.mode === 'wallet' && String(this.from) === String(this.to)) {
-                alert('Wallet asal dan tujuan tidak boleh sama.');
+                window.financeAlert({
+                    title: 'Same Wallet Selected',
+                    message: 'Source and destination wallets cannot be the same.',
+                    variant: 'danger',
+                });
                 return;
             }
 
             if (amountInBase > this.fromBalance) {
-                alert('Saldo wallet tidak cukup.');
+                window.financeAlert({
+                    title: 'Insufficient Balance',
+                    message: 'Insufficient wallet balance for this transfer.',
+                    variant: 'danger',
+                });
                 return;
             }
 
@@ -170,7 +198,11 @@
 
             if (!response.ok) {
                 const result = await response.json();
-                alert(Object.values(result.errors ?? {}).flat()[0] ?? 'Transfer tidak dapat diproses.');
+                window.financeAlert({
+                    title: 'Transfer Failed',
+                    message: Object.values(result.errors ?? {}).flat()[0] ?? 'Transfer could not be processed.',
+                    variant: 'danger',
+                });
                 return;
             }
 
