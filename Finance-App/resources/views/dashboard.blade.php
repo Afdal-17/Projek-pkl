@@ -768,9 +768,9 @@
     ========================================================== --}}
     <div class="mt-5 grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
 
-        @foreach ($wallets as $w)
+        @forelse ($wallets as $w)
 
-            <x-card class="p-6 sm:p-7">
+            <x-card class="min-w-0 p-6 sm:p-7">
 
                 {{-- Wallet header --}}
                 <div class="flex items-start justify-between gap-4">
@@ -791,7 +791,7 @@
                             justify-center
                             rounded-xl
                             {{ $side === 'preset'
-                                ? $tones[$w['color']]['soft']
+                                ? ($tones[$w['color']]['soft'] ?? 'bg-brand-soft text-brand')
                                 : '' }}
                         "
                         @if ($side === 'custom')
@@ -824,11 +824,11 @@
 
 
                 {{-- Wallet information --}}
-                <p class="mt-5 text-lg font-semibold">
+                <p class="mt-5 truncate text-lg font-semibold" title="{{ $w['name'] }}">
                     {{ $w['name'] }}
                 </p>
 
-                <p class="mt-1 text-sm text-muted">
+                <p class="mt-1 truncate text-sm text-muted">
                     {{ $w['type'] }}
                 </p>
 
@@ -871,7 +871,13 @@
 
             </x-card>
 
-        @endforeach
+        @empty
+
+            <x-card class="col-span-full p-8 text-center">
+                <p class="text-sm text-muted">No wallets found.</p>
+            </x-card>
+
+        @endforelse
 
     </div>
 
@@ -893,30 +899,52 @@
 
         </div>
 
+        @php
+            $walletCount = count($wallets);
+            $distributionBalances = collect($wallets)
+                ->map(fn ($wallet) => max(0, (float) $wallet['balance']));
+            $totalDistributionBalance = $distributionBalances->sum();
 
-        <div class="mt-5 flex gap-1.5">
+            // Memastikan seluruh segmen warna wallet terlihat tanpa mendistorsi proporsi saldo
+            $minShare = $walletCount > 0 ? min(2.5, 25 / $walletCount) : 0;
+            $totalReserved = $walletCount * $minShare;
+            $remainingPool = 100 - $totalReserved;
+        @endphp
 
-            @foreach ($wallets as $w)
+        <div class="mt-5 flex w-full min-w-0 gap-1.5 overflow-hidden rounded-full">
+
+            @forelse ($wallets as $index => $w)
+                @php
+                    $balance = $distributionBalances[$index] ?? 0;
+                    $isCustom = str_starts_with($w['color'], '#');
+                    $solidClass = ! $isCustom ? ($tones[$w['color']]['solid'] ?? 'bg-brand') : '';
+
+                    if ($totalDistributionBalance > 0) {
+                        $rawRatio = $balance / $totalDistributionBalance;
+                        $share = $minShare + ($rawRatio * $remainingPool);
+                    } else {
+                        $share = 100 / max($walletCount, 1);
+                    }
+                @endphp
 
                 <span
-                    class="
-                        h-2.5
-                        basis-0
-                        rounded-full
-                        {{ str_starts_with($w['color'], '#')
-                            ? ''
-                            : $tones[$w['color']]['solid'] }}
-                    "
+                    class="h-2.5 min-w-[8px] sm:min-w-[10px] rounded-full {{ $solidClass }}"
                     style="
-                        flex-grow: {{ $w['balance'] }};
-
-                        @if (str_starts_with($w['color'], '#'))
+                        flex-grow: {{ round($share, 3) }};
+                        flex-basis: 0;
+                        flex-shrink: 0;
+                        @if ($isCustom)
                             background-color: {{ $w['color'] }};
                         @endif
                     "
+                    title="{{ $w['name'] }}: {{ $formatMoney($w['balance']) }}"
                 ></span>
 
-            @endforeach
+            @empty
+
+                <span class="h-2.5 w-full rounded-full bg-line/60"></span>
+
+            @endforelse
 
         </div>
 
@@ -938,6 +966,7 @@
         </p>
 
     </x-card>
+
 
     {{-- =========================================================
         MODAL EDIT / ADD WALLET
