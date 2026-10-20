@@ -100,9 +100,16 @@ class TransferController extends Controller
 
     public function create(): View
     {
+        // Hanya dompet milik user ini yang boleh tampil. Transfer ke user lain
+        // dipilih lewat pencarian penerima (transfer.blade.php), bukan daftar
+        // global yang membocorkan dompet semua user.
+        $wallets = Dompet::where('id_user', Auth::id())
+            ->orderBy('nama_dompet')
+            ->get();
+
         return view('transfer.create', [
-            'dompet' => Dompet::with('user')->orderBy('nama_dompet')->get(),
-            'dompetPengirim' => Dompet::where('id_user', Auth::id())->orderBy('nama_dompet')->get(),
+            'dompet' => $wallets,
+            'dompetPengirim' => $wallets,
         ]);
     }
 

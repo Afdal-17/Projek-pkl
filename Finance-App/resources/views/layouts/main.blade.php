@@ -11,7 +11,7 @@
                 'id' => $n->id_notifikasi,
                 'title' => $n->tipe === 'target' ? 'Savings goal reached' : (str_starts_with($n->pesan, 'Transfer ')
                     || str_starts_with($n->pesan, 'Anda di transfer oleh ') ? 'Transfer success!' : 'Transaction update'),
-                'text' => $n->pesan,
+                'text' => $n->pesanTampil(),
                 'scope' => $n->tanggal->diffForHumans(),
                 'read' => (bool) $n->sudah_dibaca,
                 'type' => $n->tipe === 'target' ? 'saving' : (str_starts_with($n->pesan, 'Transfer ')

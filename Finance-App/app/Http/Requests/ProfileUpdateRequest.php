@@ -36,8 +36,9 @@ class ProfileUpdateRequest extends FormRequest
             'nomor_telepon' => ['nullable', 'string', 'max:32'],
             'lokasi' => ['nullable', 'string', 'max:255'],
             'mata_uang' => ['required', 'string', 'in:IDR,USD,EUR'],
+            // Email nullable: user yang mendaftar via OTP WhatsApp tidak memiliki email.
             'email' => [
-                'required',
+                'nullable',
                 'string',
                 'lowercase',
                 'email',

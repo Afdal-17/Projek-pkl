@@ -24,13 +24,13 @@ class TransaksiController extends Controller
         $userId = (int) Auth::id();
         $icons = ['makanan' => 'utensils', 'transport' => 'car', 'hiburan' => 'film', 'tagihan' => 'landmark', 'gaji' => 'landmark'];
 
-        $transactions = Transaksi::with(['dompet', 'kategori', 'transfer.dompetAsal', 'transfer.dompetTujuan'])
+        $transactions = Transaksi::with(['dompet', 'kategori', 'transfer.dompetAsal.user', 'transfer.dompetTujuan.user'])
             ->whereHas('dompet', fn ($query) => $query->where('id_user', $userId))
             ->latest('tanggal')
             ->get()
             ->map(fn (Transaksi $transaction): array => [
                 'id' => $transaction->id_transaksi,
-                'name' => $transaction->nama_transaksi,
+                'name' => $transaction->displayNama(),
                 'type' => $transaction->id_transfer !== null
                     ? 'transfer'
                     : ($transaction->jenis === 'pemasukan' ? 'income' : 'expense'),
@@ -39,9 +39,7 @@ class TransaksiController extends Controller
                     : ($transaction->kategori?->nama_kategori ?? ($transaction->nama_transaksi === 'Saldo awal' ? 'Saldo awal' : 'Without category')),
                 'wallet' => $transaction->dompet->nama_dompet,
                 'to' => $transaction->id_transfer !== null
-                    ? ($transaction->id_dompet === $transaction->transfer->id_dompet_asal
-                        ? $transaction->transfer->dompetTujuan->nama_dompet
-                        : $transaction->transfer->dompetAsal->nama_dompet)
+                    ? $transaction->displayLawan()
                     : null,
                 'amount' => (float) $transaction->jumlah,
                 'date' => $transaction->tanggal->toDateString(),
@@ -66,7 +64,7 @@ class TransaksiController extends Controller
     {
         $userId = (int) Auth::id();
         $filters = $request->validated();
-        $query = Transaksi::with(['dompet', 'kategori'])
+        $query = Transaksi::with(['dompet', 'kategori', 'transfer.dompetAsal.user', 'transfer.dompetTujuan.user'])
             ->whereHas('dompet', fn ($query) => $query->where('id_user', $userId));
 
         $query
@@ -205,7 +203,7 @@ class TransaksiController extends Controller
             404
         );
 
-        return $transaksi->load(['dompet', 'kategori']);
+        return $transaksi->load(['dompet', 'kategori', 'transfer.dompetAsal.user', 'transfer.dompetTujuan.user']);
     }
 
     private function applyBalanceChange(Dompet $dompet, string $jenis, float $amount): void

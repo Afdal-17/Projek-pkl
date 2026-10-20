@@ -9,6 +9,7 @@ use App\Services\OtpService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\View\View;
 use Throwable;
 
@@ -109,6 +110,15 @@ class OtpVerificationController extends Controller
             return redirect()->route('login')->with('status', 'Email Anda sudah terverifikasi.');
         }
 
+        // Batas per-akun: mencegah spam pesan ke satu nomor/email tujuan meski
+        // pelaku memakai banyak IP (throttle di route hanya berbasis IP).
+        $kunciRate = 'otp-resend:'.$user->id_user;
+        if (RateLimiter::tooManyAttempts($kunciRate, 6)) {
+            $detik = RateLimiter::availableIn($kunciRate);
+
+            return back()->with('error', "Terlalu banyak permintaan kode. Silakan coba lagi dalam {$detik} detik.");
+        }
+
         try {
             if ($user->email) {
                 $this->otp->kirim($user);
@@ -119,6 +129,8 @@ class OtpVerificationController extends Controller
 
                 $this->otp->kirimWhatsapp($user);
             }
+
+            RateLimiter::hit($kunciRate, 900); // jendela 15 menit
         } catch (Throwable $e) {
             report($e);
 

@@ -22,7 +22,7 @@ class NotifikasiController extends Controller
                         || str_starts_with($notification->pesan, 'Anda di transfer oleh ') ? 'transfer' : 'transaction'),
                 'title' => $notification->tipe === 'target' ? 'Savings goal reached' : (str_starts_with($notification->pesan, 'Transfer ')
                     || str_starts_with($notification->pesan, 'Anda di transfer oleh ') ? 'Transfer success!' : 'Transaction update'),
-                'text' => $notification->pesan,
+                'text' => $notification->pesanTampil(),
                 'scope' => $notification->tanggal->diffForHumans(),
                 'read' => $notification->sudah_dibaca,
             ]);

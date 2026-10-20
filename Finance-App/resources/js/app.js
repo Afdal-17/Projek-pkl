@@ -18,6 +18,9 @@ const locale = currency === 'USD' ? 'en-US' : (currency === 'EUR' ? 'de-DE' : 'i
 const formatter = new Intl.NumberFormat(locale, {
 	style: 'currency',
 	currency,
+	/* Desimal mengikuti ketikan user (0.1 tampil 0.1, bukan dipaksa 0.10).
+	   IDR tetap tanpa desimal; USD/EUR maksimal 2. */
+	minimumFractionDigits: 0,
 	maximumFractionDigits: currency === 'IDR' ? 0 : 2,
 });
 
@@ -82,23 +85,31 @@ window.financeMoney = {
 		const trailingDecimal = cleaned.endsWith('.') ? '.' : '';
 
 		const segments = cleaned.split('.');
-		const integer = segments[0].replace(/\D/g, '') || '0';
+		const integerStr = segments[0].replace(/\D/g, '') || '0';
+		const integerClean = integerStr.length > 1 ? integerStr.replace(/^0+/, '') || '0' : integerStr;
 		const decimal = segments.slice(1).join('').replace(/\D/g, '').slice(0, 2);
 
-		const num = parseFloat(decimal ? `${integer}.${decimal}` : integer) || 0;
+		let formattedInteger = integerClean;
+		if (groupSep) {
+			formattedInteger = integerClean.replace(/\B(?=(\d{3})+(?!\d))/g, groupSep);
+		}
 
-		if (num === 0 && !trailingDecimal) {
+		let display = formattedInteger;
+		if (decimal) {
+			display += decimalSep + decimal;
+		} else if (trailingDecimal) {
+			display += decimalSep;
+		}
+
+		const num = parseFloat(decimal ? `${integerClean}.${decimal}` : integerClean) || 0;
+
+		if (num === 0 && !trailingDecimal && integerClean === '0') {
 			return { value: 0, display: '' };
 		}
 
-		const formatted = new Intl.NumberFormat(locale, {
-			minimumFractionDigits: decimal ? decimal.length : 0,
-			maximumFractionDigits: 2,
-		}).format(num);
-
 		return {
 			value: num,
-			display: trailingDecimal && !decimal ? formatted + decimalSep : formatted,
+			display: display,
 		};
 	},
 };

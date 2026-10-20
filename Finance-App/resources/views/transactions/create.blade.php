@@ -7,7 +7,8 @@
 <div
     x-data="{
         type: 'expense',
-        amount: 0,
+        amount: '',
+        amountDisplay: '',
         transactionName: 'Grocery shopping',
         category: '',
         wallet: @js($wallets->first()['name'] ?? ''),
@@ -23,6 +24,12 @@
             this.pickCategory();
 
             this.$watch('type', () => this.pickCategory());
+        },
+
+        formatAmount(value) {
+            const result = window.financeMoney.formatTyped(value);
+            this.amount = result.value;
+            this.amountDisplay = result.display;
         },
 
         /* Hanya kategori yang sesuai tipe transaksi (Income / Expense) */
@@ -187,9 +194,11 @@
 
                     <input
                         id="amount"
-                        type="number"
-                        min="0"
-                        x-model.number="amount"
+                        type="text"
+                        x-model="amountDisplay"
+                        x-on:input="formatAmount($event.target.value)"
+                        x-on:focus="$event.target.select()"
+                        placeholder="0"
                         class="w-full rounded-lg border border-line bg-white py-3 pl-12 pr-4 text-2xl font-semibold focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
                     >
 

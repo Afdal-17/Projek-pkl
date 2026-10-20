@@ -18,7 +18,9 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        User::create([
+        // forceCreate: 'role' sengaja tidak ada di $fillable (mencegah
+        // mass-assignment privilege escalation) — admin dibuat eksplisit.
+        User::forceCreate([
             'nama' => 'Admin',
             'email' => 'admin@finance.test',
             'password' => Hash::make('password'),

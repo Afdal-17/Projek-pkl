@@ -35,13 +35,13 @@ class DompetController extends Controller
 
         $icons = ['makanan' => 'utensils', 'transport' => 'car', 'hiburan' => 'film', 'tagihan' => 'landmark', 'gaji' => 'landmark'];
 
-        $transactions = Transaksi::with(['kategori', 'transfer.dompetAsal', 'transfer.dompetTujuan'])
+        $transactions = Transaksi::with(['dompet', 'kategori', 'transfer.dompetAsal.user', 'transfer.dompetTujuan.user'])
             ->where('id_dompet', $dompet->id_dompet)
             ->latest('tanggal')
             ->get()
             ->map(fn (Transaksi $transaction): array => [
                 'id' => $transaction->id_transaksi,
-                'name' => $transaction->nama_transaksi,
+                'name' => $transaction->displayNama(),
                 'type' => $transaction->id_transfer !== null
                     ? 'transfer'
                     : ($transaction->jenis === 'pemasukan' ? 'income' : 'expense'),
@@ -71,6 +71,14 @@ class DompetController extends Controller
         $saldo = isset($data['saldo']) && $data['saldo'] !== null && $data['saldo'] !== ''
             ? CurrencyService::toBase((float) $data['saldo'])
             : $saldoAwal;
+
+        // Warna tidak dikirim form (create.blade.php); pilih warna pertama yang
+        // belum dipakai agar dompet tetap mudah dibedakan.
+        if (empty($data['warna'])) {
+            $warnaDipakai = Dompet::where('id_user', Auth::id())->pluck('warna')->all();
+            $data['warna'] = collect(['brand', 'income', 'warn', 'expense', 'dark'])
+                ->first(fn (string $warna): bool => ! in_array($warna, $warnaDipakai, true)) ?? 'brand';
+        }
 
         DB::transaction(function () use ($data, $saldoAwal, $saldo): void {
             $dompet = Dompet::create([
@@ -128,17 +136,6 @@ class DompetController extends Controller
 
         $data['warna'] = strtolower($data['warna']);
 
-        $warnaDipakai = Dompet::where('id_user', Auth::id())
-            ->where('warna', $data['warna'])
-            ->where('id_dompet', '!=', $dompet->id_dompet)
-            ->exists();
-
-        if ($warnaDipakai) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
-                'warna' => 'Wallet tidak bisa diedit karena warna penentu sama.',
-            ]);
-        }
-
         $newBalance = CurrencyService::toBase((float) $data['saldo']);
 
         DB::transaction(function () use ($data, $dompet, $notifikasiService, $newBalance): void {
@@ -181,28 +178,74 @@ class DompetController extends Controller
     {
         abort_unless($dompet->id_user === (int) Auth::id(), 404);
 
-        $transferCount = Transfer::where('id_dompet_asal', $dompet->id_dompet)
-            ->orWhere('id_dompet_tujuan', $dompet->id_dompet)
-            ->count();
+        $idDompetDihapus = (int) $dompet->id_dompet;
 
-        if ($transferCount > 0 && !$request->boolean('force')) {
+        $transfers = Transfer::where('id_dompet_asal', $idDompetDihapus)
+            ->orWhere('id_dompet_tujuan', $idDompetDihapus)
+            ->get();
+
+        if ($transfers->isNotEmpty() && !$request->boolean('force')) {
             if ($request->expectsJson()) {
                 return response()->json([
                     'message' => 'Wallet tidak dapat dihapus karena masih memiliki riwayat transfer.',
-                    'transfer_count' => $transferCount,
+                    'transfer_count' => $transfers->count(),
                 ], 422);
             }
 
             return redirect()->back()->with('error', 'Wallet tidak dapat dihapus karena masih memiliki riwayat transfer.');
         }
 
-        if ($transferCount > 0) {
-            Transfer::where('id_dompet_asal', $dompet->id_dompet)
-                ->orWhere('id_dompet_tujuan', $dompet->id_dompet)
-                ->delete();
+        // Force delete hanya aman bila SEMUA riwayat transfer melibatkan dompet
+        // milik user ini. Jika menyentuh dompet user lain, riwayat mereka tidak
+        // boleh dihapus dan saldo mereka tidak boleh diubah oleh user ini.
+        $idDompetLain = $transfers->map(fn (Transfer $transfer): ?int => (int) $transfer->id_dompet_asal === $idDompetDihapus
+            ? ($transfer->id_dompet_tujuan !== null ? (int) $transfer->id_dompet_tujuan : null)
+            : (int) $transfer->id_dompet_asal)
+            ->filter()
+            ->unique()
+            ->values();
+
+        $melibatkanUserLain = Dompet::whereIn('id_dompet', $idDompetLain)
+            ->where('id_user', '!=', (int) $dompet->id_user)
+            ->exists();
+
+        if ($melibatkanUserLain) {
+            $message = 'Wallet tidak dapat dihapus paksa karena riwayat transfernya melibatkan dompet pengguna lain.';
+
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $message], 422);
+            }
+
+            return redirect()->back()->with('error', $message);
         }
 
-        $dompet->delete();
+        DB::transaction(function () use ($dompet, $transfers, $idDompetDihapus): void {
+            foreach ($transfers as $transfer) {
+                $idDompetTetap = (int) $transfer->id_dompet_asal === $idDompetDihapus
+                    ? $transfer->id_dompet_tujuan
+                    : $transfer->id_dompet_asal;
+
+                // Batalkan efek transfer pada dompet yang tetap ada, agar saldo
+                // tidak menyimpang dari riwayat transaksi yang tersisa.
+                $dompetTetap = Dompet::whereKey($idDompetTetap)->lockForUpdate()->first();
+
+                if ($dompetTetap !== null) {
+                    $delta = (int) $transfer->id_dompet_tujuan === $idDompetDihapus
+                        ? -(float) $transfer->jumlah
+                        : (float) $transfer->jumlah;
+
+                    $dompetTetap->update(['saldo' => (float) $dompetTetap->saldo + $delta]);
+                }
+
+                // Hapus dua baris transaksi turunan (dompet asal & tujuan) lebih
+                // dulu; jika tidak, id_transfer-nya jadi NULL dan baris "Transfer
+                // dari ..." di dompet lain dihitung sebagai pemasukan biasa.
+                $transfer->transaksi()->delete();
+                $transfer->delete();
+            }
+
+            $dompet->delete();
+        });
 
         if ($request->expectsJson()) {
             return response()->json(['status' => 'wallet-deleted']);
