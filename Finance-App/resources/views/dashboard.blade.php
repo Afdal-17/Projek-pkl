@@ -68,6 +68,7 @@
         open: false,
         mode: 'edit',
         csrfToken: @js(csrf_token()),
+        wallets: @js($wallets),
         editing: {
             id: null,
             name: '',
