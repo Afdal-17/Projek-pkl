@@ -295,7 +295,7 @@
                         <button type="button"
                                 @click="u.has_wallet ? selectUser(u) : null"
                                 :disabled="!u.has_wallet"
-                                :title="u.has_wallet ? '' : 'The recipient does not yet have a wallet.'"
+                                :title="u.has_wallet ? '' : u.nama + ' belum mengaktifkan dompet untuk menerima transfer.'"
                                 class="flex w-full items-center gap-3 border-b border-line px-4 py-3 text-left transition last:border-0 hover:bg-page disabled:cursor-not-allowed disabled:opacity-50">
                             <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full" :class="u.is_banned ? 'bg-expense-soft text-expense' : 'bg-brand-soft text-brand'">
                                 <x-icon name="user" size="h-4 w-4" />
@@ -310,7 +310,7 @@
                             <span x-show="!u.is_banned"
                                 class="shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold"
                                 :class="u.has_wallet ? 'bg-page text-muted' : 'bg-expense-soft text-expense'"
-                                x-text="u.has_wallet ? u.wallets[0].name + (u.wallets.length > 1 ? ' +' + (u.wallets.length - 1) : '') : 'Don\'t have a wallet'">
+                                x-text="u.has_wallet ? u.wallets[0].name + (u.wallets.length > 1 ? ' +' + (u.wallets.length - 1) : '') : 'Belum aktifkan dompet'">
                             </span>
                         </button>
                     </template>
