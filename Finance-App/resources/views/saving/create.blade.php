@@ -12,6 +12,7 @@
         target: '',
         initial: @js((float) ($wallets->first()['balance'] ?? 0)),
         initialManual: false,
+        saving: false,
         wallets: @js($wallets),
         csrfToken: @js(csrf_token()),
 
@@ -43,6 +44,8 @@
         },
 
         async saveTarget() {
+            if (this.saving) return;
+
             const target = Number(this.target);
             const initial = Number(this.initial) || 0;
 
@@ -75,19 +78,27 @@
                 initial_savings: this.initial === '' ? '' : String(initial),
             });
 
-            const response = await fetch(@js(route('saving.store')), {
-                method: 'POST',
-                headers: { 'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: payload,
-            });
+            this.saving = true;
 
-            if (!response.ok) {
-                const result = await response.json();
-                alert(Object.values(result.errors ?? {}).flat()[0] ?? 'Saving target could not be saved.');
-                return;
+            try {
+                const response = await fetch(@js(route('saving.store')), {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: payload,
+                });
+
+                if (!response.ok) {
+                    const result = await response.json();
+                    alert(Object.values(result.errors ?? {}).flat()[0] ?? 'Saving target could not be saved.');
+                    return;
+                }
+
+                window.location.href = '/saving';
+            } catch (e) {
+                alert('Koneksi bermasalah — data tidak terkirim. Silakan coba lagi.');
+            } finally {
+                this.saving = false;
             }
-
-            window.location.href = '/saving';
         }
     }"
 >
@@ -188,7 +199,9 @@
             {{-- Tombol --}}
             <div class="mt-6 flex justify-end gap-3">
                 <x-button href="/saving" variant="outline">{{ __('saving.cancel') }}</x-button>
-                <x-button x-on:click="saveTarget()">{{ __('saving.add_button') }}</x-button>
+                <x-button x-on:click="saveTarget()" x-bind:disabled="saving">
+        <span x-text="saving ? 'Saving...' : @js(__('saving.add_button'))"></span>
+    </x-button>
             </div>
 
         </x-card>

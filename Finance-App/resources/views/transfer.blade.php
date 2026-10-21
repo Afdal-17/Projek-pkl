@@ -20,6 +20,7 @@
         recipientWalletId: '',
         searchResults: [],
         searching: false,
+        saving: false,
         amount: '',
         amountDisplay: '',
         wallets: @js($wallets),
@@ -111,6 +112,8 @@
         },
 
         async saveTransfer() {
+            if (this.saving) return;
+
             const amount = Number(this.amount);
             const amountInBase = window.financeMoney.toBase(amount);
             let targetWalletId = this.to;
@@ -162,19 +165,27 @@
                 tanggal_transfer: new Date().toLocaleDateString('en-CA'),
             });
 
-            const response = await fetch(@js(route('transfer.store')), {
-                method: 'POST',
-                headers: { 'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: payload,
-            });
+            this.saving = true;
 
-            if (!response.ok) {
-                const result = await response.json();
-                alert(Object.values(result.errors ?? {}).flat()[0] ?? 'Transfer tidak dapat diproses.');
-                return;
+            try {
+                const response = await fetch(@js(route('transfer.store')), {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: payload,
+                });
+
+                if (!response.ok) {
+                    const result = await response.json();
+                    alert(Object.values(result.errors ?? {}).flat()[0] ?? 'Transfer tidak dapat diproses.');
+                    return;
+                }
+
+                window.location.href = '/transactions';
+            } catch (e) {
+                alert('Koneksi bermasalah — transfer tidak terkirim. Silakan coba lagi.');
+            } finally {
+                this.saving = false;
             }
-
-            window.location.href = '/transactions';
         }
         }));
     });
@@ -393,7 +404,9 @@
             {{-- Tombol --}}
             <div class="mt-6 flex justify-end gap-3">
                 <x-button href="/transactions" variant="outline">Cancel</x-button>
-                <x-button x-on:click="saveTransfer()">Transfer</x-button>
+                <x-button x-on:click="saveTransfer()" x-bind:disabled="saving">
+                    <span x-text="saving ? 'Memproses...' : 'Transfer'"></span>
+                </x-button>
             </div>
 
         </x-card>

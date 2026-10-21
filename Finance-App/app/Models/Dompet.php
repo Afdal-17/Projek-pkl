@@ -23,6 +23,7 @@ class Dompet extends Model
         'warna',
         'saldo_awal',
         'saldo',
+        'terima_transfer',
     ];
 
     protected function casts(): array
@@ -30,7 +31,19 @@ class Dompet extends Model
         return [
             'saldo_awal' => 'decimal:2',
             'saldo' => 'decimal:2',
+            'terima_transfer' => 'boolean',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        /* Dompet pertama milik user otomatis jadi penerima transfer aktif,
+         * baik dibuat lewat controller maupun langsung via model. */
+        static::creating(function (Dompet $dompet): void {
+            if (! Dompet::where('id_user', $dompet->id_user)->exists()) {
+                $dompet->terima_transfer = true;
+            }
+        });
     }
 
     public function user(): BelongsTo
@@ -56,5 +69,18 @@ class Dompet extends Model
     public function transferMasuk(): HasMany
     {
         return $this->hasMany(Transfer::class, 'id_dompet_tujuan', 'id_dompet');
+    }
+
+    /**
+     * Set dompet ini sebagai satu-satunya penerima transfer untuk pemiliknya.
+     * Semua dompet lain milik user yang sama akan dinonaktifkan sebagai penerima transfer.
+     */
+    public function setSebagaiPenerimaTransfer(): void
+    {
+        Dompet::where('id_user', $this->id_user)
+            ->where('id_dompet', '!=', $this->id_dompet)
+            ->update(['terima_transfer' => false]);
+
+        $this->update(['terima_transfer' => true]);
     }
 }

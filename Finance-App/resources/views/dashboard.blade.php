@@ -36,6 +36,7 @@
                 default => 'smartphone',
             },
             'color' => $wallet->warna ?: $colors[$index % count($colors)],
+            'terima_transfer' => (bool) $wallet->terima_transfer,
         ];
     })->all();
     $categories = collect($summary['pengeluaran_per_kategori'])
@@ -76,6 +77,48 @@
             saldo_awal: '',
             saldoAwalDisplay: '',
             color: 'brand'
+        },
+
+        togglingWallet: null,
+
+        async toggleTransfer(walletId, currentlyActive) {
+            this.togglingWallet = walletId;
+            try {
+                const response = await fetch(@js(route('dompet.toggleTransfer', '__ID__')).replace('__ID__', walletId), {
+                    method: 'PATCH',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                    },
+                });
+
+                if (!response.ok) {
+                    alert('Gagal mengubah pengaturan penerima transfer.');
+                    return;
+                }
+
+                const result = await response.json();
+
+                /* Satu dompet saja yang aktif: jika yang baru diaktifkan,
+                 * matikan slider dompet lain di tampilan. */
+                if (result.terima_transfer) {
+                    this.wallets.forEach(w => {
+                        if (String(w.id) !== String(walletId)) {
+                            w.terima_transfer = false;
+                        }
+                    });
+                }
+
+                const wallet = this.wallets.find(w => String(w.id) === String(walletId));
+                if (wallet) {
+                    wallet.terima_transfer = result.terima_transfer;
+                }
+            } catch (e) {
+                alert('Koneksi bermasalah — coba lagi.');
+            } finally {
+                this.togglingWallet = null;
+            }
         },
 
         /* Format input nominal memakai parser bersama window.financeMoney
@@ -291,8 +334,17 @@
                         class="flex h-9 w-9 items-center justify-center rounded-lg border border-line hover:bg-page">
                     <x-icon name="more" size="h-4 w-4" />
                 </button>
-                </div>
-                <p class="mt-4 text-lg font-semibold">{{ $w['name'] }}</p>
+                <button type="button"
+                    x-on:click="toggleTransfer({{ $w['id'] }}, {{ $w['terima_transfer'] ? 'true' : 'false' }})"
+                    x-bind:disabled="togglingWallet === {{ $w['id'] }}"
+                    class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none {{ $w['terima_transfer'] ? 'bg-brand' : 'bg-line' }} focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+                    <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition duration-200 ease-in-out {{ $w['terima_transfer'] ? 'translate-x-5' : 'translate-x-1' }}"></span>
+                </button>
+                <span class="text-xs text-muted leading-none">
+                    {{ $w['terima_transfer'] ? 'Penerima transfer aktif' : 'Nonaktif sebagai penerima' }}
+                </span>
+            </div>
+            <p class="mt-4 text-lg font-semibold">{{ $w['name'] }}</p>
                 <p class="text-sm text-muted">{{ $w['type'] }}</p>
                 <p class="mt-3 text-[11px] uppercase tracking-wide text-muted">{{ __('dashboard.available_balance') }}</p>
                 <p class="text-2xl font-bold">{{ $formatMoney($w['balance']) }}</p>

@@ -14,6 +14,7 @@
         wallet: @js($wallets->first()['name'] ?? ''),
         date: new Date().toLocaleDateString('en-CA'),
         error: '',
+        submitting: false,
 
         /* Kategori dibaca dari data yang sama dengan halaman Manage Kategori */
         allCategories: @js($categories),
@@ -66,6 +67,8 @@
         },
 
         async saveTransaction() {
+            if (this.submitting) return;
+
             this.error = '';
 
             if (!this.amount || Number(this.amount) <= 0) {
@@ -107,19 +110,27 @@
                 tanggal: this.date,
             });
 
-            const response = await fetch(@js(route('transactions.store')), {
-                method: 'POST',
-                headers: { 'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: payload,
-            });
+            this.submitting = true;
 
-            if (!response.ok) {
-                const result = await response.json();
-                this.error = Object.values(result.errors ?? {}).flat()[0] ?? 'Transaction could not be saved.';
-                return;
+            try {
+                const response = await fetch(@js(route('transactions.store')), {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: payload,
+                });
+
+                if (!response.ok) {
+                    const result = await response.json();
+                    this.error = Object.values(result.errors ?? {}).flat()[0] ?? 'Transaction could not be saved.';
+                    return;
+                }
+
+                window.location.href = '/transactions';
+            } catch (e) {
+                this.error = 'Connection failed — the transaction was not saved. Please try again.';
+            } finally {
+                this.submitting = false;
             }
-
-            window.location.href = '/transactions';
         }
     }"
 >
@@ -334,8 +345,8 @@
                     {{ __('transactions.cancel') }}
                 </x-button>
 
-                <x-button type="button" x-on:click="saveTransaction()">
-                    <span x-text="type === 'income' ? @js(__('transactions.add_income')) : @js(__('transactions.add_expense'))"></span>
+                <x-button type="button" x-on:click="saveTransaction()" x-bind:disabled="submitting">
+                    <span x-text="submitting ? 'Saving...' : (type === 'income' ? @js(__('transactions.add_income')) : @js(__('transactions.add_expense')))"></span>
                 </x-button>
 
             </div>

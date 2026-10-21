@@ -10,10 +10,19 @@ use App\Services\CurrencyService;
 use App\Services\NotifikasiService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use Throwable;
 
 class TargetTabunganController extends Controller
 {
+    /**
+     * Jendela deteksi kiriman kembar (tap ganda saat loading).
+     * Dalam rentang ini, payload identik dari user yang sama hanya dicatat sekali.
+     */
+    private const DUPLICATE_GUARD_SECONDS = 30;
+
     public function frontendIndex(): View
     {
         $targets = TargetTabungan::with('dompet')
@@ -66,29 +75,57 @@ class TargetTabunganController extends Controller
     public function store(StoreTargetTabunganRequest $request, NotifikasiService $notifikasiService): RedirectResponse
     {
         $data = $request->validated();
-        $wallet = Dompet::where('id_user', Auth::id())->findOrFail($data['id_dompet']);
-        $nominalTarget = CurrencyService::toBase((float) $data['nominal_target']);
-        $initialSavings = CurrencyService::toBase((float) ($data['initial_savings'] ?? $wallet->saldo));
+        $userId = (int) Auth::id();
 
-        if ((float) $initialSavings > (float) $nominalTarget || (float) $initialSavings > (float) $wallet->saldo) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
-                'initial_savings' => 'Initial savings tidak boleh melebihi saldo wallet atau target.',
+        /* Tolak kiriman kembar (mis. tap ganda saat loading). Slot dipesan SEBELUM
+         * proses insert, sehingga tap kedua yang datang bersamaan pun ikut terblokir. */
+        $dupKey = 'target-duplikat:'.$userId.':'.sha1(json_encode([
+            $data['id_dompet'],
+            $data['nama_target'],
+            $data['deskripsi'] ?? null,
+            (float) $data['nominal_target'],
+            $data['initial_savings'] ?? null,
+        ]));
+
+        if (RateLimiter::tooManyAttempts($dupKey, 1)) {
+            throw ValidationException::withMessages([
+                'nama_target' => 'Target tabungan ini baru saja dicatat — hanya satu yang tersimpan. '
+                    .'Jika memang ingin membuat target serupa, ubah sedikit nama atau nominalnya, '
+                    .'atau tunggu '.self::DUPLICATE_GUARD_SECONDS.' detik.',
             ]);
         }
 
-        $target = TargetTabungan::create([
-            'id_dompet' => $wallet->id_dompet,
-            'nama_target' => $data['nama_target'],
-            'deskripsi' => $data['deskripsi'] ?? null,
-            'nominal_target' => $nominalTarget,
-            'nominal_terkumpul' => (float) $initialSavings,
-            'saldo_awal_dompet' => $wallet->saldo,
-            'id_user' => Auth::id(),
-            'status' => (float) $initialSavings >= (float) $nominalTarget ? 'tercapai' : 'belum_tercapai',
-        ]);
+        RateLimiter::hit($dupKey, self::DUPLICATE_GUARD_SECONDS);
 
-        if ($target->status === 'tercapai') {
-            $notifikasiService->targetTercapai($target);
+        try {
+            $wallet = Dompet::where('id_user', Auth::id())->findOrFail($data['id_dompet']);
+            $nominalTarget = CurrencyService::toBase((float) $data['nominal_target']);
+            $initialSavings = CurrencyService::toBase((float) ($data['initial_savings'] ?? $wallet->saldo));
+
+            if ((float) $initialSavings > (float) $nominalTarget || (float) $initialSavings > (float) $wallet->saldo) {
+                throw ValidationException::withMessages([
+                    'initial_savings' => 'Initial savings tidak boleh melebihi saldo wallet atau target.',
+                ]);
+            }
+
+            $target = TargetTabungan::create([
+                'id_dompet' => $wallet->id_dompet,
+                'nama_target' => $data['nama_target'],
+                'deskripsi' => $data['deskripsi'] ?? null,
+                'nominal_target' => $nominalTarget,
+                'nominal_terkumpul' => (float) $initialSavings,
+                'saldo_awal_dompet' => $wallet->saldo,
+                'id_user' => Auth::id(),
+                'status' => (float) $initialSavings >= (float) $nominalTarget ? 'tercapai' : 'belum_tercapai',
+            ]);
+
+            if ($target->status === 'tercapai') {
+                $notifikasiService->targetTercapai($target);
+            }
+        } catch (Throwable $e) {
+            /* Proses gagal — buka lagi pintu retry-nya. */
+            RateLimiter::clear($dupKey);
+            throw $e;
         }
 
         return redirect()->route('target-tabungan.index');
@@ -135,7 +172,7 @@ class TargetTabunganController extends Controller
                 );
 
             if ((float) $initialSavings > (float) $nominalTarget || (float) $initialSavings > (float) $wallet->saldo) {
-                throw \Illuminate\Validation\ValidationException::withMessages([
+                throw ValidationException::withMessages([
                     'initial_savings' => 'Initial savings tidak boleh melebihi saldo wallet atau target.',
                 ]);
             }

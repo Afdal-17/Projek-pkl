@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\RedirectResponse;
 use App\Http\Requests\StoreDompetRequest;
 use App\Http\Requests\UpdateDompetRequest;
 use App\Models\Dompet;
@@ -12,6 +11,7 @@ use App\Models\Transfer;
 use App\Services\CurrencyService;
 use App\Services\NotifikasiService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -106,12 +106,14 @@ class DompetController extends Controller
     public function show(Dompet $dompet): View
     {
         abort_unless($dompet->id_user === Auth::id(), 404);
+
         return view('dompet.show', compact('dompet'));
     }
 
     public function edit(Dompet $dompet): View
     {
         abort_unless($dompet->id_user === Auth::id(), 404);
+
         return view('dompet.edit', compact('dompet'));
     }
 
@@ -119,6 +121,7 @@ class DompetController extends Controller
     {
         abort_unless($dompet->id_user === Auth::id(), 404);
         $dompet->update($request->validated());
+
         return redirect()->route('dompet.index');
     }
 
@@ -174,6 +177,22 @@ class DompetController extends Controller
         return response()->json(['status' => 'wallet-updated']);
     }
 
+    public function toggleTransfer(Request $request, Dompet $dompet): JsonResponse
+    {
+        abort_unless($dompet->id_user === (int) Auth::id(), 404);
+
+        if (! $dompet->terima_transfer) {
+            $dompet->setSebagaiPenerimaTransfer();
+        } else {
+            $dompet->update(['terima_transfer' => false]);
+        }
+
+        return response()->json([
+            'status' => 'ok',
+            'terima_transfer' => (bool) $dompet->fresh()->terima_transfer,
+        ]);
+    }
+
     public function destroy(Request $request, Dompet $dompet): RedirectResponse|JsonResponse
     {
         abort_unless($dompet->id_user === (int) Auth::id(), 404);
@@ -184,7 +203,7 @@ class DompetController extends Controller
             ->orWhere('id_dompet_tujuan', $idDompetDihapus)
             ->get();
 
-        if ($transfers->isNotEmpty() && !$request->boolean('force')) {
+        if ($transfers->isNotEmpty() && ! $request->boolean('force')) {
             if ($request->expectsJson()) {
                 return response()->json([
                     'message' => 'Wallet tidak dapat dihapus karena masih memiliki riwayat transfer.',
