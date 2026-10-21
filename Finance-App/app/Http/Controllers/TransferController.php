@@ -94,6 +94,7 @@ class TransferController extends Controller
 
         return response()->json(
             $users->map(function (User $user): array {
+                $hasAnyWallet = $user->dompet->isNotEmpty();
                 $walletsAktif = $user->dompet->where('terima_transfer', true)
                     ->sortBy('nama_dompet')
                     ->values();
@@ -103,6 +104,7 @@ class TransferController extends Controller
                     'nama' => $user->nama,
                     'email' => $user->email,
                     'is_banned' => $user->isBanned(),
+                    'has_any_wallet' => $hasAnyWallet,
                     'has_wallet' => $walletsAktif->isNotEmpty(),
                     'wallets' => $walletsAktif->map(function (Dompet $wallet): array {
                         return [
