@@ -51,8 +51,8 @@ class StoreDompetRequest extends FormRequest
                 'string',
                 'regex:/^(brand|income|warn|expense|dark|#[0-9a-fA-F]{6})$/',
             ],
-            'saldo' => ['nullable', 'numeric', 'min:0', 'prohibits:saldo_awal'],
-            'saldo_awal' => ['nullable', 'numeric', 'min:0', 'prohibits:saldo'],
+            'saldo' => ['nullable', 'numeric', 'min:0', 'max:999999999999999999', 'prohibits:saldo_awal'],
+            'saldo_awal' => ['nullable', 'numeric', 'min:0', 'max:999999999999999999', 'prohibits:saldo'],
         ];
     }
 
