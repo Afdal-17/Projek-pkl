@@ -313,7 +313,7 @@
 
     <div class="mt-4 grid gap-6 md:grid-cols-3">
         @foreach ($wallets as $w)
-            <x-card class="p-6">
+            <x-card class="p-6" x-data="{ w: wallets.find(i => i.id === {{ $w['id'] }}) }">
                 <div class="flex items-start justify-between">
                     @php($side = str_starts_with($w['color'], '#') ? 'custom' : 'preset')
                     <span class="flex h-11 w-11 items-center justify-center rounded-lg {{ $side === 'preset' ? $tones[$w['color']]['soft'] : '' }}"
@@ -336,14 +336,13 @@
                     <x-icon name="more" size="h-4 w-4" />
                 </button>
                 <button type="button"
-                    x-on:click="toggleTransfer({{ $w['id'] }}, {{ $w['terima_transfer'] ? 'true' : 'false' }})"
+                    x-on:click="toggleTransfer({{ $w['id'] }}, w.terima_transfer)"
                     x-bind:disabled="togglingWallet === {{ $w['id'] }}"
-                    class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none {{ $w['terima_transfer'] ? 'bg-brand' : 'bg-line' }} focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
-                    <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition duration-200 ease-in-out {{ $w['terima_transfer'] ? 'translate-x-5' : 'translate-x-1' }}"></span>
+                    :class="w.terima_transfer ? 'bg-brand' : 'bg-line'"
+                    class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+                    <span :class="w.terima_transfer ? 'translate-x-5' : 'translate-x-1'" class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition duration-200 ease-in-out"></span>
                 </button>
-                <span class="text-xs text-muted leading-none">
-                    {{ $w['terima_transfer'] ? 'Penerima transfer aktif' : 'Nonaktif sebagai penerima' }}
-                </span>
+                <span class="text-xs text-muted leading-none" x-text="w.terima_transfer ? 'Penerima transfer aktif' : 'Nonaktif sebagai penerima'"></span>
             </div>
             <p class="mt-4 text-lg font-semibold">{{ $w['name'] }}</p>
                 <p class="text-sm text-muted">{{ $w['type'] }}</p>
