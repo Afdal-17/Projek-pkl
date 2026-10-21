@@ -177,7 +177,7 @@
                 body: data,
             });
 
-            if (response.ok) {
+            if (response.ok || response.status === 302 || response.status === 301) {
                 window.location.reload();
                 return;
             }
