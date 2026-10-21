@@ -265,7 +265,7 @@
                 </div>
                 <x-badge color="brand">{{ trans_choice('dashboard.active_wallets', count($wallets), ['count' => count($wallets)]) }}</x-badge>
             </div>
-            <p class="mt-6 text-4xl font-bold">{{ $formatMoney($summary['total_saldo']) }}</p>
+            <p class="mt-6 text-3xl sm:text-4xl font-bold break-words">{{ $formatMoney($summary['total_saldo']) }}</p>
             <div class="mt-3 flex gap-4 text-xs">
                 <span class="flex items-center gap-1 text-income"><x-icon name="arrow-up" size="h-3 w-3" /> {{ $formatMoney($summary['total_pemasukan_bulan_ini']) }} {{ __('dashboard.this_month') }}</span>
                 <span class="flex items-center gap-1 text-expense"><x-icon name="arrow-down" size="h-3 w-3" /> {{ $formatMoney($summary['total_pengeluaran_bulan_ini']) }} {{ __('dashboard.this_month') }}</span>
@@ -300,7 +300,7 @@
                 <p class="text-sm text-muted">{{ __('dashboard.total_saved') }}</p>
                 <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-income-soft text-income"><x-icon name="dollar" size="h-5 w-5" /></span>
             </div>
-            <p class="mt-4 text-2xl font-bold">{{ $formatMoney($totalSaved) }}</p>
+            <p class="mt-4 text-2xl font-bold break-words">{{ $formatMoney($totalSaved) }}</p>
             <p class="mt-2 text-xs text-income">{{ trans_choice('dashboard.savings_targets_tracked', count($summary['target_tabungan']), ['count' => count($summary['target_tabungan'])]) }}</p>
         </x-card>
     </div>
@@ -347,7 +347,7 @@
             <p class="mt-4 text-lg font-semibold">{{ $w['name'] }}</p>
                 <p class="text-sm text-muted">{{ $w['type'] }}</p>
                 <p class="mt-3 text-[11px] uppercase tracking-wide text-muted">{{ __('dashboard.available_balance') }}</p>
-                <p class="text-2xl font-bold">{{ $formatMoney($w['balance']) }}</p>
+                <p class="text-2xl font-bold break-words">{{ $formatMoney($w['balance']) }}</p>
                 <a href="/wallet/{{ $w['id'] }}" class="mt-3 inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline">
                     <x-icon name="history" size="h-3 w-3" /> {{ __('dashboard.view_history') }}
                 </a>

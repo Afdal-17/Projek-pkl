@@ -76,7 +76,7 @@
                     <x-icon name="dollar" />
                 </span>
             </div>
-            <p class="mt-4 text-2xl font-bold" x-text="rp(totalSaved)"></p>
+            <p class="mt-4 text-2xl font-bold break-words" x-text="rp(totalSaved)"></p>
         </x-card>
 
         <x-card class="p-6">
@@ -86,7 +86,7 @@
                     <x-icon name="target" />
                 </span>
             </div>
-            <p class="mt-4 text-2xl font-bold" x-text="rp(totalTarget)"></p>
+            <p class="mt-4 text-2xl font-bold break-words" x-text="rp(totalTarget)"></p>
             <p class="mt-2 text-xs text-muted"
               x-text="overallPct + '% ' + @js(__('saving.funded_across')) + ' ' + targets.length + ' ' + (targets.length === 1 ? @js(__('saving.target')) : @js(__('saving.targets')))"></p>
         </x-card>
@@ -153,8 +153,8 @@
 
                 {{-- Amount --}}
                 <div class="leading-tight">
-                    <p class="text-sm font-semibold" x-text="rp(t.saved)"></p>
-                    <p class="text-xs text-muted" x-text="@js(__('saving.of')) + ' ' + rp(t.target)"></p>
+                    <p class="text-sm font-semibold break-words" x-text="rp(t.saved)"></p>
+                    <p class="text-xs text-muted break-words" x-text="@js(__('saving.of')) + ' ' + rp(t.target)"></p>
                 </div>
 
                 {{-- Action --}}
