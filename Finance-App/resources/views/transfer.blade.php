@@ -310,7 +310,7 @@
                             <span x-show="!u.is_banned"
                                 class="shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold"
                                 :class="u.has_wallet ? 'bg-page text-muted' : 'bg-expense-soft text-expense'"
-                                x-text="u.has_wallet ? u.wallets[0].name + (u.wallets.length > 1 ? ' +' + (u.wallets.length - 1) : '') : (u.has_any_wallet ? 'Belum aktifkan dompet' : 'Don\'t have a wallet')">
+                                x-text="u.has_wallet ? u.wallets[0].name + (u.wallets.length > 1 ? ' +' + (u.wallets.length - 1) : '') : (u.has_any_wallet ? 'Inactive a wallet' : 'Don\'t have a wallet')">
                             </span>
                         </button>
                     </template>
