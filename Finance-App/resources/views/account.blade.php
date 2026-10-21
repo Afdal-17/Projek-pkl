@@ -39,7 +39,7 @@
                         email: this.form.email,
                         phone: this.form.phone,
                         location: this.form.location,
-                        currency: this.form.currency,
+                        mata_uang: this.form.currency,
                     }),
                 });
 

@@ -26,7 +26,7 @@
 
         get walletBalanceDisplay() {
             // Saldo wallet tersimpan dalam IDR base; konversi ke mata uang aktif
-            return window.financeMoney.fromBase(Number(this.selectedWallet.balance));
+            return window.financeMoney.fromBase(this.selectedWallet.balance);
         },
 
         syncInitial() {
@@ -39,7 +39,7 @@
 
         rp(amount) {
             // Nilai input user dalam mata uang aktif
-            return window.financeMoney.formatNative(Number(amount) || 0);
+            return window.financeMoney.formatNative(amount);
         },
 
         async saveTarget() {

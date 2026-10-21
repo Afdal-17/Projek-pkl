@@ -387,7 +387,7 @@
                                         </div>
 
                                         <div class="flex items-center gap-2 shrink-0">
-                                            <span class="text-xs font-semibold text-muted" x-text="window.financeMoney.format(Number(item.balance) || 0)"></span>
+                                            <span class="text-xs font-semibold text-muted" x-text="window.financeMoney.format(item.balance)"></span>
                                             <x-icon
                                                 x-show="wallet === item.name"
                                                 name="check"

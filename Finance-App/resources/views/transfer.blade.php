@@ -298,7 +298,7 @@
                                 >
                                     <span x-text="item.name" class="truncate"></span>
                                     <div class="flex items-center gap-1.5 shrink-0">
-                                        <span class="text-xs text-muted" x-text="window.financeMoney.format(Number(item.balance) || 0)"></span>
+                                        <span class="text-xs text-muted" x-text="window.financeMoney.format(item.balance)"></span>
                                         <x-icon x-show="String(from) === String(item.id)" name="check" size="h-4 w-4" class="text-brand" />
                                     </div>
                                 </button>
@@ -373,7 +373,7 @@
                                 >
                                     <span x-text="item.name" class="truncate"></span>
                                     <div class="flex items-center gap-1.5 shrink-0">
-                                        <span class="text-xs text-muted" x-text="window.financeMoney.format(Number(item.balance) || 0)"></span>
+                                        <span class="text-xs text-muted" x-text="window.financeMoney.format(item.balance)"></span>
                                         <x-icon x-show="String(to) === String(item.id)" name="check" size="h-4 w-4" class="text-brand" />
                                     </div>
                                 </button>
