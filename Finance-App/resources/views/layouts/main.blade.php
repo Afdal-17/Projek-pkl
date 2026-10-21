@@ -40,6 +40,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <meta name="finance-currency" content="{{ $currentUser?->mata_uang ?? 'IDR' }}">
+    <meta name="finance-rates" content="{{ json_encode(\App\Services\CurrencyService::rates()) }}">
 
     <title>@yield('title', 'Finance App')</title>
 

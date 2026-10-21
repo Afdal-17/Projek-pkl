@@ -16,8 +16,8 @@ class DompetRequest extends FormRequest
         return [
             'nama_dompet' => ['required', 'string', 'max:100'],
             'deskripsi' => ['nullable', 'string', 'max:65535'],
-            'saldo' => ['nullable', 'numeric', 'min:0', 'prohibits:saldo_awal'],
-            'saldo_awal' => ['nullable', 'numeric', 'min:0', 'prohibits:saldo'],
+            'saldo' => ['nullable', 'numeric', 'min:0', 'max:999999999999999999', 'prohibits:saldo_awal'],
+            'saldo_awal' => ['nullable', 'numeric', 'min:0', 'max:999999999999999999', 'prohibits:saldo'],
         ];
     }
 

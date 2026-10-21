@@ -13,15 +13,20 @@ class AdminChangePasswordTest extends TestCase
 
     private function createAdmin(string $password = 'OldPassword123!'): User
     {
-        return User::create([
+        $admin = User::create([
             'nama' => 'Admin User',
             'email' => 'admin-test@finance.test',
             'password' => Hash::make($password),
-            'role' => 'admin',
             'status' => true,
             'email_verified_at' => now(),
         ]);
-    }
+
+        $admin->forceFill([
+            'role' => 'admin',
+        ])->save();
+
+        return $admin;
+}
 
     private function createRegularUser(string $password = 'UserPassword123!'): User
     {

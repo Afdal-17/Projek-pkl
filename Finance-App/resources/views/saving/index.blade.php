@@ -122,7 +122,7 @@
                     <x-icon name="dollar" />
                 </span>
             </div>
-            <p class="mt-4 text-2xl font-bold" x-text="rp(totalSaved)"></p>
+            <p class="mt-4 text-2xl font-bold break-words" x-text="rp(totalSaved)"></p>
         </x-card>
 
         <x-card class="p-6">
@@ -132,7 +132,7 @@
                     <x-icon name="target" />
                 </span>
             </div>
-            <p class="mt-4 text-2xl font-bold" x-text="rp(totalTarget)"></p>
+            <p class="mt-4 text-2xl font-bold break-words" x-text="rp(totalTarget)"></p>
             <p class="mt-2 text-xs text-muted"
               x-text="overallPct + '% ' + @js(__('saving.funded_across')) + ' ' + targets.length + ' ' + (targets.length === 1 ? @js(__('saving.target')) : @js(__('saving.targets')))"></p>
         </x-card>
@@ -219,6 +219,14 @@
             TAMPILAN DESKTOP (>= md): Tabel Grid Penuh
         ========================================================= --}}
         <div class="hidden md:block">
+
+            {{-- Kepala tabel --}}
+            <div class="grid grid-cols-[1.4fr_3fr_1.4fr_1fr] gap-6 border-b border-line px-6 py-4 text-[11px] font-semibold uppercase tracking-wide text-muted">
+                <span>{{ __('saving.target_name') }}</span>
+                <span>{{ __('saving.progress') }}</span>
+                <span>{{ __('saving.amount') }}</span>
+                <span>{{ __('saving.action') }}</span>
+            </div>
 
             {{-- Kepala tabel --}}
             <div class="grid grid-cols-[1.4fr_3fr_1.4fr_1fr] gap-6 border-b border-line px-6 py-4 text-[11px] font-semibold uppercase tracking-wide text-muted">

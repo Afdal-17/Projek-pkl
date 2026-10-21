@@ -234,7 +234,7 @@ class AdminTest extends TestCase
 
     private function user(string $email, string $role): User
     {
-        return User::create([
+        return User::forceCreate([
             'nama' => $role,
             'email' => $email,
             'password' => bcrypt('password'),

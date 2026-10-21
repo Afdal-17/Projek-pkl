@@ -48,4 +48,70 @@ class Transaksi extends Model
     {
         return $this->belongsTo(Transfer::class, 'id_transfer', 'id_transfer');
     }
+
+    /**
+     * Dompet lawan transaksi untuk baris transfer: dompet tujuan bila baris ini
+     * berada di dompet asal, dan sebaliknya.
+     */
+    public function lawanTransfer(): ?Dompet
+    {
+        if ($this->id_transfer === null || $this->transfer === null) {
+            return null;
+        }
+
+        $adalahDompetAsal = $this->id_dompet !== null
+            && (int) $this->transfer->id_dompet_asal === (int) $this->id_dompet;
+
+        return $adalahDompetAsal ? $this->transfer->dompetTujuan : $this->transfer->dompetAsal;
+    }
+
+    /**
+     * User pemilik dompet lawan, hanya bila transfer antar user berbeda.
+     * Transfer antar dompet milik sendiri mengembalikan null.
+     */
+    private function lawanUser(): ?User
+    {
+        $lawan = $this->lawanTransfer();
+
+        if ($lawan === null
+            || $this->dompet === null
+            || (int) $lawan->id_user === (int) $this->dompet->id_user) {
+            return null;
+        }
+
+        return $lawan->user;
+    }
+
+    /**
+     * Nama tampilan transaksi di riwayat. Transfer antar user menampilkan nama
+     * user lawan transaksi (bukan nama dompetnya); transfer antar dompet milik
+     * sendiri tetap memakai nama dompet.
+     */
+    public function displayNama(): string
+    {
+        $userLawan = $this->lawanUser();
+
+        if ($userLawan === null || $this->transfer === null) {
+            return $this->nama_transaksi;
+        }
+
+        $keLuar = (int) $this->transfer->id_dompet_asal === (int) $this->id_dompet;
+
+        return ($keLuar ? 'Transfer ke ' : 'Transfer dari ').$userLawan->nama;
+    }
+
+    /**
+     * Label lawan transaksi untuk chip riwayat: nama user lain, atau nama
+     * dompet lawan (untuk transfer antar dompet milik sendiri / non-transfer).
+     */
+    public function displayLawan(): ?string
+    {
+        $lawan = $this->lawanTransfer();
+
+        if ($lawan === null) {
+            return null;
+        }
+
+        return $this->lawanUser()?->nama ?? $lawan->nama_dompet;
+    }
 }

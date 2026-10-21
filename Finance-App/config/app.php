@@ -118,6 +118,11 @@ return [
     |
     */
 
+    // Daftar proxy tepercaya (dipisah koma) — diisi di production bila
+    // berjalan di belakang nginx/reverse proxy, mis. 127.0.0.1.
+    // Agar aplikasi mengenali skema HTTPS aslinya (cookie secure, URL).
+    'trusted_proxies' => env('TRUSTED_PROXIES'),
+
     'maintenance' => [
         'driver' => env('APP_MAINTENANCE_DRIVER', 'file'),
         'store' => env('APP_MAINTENANCE_STORE', 'database'),

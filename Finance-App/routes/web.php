@@ -3,8 +3,8 @@
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\DompetController;
 use App\Http\Controllers\KategoriController;
-use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\NotifikasiController;
+use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\TargetTabunganController;
 use App\Http\Controllers\TransaksiController;
 use App\Http\Controllers\TransferController;
@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
 // Route khusus ADMIN
-Route::middleware(['auth', CheckRole::class . ':admin'])->prefix('admin')->group(function () {
+Route::middleware(['auth', CheckRole::class.':admin'])->prefix('admin')->group(function () {
     Route::get('/dashboard', [AdminController::class, 'index'])->name('admin.dashboard');
     Route::get('/users', [AdminController::class, 'manageUsers'])->name('admin.users');
     Route::get('/verify-users', [AdminController::class, 'verifyUsers'])->name('admin.verify-users');
@@ -29,11 +29,12 @@ Route::middleware(['auth', CheckRole::class . ':admin'])->prefix('admin')->group
 });
 
 // Route khusus USER biasa
-Route::middleware(['auth', CheckRole::class . ':user'])->group(function () {
+Route::middleware(['auth', CheckRole::class.':user'])->group(function () {
     Route::get('/dashboard', [UserController::class, 'index'])->name('user.dashboard');
     Route::get('/dashboard/summary', [UserController::class, 'summary'])->name('user.dashboard.summary');
     Route::get('/wallet/{dompet}', [DompetController::class, 'frontendShow'])->name('dompet.history');
     Route::resource('dompet', DompetController::class);
+    Route::patch('/dompet/{dompet}/toggle-transfer', [DompetController::class, 'toggleTransfer'])->name('dompet.toggleTransfer');
     Route::patch('/dompet/{dompet}/manage', [DompetController::class, 'frontendUpdate'])->name('dompet.manage');
     Route::resource('kategori', KategoriController::class);
     Route::get('/transactions/categories', [KategoriController::class, 'frontendIndex'])->name('categories.index');
@@ -61,7 +62,7 @@ Route::middleware(['auth', CheckRole::class . ':user'])->group(function () {
 });
 
 Route::get('/', function () {
-    if (!Auth::check()) {
+    if (! Auth::check()) {
         return redirect()->route('login');
     }
 
@@ -81,6 +82,6 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
-    // Halaman frontend yang memakai controller backend yang sama
+// Halaman frontend yang memakai controller backend yang sama
 
 require __DIR__.'/auth.php';

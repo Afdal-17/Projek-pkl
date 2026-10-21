@@ -19,11 +19,24 @@ class NotifikasiController extends Controller
         $notifications = Notifikasi::where('id_user', Auth::id())
             ->latest('id_notifikasi')
             ->get()
-            ->map(function (Notifikasi $notification) use ($userTargets): array {
+	            ->map(function (Notifikasi $notification) use ($userTargets): array {
+                $isTarget = $notification->tipe === 'target'
+                    || $notification->display_type === 'saving';
+
+                $isTransfer = str_starts_with($notification->pesan ?? '', 'Transfer ')
+                    || str_starts_with($notification->pesan ?? '', 'Anda di transfer oleh ');
+
+                $type = $isTarget ? 'saving' : ($isTransfer ? 'transfer' : 'transaction');
+
+                $title = $isTarget
+                    ? 'Savings goal reached'
+                    : ($isTransfer ? 'Transfer success!' : 'Transaction update');
+
                 $goal = null;
 
-                if ($notification->tipe === 'target' || $notification->display_type === 'saving') {
+                if ($isTarget) {
                     $targetName = null;
+
                     if (preg_match('/^Target (.+?) (?:telah tercapai|has been reached)\.?$/ui', $notification->pesan ?? '', $matches)) {
                         $targetName = trim($matches[1]);
                     }
@@ -33,16 +46,22 @@ class NotifikasiController extends Controller
                         : $userTargets->first();
 
                     if (!$matchedTarget && $targetName) {
-                        $matchedTarget = $userTargets->first(fn ($t) => stripos($t->nama_target, $targetName) !== false || stripos($targetName, $t->nama_target) !== false);
+                        $matchedTarget = $userTargets->first(
+                            fn ($t) => stripos($t->nama_target, $targetName) !== false
+                                || stripos($targetName, $t->nama_target) !== false
+                        );
                     }
 
                     if (!$matchedTarget) {
-                        $matchedTarget = $userTargets->first(fn ($t) => $t->tercapai || $t->status === 'tercapai') ?: $userTargets->first();
+                        $matchedTarget = $userTargets->first(
+                            fn ($t) => $t->tercapai || $t->status === 'tercapai'
+                        ) ?: $userTargets->first();
                     }
 
                     if ($matchedTarget) {
                         $targetNominal = (float) $matchedTarget->nominal_target;
                         $savedNominal = max((float) $matchedTarget->jumlah_terkumpul, $targetNominal);
+
                         $goal = [
                             'name' => $matchedTarget->nama_target,
                             'note' => $matchedTarget->deskripsi ?: 'Savings target',
@@ -61,15 +80,14 @@ class NotifikasiController extends Controller
 
                 return [
                     'id' => $notification->id_notifikasi,
-                    'type' => $notification->display_type,
-                    'title' => $notification->display_title,
-                    'text' => $notification->formatted_pesan,
+                    'type' => $type,
+                    'title' => $title,
+                    'text' => $notification->pesanTampil(),
                     'scope' => $notification->tanggal->diffForHumans(),
                     'read' => $notification->sudah_dibaca,
                     'goal' => $goal,
                 ];
             });
-
         return view('notifications', [
             'notifications' => $notifications,
             'readIds' => $notifications->where('read', true)->pluck('id')->values(),

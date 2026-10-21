@@ -23,7 +23,7 @@ class StoreTransferRequest extends FormRequest
                 Rule::exists('dompet', 'id_dompet')->where('id_user', $userId),
             ],
             'id_dompet_tujuan' => ['required', 'integer', Rule::exists('dompet', 'id_dompet')],
-            'jumlah' => ['required', 'numeric', 'gt:0'],
+            'jumlah' => ['required', 'numeric', 'gt:0', 'max:999999999999999999'],
             'catatan' => ['nullable', 'string', 'max:500'],
             'tanggal_transfer' => ['required', 'date'],
         ];

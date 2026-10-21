@@ -18,6 +18,17 @@ class User extends Authenticatable
     protected $primaryKey = 'id_user';
 
     /**
+     * Nilai default atribut, selaras dengan default di migration.
+     *
+     * Penting karena 'role' TIDAK ada di $fillable (mencegah mass-assignment
+     * privilege escalation): instance baru tetap membawa role 'user' di memori,
+     * bukan NULL sampai di-refresh dari database.
+     */
+    protected $attributes = [
+        'role' => 'user',
+    ];
+
+    /**
      * The attributes that are mass assignable.
      *
      * @var list<string>
@@ -27,7 +38,6 @@ class User extends Authenticatable
         'email',
         'google_id',
         'password',
-        'role',
         'status',
         'nomor_telepon',
         'lokasi',

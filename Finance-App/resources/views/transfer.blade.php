@@ -20,6 +20,7 @@
         recipientWalletId: '',
         searchResults: [],
         searching: false,
+        saving: false,
         amount: '',
         amountDisplay: '',
         wallets: @js($wallets),
@@ -111,6 +112,8 @@
         },
 
         async saveTransfer() {
+            if (this.saving) return;
+
             const amount = Number(this.amount);
             const amountInBase = window.financeMoney.toBase(amount);
             let targetWalletId = this.to;
@@ -190,26 +193,50 @@
                 tanggal_transfer: new Date().toLocaleDateString('en-CA'),
             });
 
-            const response = await fetch(@js(route('transfer.store')), {
-                method: 'POST',
-                headers: { 'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: payload,
-            });
+            this.saving = true;
 
-            if (!response.ok) {
-                const result = await response.json();
+            try {
+                const response = await fetch(@js(route('transfer.store')), {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: payload,
+                });
+
+                if (!response.ok) {
+                    let result = {};
+
+                    try {
+                        result = await response.json();
+                    } catch (e) {
+                        // Respons server bukan JSON.
+                    }
+
+                    window.financeAlert({
+                        title: 'Transfer Failed',
+                        message: Object.values(result.errors ?? {}).flat()[0]
+                            ?? 'Transfer could not be processed.',
+                        variant: 'danger',
+                    });
+
+                    return;
+                }
+
+                window.location.href = '/transactions';
+            } catch (e) {
                 window.financeAlert({
-                    title: 'Transfer Failed',
-                    message: Object.values(result.errors ?? {}).flat()[0] ?? 'Transfer could not be processed.',
+                    title: 'Connection Error',
+                    message: 'Connection problem. Your transfer was not sent. Please try again.',
                     variant: 'danger',
                 });
-                return;
+            } finally {
+                this.saving = false;
             }
-
-            window.location.href = '/transactions';
-        }
-        }));
-    });
+                    },
+                    }));
+                });
 </script>
 
     {{-- Header --}}
@@ -413,7 +440,7 @@
                         <button type="button"
                                 @click="u.has_wallet ? selectUser(u) : null"
                                 :disabled="!u.has_wallet"
-                                :title="u.has_wallet ? '' : 'The recipient does not yet have a wallet.'"
+                                :title="u.has_wallet ? '' : (u.has_any_wallet ? u.nama + ' belum mengaktifkan dompet untuk menerima transfer.' : 'The recipient does not yet have a wallet.')"
                                 class="flex w-full items-center gap-3 border-b border-line px-4 py-3 text-left transition last:border-0 hover:bg-page disabled:cursor-not-allowed disabled:opacity-50">
                             <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full" :class="u.is_banned ? 'bg-expense-soft text-expense' : 'bg-brand-soft text-brand'">
                                 <x-icon name="user" size="h-4 w-4" />
@@ -428,7 +455,7 @@
                             <span x-show="!u.is_banned"
                                 class="shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold"
                                 :class="u.has_wallet ? 'bg-page text-muted' : 'bg-expense-soft text-expense'"
-                                x-text="u.has_wallet ? u.wallets[0].name + (u.wallets.length > 1 ? ' +' + (u.wallets.length - 1) : '') : 'Don\'t have a wallet'">
+                                x-text="u.has_wallet ? u.wallets[0].name + (u.wallets.length > 1 ? ' +' + (u.wallets.length - 1) : '') : (u.has_any_wallet ? 'Inactive a wallet' : 'Don\'t have a wallet')">
                             </span>
                         </button>
                     </template>
@@ -570,7 +597,9 @@
             {{-- Tombol --}}
             <div class="mt-6 flex justify-end gap-3">
                 <x-button href="/transactions" variant="outline">Cancel</x-button>
-                <x-button x-on:click="saveTransfer()">Transfer</x-button>
+                <x-button x-on:click="saveTransfer()" x-bind:disabled="saving">
+                    <span x-text="saving ? 'Memproses...' : 'Transfer'"></span>
+                </x-button>
             </div>
 
         </x-card>

@@ -140,19 +140,23 @@ class TransferTest extends TestCase
             'email_verified_at' => now(),
         ]);
 
-        Dompet::create([
+        $dompetTunai = Dompet::create([
             'id_user' => $penerima->id_user,
             'nama_dompet' => 'Dompet Tunai',
             'saldo_awal' => 50000,
             'saldo' => 50000,
         ]);
 
-        Dompet::create([
+        $dompetBank = Dompet::create([
             'id_user' => $penerima->id_user,
             'nama_dompet' => 'Dompet Bank',
             'saldo_awal' => 75000,
             'saldo' => 75000,
         ]);
+
+        /* Hanya satu dompet yang aktif sebagai penerima transfer. Aktifkan
+         * "Dompet Bank" — otomatis mematikan "Dompet Tunai". */
+        $dompetBank->setSebagaiPenerimaTransfer();
 
         $response = $this->actingAs($pengirim)->get(route('transfer.recipients.search', ['query' => 'Multi']));
 
@@ -161,12 +165,11 @@ class TransferTest extends TestCase
         $this->assertCount(1, $results);
         $this->assertTrue($results[0]['has_wallet']);
 
-        // Semua dompet penerima dikembalikan, diurutkan berdasarkan nama (saldo dirahasiakan demi privasi)
-        $this->assertCount(2, $results[0]['wallets']);
+        // Hanya dompet yang aktif transfer yang dikembalikan (saldo dirahasiakan)
+        $this->assertCount(1, $results[0]['wallets']);
         $this->assertSame('Dompet Bank', $results[0]['wallets'][0]['name']);
         $this->assertArrayNotHasKey('balance', $results[0]['wallets'][0]);
-        $this->assertSame('Dompet Tunai', $results[0]['wallets'][1]['name']);
-        $this->assertArrayNotHasKey('balance', $results[0]['wallets'][1]);
+        $this->assertSame($dompetBank->id_dompet, $results[0]['id_dompet_tujuan']);
     }
 
     public function test_transfer_rejected_when_recipient_user_is_banned(): void

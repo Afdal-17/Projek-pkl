@@ -26,7 +26,7 @@ class StoreTransaksiRequest extends FormRequest
                     ->where('jenis', $this->input('jenis')),
             ],
             'nama_transaksi' => ['required', 'string', 'max:150'],
-            'jumlah' => ['required', 'numeric', 'gt:0'],
+            'jumlah' => ['required', 'numeric', 'gt:0', 'max:999999999999999999'],
             'jenis' => ['required', Rule::in(['pemasukan', 'pengeluaran'])],
             'tanggal' => ['required', 'date'],
         ];

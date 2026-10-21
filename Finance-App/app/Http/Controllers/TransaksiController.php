@@ -2,35 +2,43 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\FilterTransaksiRequest;
 use App\Http\Requests\StoreTransaksiRequest;
 use App\Http\Requests\UpdateTransaksiRequest;
-use App\Http\Requests\FilterTransaksiRequest;
 use App\Models\Dompet;
 use App\Models\Kategori;
-use App\Models\Transaksi;
 use App\Models\TargetTabungan;
+use App\Models\Transaksi;
 use App\Services\CurrencyService;
 use App\Services\NotifikasiService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use Throwable;
 
 class TransaksiController extends Controller
 {
+    /**
+     * Jendela deteksi kiriman kembar (tap ganda saat loading).
+     * Dalam rentang ini, payload identik dari user yang sama hanya dicatat sekali.
+     */
+    private const DUPLICATE_GUARD_SECONDS = 30;
+
     public function frontendIndex(): View
     {
         $userId = (int) Auth::id();
         $icons = ['makanan' => 'utensils', 'transport' => 'car', 'hiburan' => 'film', 'tagihan' => 'landmark', 'gaji' => 'landmark'];
 
-        $transactions = Transaksi::with(['dompet', 'kategori', 'transfer.dompetAsal', 'transfer.dompetTujuan'])
+        $transactions = Transaksi::with(['dompet', 'kategori', 'transfer.dompetAsal.user', 'transfer.dompetTujuan.user'])
             ->whereHas('dompet', fn ($query) => $query->where('id_user', $userId))
             ->latest('tanggal')
             ->get()
             ->map(fn (Transaksi $transaction): array => [
                 'id' => $transaction->id_transaksi,
-                'name' => $transaction->nama_transaksi,
+                'name' => $transaction->displayNama(),
                 'type' => $transaction->id_transfer !== null
                     ? 'transfer'
                     : ($transaction->jenis === 'pemasukan' ? 'income' : 'expense'),
@@ -39,9 +47,7 @@ class TransaksiController extends Controller
                     : ($transaction->kategori?->nama_kategori ?? ($transaction->nama_transaksi === 'Saldo awal' ? 'Saldo awal' : 'Without category')),
                 'wallet' => $transaction->dompet->nama_dompet,
                 'to' => $transaction->id_transfer !== null
-                    ? ($transaction->id_dompet === $transaction->transfer->id_dompet_asal
-                        ? $transaction->transfer->dompetTujuan->nama_dompet
-                        : $transaction->transfer->dompetAsal->nama_dompet)
+                    ? $transaction->displayLawan()
                     : null,
                 'amount' => (float) $transaction->jumlah,
                 'date' => $transaction->tanggal->toDateString(),
@@ -66,7 +72,7 @@ class TransaksiController extends Controller
     {
         $userId = (int) Auth::id();
         $filters = $request->validated();
-        $query = Transaksi::with(['dompet', 'kategori'])
+        $query = Transaksi::with(['dompet', 'kategori', 'transfer.dompetAsal.user', 'transfer.dompetTujuan.user'])
             ->whereHas('dompet', fn ($query) => $query->where('id_user', $userId));
 
         $query
@@ -97,20 +103,48 @@ class TransaksiController extends Controller
     {
         $data = $request->validated();
         $userId = (int) Auth::id();
+
+        /* Tolak kiriman kembar (mis. tap ganda saat loading). Slot dipesan SEBELUM
+         * proses insert, sehingga tap kedua yang datang bersamaan pun ikut terblokir. */
+        $dupKey = 'transaksi-duplikat:'.$userId.':'.sha1(json_encode([
+            $data['id_dompet'],
+            $data['id_kategori'],
+            $data['nama_transaksi'],
+            (float) $data['jumlah'],
+            $data['jenis'],
+            $data['tanggal'],
+        ]));
+
+        if (RateLimiter::tooManyAttempts($dupKey, 1)) {
+            throw ValidationException::withMessages([
+                'nama_transaksi' => 'Transaksi ini baru saja dicatat — hanya satu yang tersimpan. '
+                    .'Jika memang ingin membuat transaksi serupa, ubah sedikit nama atau jumlahnya, '
+                    .'atau tunggu '.self::DUPLICATE_GUARD_SECONDS.' detik.',
+            ]);
+        }
+
+        RateLimiter::hit($dupKey, self::DUPLICATE_GUARD_SECONDS);
+
         $data['jumlah'] = CurrencyService::toBase((float) $data['jumlah']);
 
-        DB::transaction(function () use ($data, $userId, $notifikasiService): void {
-            $dompet = Dompet::where('id_user', $userId)
-                ->whereKey($data['id_dompet'])
-                ->lockForUpdate()
-                ->firstOrFail();
-            $saldoSebelumnya = (float) $dompet->saldo;
+        try {
+            DB::transaction(function () use ($data, $userId, $notifikasiService): void {
+                $dompet = Dompet::where('id_user', $userId)
+                    ->whereKey($data['id_dompet'])
+                    ->lockForUpdate()
+                    ->firstOrFail();
+                $saldoSebelumnya = (float) $dompet->saldo;
 
-            $this->applyBalanceChange($dompet, $data['jenis'], (float) $data['jumlah']);
-            $transaksi = Transaksi::create($data);
-            $this->notifyReachedTargets($dompet, $saldoSebelumnya, $notifikasiService);
-            $notifikasiService->transaksiDicatat($transaksi, $userId);
-        });
+                $this->applyBalanceChange($dompet, $data['jenis'], (float) $data['jumlah']);
+                $transaksi = Transaksi::create($data);
+                $this->notifyReachedTargets($dompet, $saldoSebelumnya, $notifikasiService);
+                $notifikasiService->transaksiDicatat($transaksi, $userId);
+            });
+        } catch (Throwable $e) {
+            /* Proses gagal (mis. saldo kurang) — buka lagi pintu retry-nya. */
+            RateLimiter::clear($dupKey);
+            throw $e;
+        }
 
         return redirect()->route('transaksi.index');
     }
@@ -118,6 +152,7 @@ class TransaksiController extends Controller
     public function show(Transaksi $transaksi): View
     {
         $transaksi = $this->ownedTransaction($transaksi);
+
         return view('transaksi.show', compact('transaksi'));
     }
 
@@ -156,7 +191,7 @@ class TransaksiController extends Controller
                     ->whereKey($data['id_dompet'])
                     ->lockForUpdate()
                     ->firstOrFail();
-                    $saldoDompetBaru = (float) $newDompet->saldo;
+            $saldoDompetBaru = (float) $newDompet->saldo;
 
             $this->applyBalanceChange($oldDompet, $current->jenis === 'pemasukan' ? 'pengeluaran' : 'pemasukan', (float) $current->jumlah);
             $this->applyBalanceChange($newDompet, $data['jenis'], (float) $data['jumlah']);
@@ -205,7 +240,7 @@ class TransaksiController extends Controller
             404
         );
 
-        return $transaksi->load(['dompet', 'kategori']);
+        return $transaksi->load(['dompet', 'kategori', 'transfer.dompetAsal.user', 'transfer.dompetTujuan.user']);
     }
 
     private function applyBalanceChange(Dompet $dompet, string $jenis, float $amount): void

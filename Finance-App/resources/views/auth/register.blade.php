@@ -54,6 +54,7 @@
                     </svg>
                 </button>
             </div>
+            <p class="mt-1 text-xs text-gray-500">Minimal 8 karakter, mengandung huruf dan angka.</p>
             <x-input-error :messages="$errors->get('password')" class="mt-1" />
         </div>
 

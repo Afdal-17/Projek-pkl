@@ -3,7 +3,6 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class StoreDompetRequest extends FormRequest
 {
@@ -21,9 +20,18 @@ class StoreDompetRequest extends FormRequest
             $saldo = null;
         }
 
+        // Warna hanya bersifat kosmetik dan boleh sama antar dompet;
+        // bila tidak dikirim, controller yang memilih warna yang belum dipakai.
+        $warna = $this->input('warna');
+        if ($warna === '' || $warna === null) {
+            $warna = null;
+        } else {
+            $warna = strtolower((string) $warna);
+        }
+
         $this->merge([
             'jenis' => $this->input('jenis', 'digital'),
-            'warna' => strtolower((string) $this->input('warna', 'brand')),
+            'warna' => $warna,
             'saldo_awal' => $saldoAwal,
             'saldo' => $saldo,
         ]);
@@ -57,21 +65,23 @@ class StoreDompetRequest extends FormRequest
             'deskripsi' => ['nullable', 'string'],
             'jenis' => ['required', 'string', 'in:physical,digital,bank'],
             'warna' => [
-                'required',
+                'nullable',
                 'string',
                 'regex:/^(brand|income|warn|expense|dark|#[0-9a-fA-F]{6})$/',
-                Rule::unique('dompet', 'warna')
-                    ->where('id_user', $this->user()->id_user)
-                    ->ignore($this->route('dompet')?->id_dompet, 'id_dompet'),
             ],
-
-            'saldo' => [
+                    'saldo' => [
                 ...$saldoRules,
+                'numeric',
+                'min:0',
+                'max:999999999999999999',
                 'prohibits:saldo_awal',
             ],
 
             'saldo_awal' => [
                 ...$saldoRules,
+                'numeric',
+                'min:0',
+                'max:999999999999999999',
                 'prohibits:saldo',
             ],
         ];
@@ -80,11 +90,18 @@ class StoreDompetRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'warna.unique' => 'Wallet tidak bisa ditambah karena warna penentu sama.',
-            'saldo.regex' => 'Current balance harus berupa angka dengan maksimal dua angka desimal.',
-            'saldo.prohibits' => 'Hanya boleh mengisi salah satu antara Current Balance atau Saldo Awal.',
-            'saldo_awal.regex' => 'Saldo awal harus berupa angka dengan maksimal dua angka desimal.',
-            'saldo_awal.prohibits' => 'Hanya boleh mengisi salah satu antara Current Balance atau Saldo Awal.',
+        'warna.unique' => 'Wallet tidak bisa ditambah karena warna penentu sama.',
+                'saldo.regex' => 'Current balance harus berupa angka dengan maksimal dua angka desimal.',
+                'saldo.numeric' => 'Current balance harus berupa angka.',
+                'saldo.min' => 'Current balance tidak boleh negatif.',
+                'saldo.prohibits' => 'Hanya boleh mengisi salah satu antara Current Balance atau Saldo Awal.',
+                'saldo_awal.regex' => 'Saldo awal harus berupa angka dengan maksimal dua angka desimal.',
+                'saldo_awal.numeric' => 'Saldo awal harus berupa angka.',
+                'saldo_awal.min' => 'Saldo awal tidak boleh negatif.',
+                'saldo_awal.prohibits' => 'Hanya boleh mengisi salah satu antara Current Balance atau Saldo Awal.',
+                'saldo.prohibits' => 'Hanya boleh mengisi salah satu antara Current Balance atau Saldo Awal.',
+                'saldo_awal.regex' => 'Saldo awal harus berupa angka dengan maksimal dua angka desimal.',
+                'saldo_awal.prohibits' => 'Hanya boleh mengisi salah satu antara Current Balance atau Saldo Awal.',
         ];
     }
 }

@@ -7,12 +7,14 @@
 <div
     x-data="{
         type: 'expense',
-        amount: 0,
+        amount: '',
+        amountDisplay: '',
         transactionName: 'Grocery shopping',
         category: '',
         wallet: @js($wallets->first()['name'] ?? ''),
         date: new Date().toLocaleDateString('en-CA'),
         error: '',
+        submitting: false,
 
         /* Kategori dibaca dari data yang sama dengan halaman Manage Kategori */
         allCategories: @js($categories),
@@ -23,6 +25,12 @@
             this.pickCategory();
 
             this.$watch('type', () => this.pickCategory());
+        },
+
+        formatAmount(value) {
+            const result = window.financeMoney.formatTyped(value);
+            this.amount = result.value;
+            this.amountDisplay = result.display;
         },
 
         /* Hanya kategori yang sesuai tipe transaksi (Income / Expense) */
@@ -59,6 +67,8 @@
         },
 
         async saveTransaction() {
+            if (this.submitting) return;
+
             this.error = '';
 
             if (!this.amount || Number(this.amount) <= 0) {
@@ -100,19 +110,27 @@
                 tanggal: this.date,
             });
 
-            const response = await fetch(@js(route('transactions.store')), {
-                method: 'POST',
-                headers: { 'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: payload,
-            });
+            this.submitting = true;
 
-            if (!response.ok) {
-                const result = await response.json();
-                this.error = Object.values(result.errors ?? {}).flat()[0] ?? 'Transaction could not be saved.';
-                return;
+            try {
+                const response = await fetch(@js(route('transactions.store')), {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: payload,
+                });
+
+                if (!response.ok) {
+                    const result = await response.json();
+                    this.error = Object.values(result.errors ?? {}).flat()[0] ?? 'Transaction could not be saved.';
+                    return;
+                }
+
+                window.location.href = '/transactions';
+            } catch (e) {
+                this.error = 'Connection failed — the transaction was not saved. Please try again.';
+            } finally {
+                this.submitting = false;
             }
-
-            window.location.href = '/transactions';
         }
     }"
 >
@@ -187,9 +205,11 @@
 
                     <input
                         id="amount"
-                        type="number"
-                        min="0"
-                        x-model.number="amount"
+                        type="text"
+                        x-model="amountDisplay"
+                        x-on:input="formatAmount($event.target.value)"
+                        x-on:focus="$event.target.select()"
+                        placeholder="0"
                         class="w-full rounded-lg border border-line bg-white py-3 pl-12 pr-4 text-2xl font-semibold focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
                     >
 
@@ -436,8 +456,8 @@
                     {{ __('transactions.cancel') }}
                 </x-button>
 
-                <x-button type="button" x-on:click="saveTransaction()">
-                    <span x-text="type === 'income' ? @js(__('transactions.add_income')) : @js(__('transactions.add_expense'))"></span>
+                <x-button type="button" x-on:click="saveTransaction()" x-bind:disabled="submitting">
+                    <span x-text="submitting ? 'Saving...' : (type === 'income' ? @js(__('transactions.add_income')) : @js(__('transactions.add_expense')))"></span>
                 </x-button>
 
             </div>

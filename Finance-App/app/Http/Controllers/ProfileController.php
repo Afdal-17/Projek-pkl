@@ -3,12 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Models\Transfer;
 use App\Services\CurrencyService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rules\Password;
@@ -154,6 +156,16 @@ class ProfileController extends Controller
 
     /**
      * Delete the user's account.
+     *
+     * Dulu error 500: penghapusan user mencascade penghapusan dompet, tetapi
+     * baris transfer dari pengguna lain (yang tujuannya menyentuh dompet user)
+     * dibatasi foreign key restrictOnDelete. Sekarang semua transfer yang
+     * menyentuh dompet user dihapus lebih dulu dalam satu transaksi DB.
+     *
+     * Konsekuensi yang disengaja: riwayat transfer pihak lain tetap bertahan
+     * sebagai baris transaksi dengan id_transfer NULL (FK nullOnDelete), dan
+     * saldo pihak lain TIDAK dihitung ulang — uang mereka sudah dipotong saat
+     * transfer dilakukan.
      */
     public function destroy(Request $request): RedirectResponse
     {
@@ -163,9 +175,27 @@ class ProfileController extends Controller
 
         $user = $request->user();
 
+        // Logout TERLEBIH DAHULU, sebelum baris user dihapus:
+        // SessionGuard::logout() memutar remember_token lewat $user->save().
+        // Jika user sudah terhapus, save() akan melakukan INSERT dan
+        // menghidupkan kembali baris user (efek "zombie").
         Auth::logout();
 
-        $user->delete();
+        DB::transaction(function () use ($user): void {
+            $dompetIds = $user->dompet()->pluck('id_dompet');
+
+            // Transfer outgoing (milik user) maupun incoming (dari pengguna
+            // lain ke dompet user) harus dihapus lebih dulu — FK transfer ke
+            // dompet memakai restrictOnDelete.
+            Transfer::query()
+                ->whereIn('id_dompet_asal', $dompetIds)
+                ->orWhereIn('id_dompet_tujuan', $dompetIds)
+                ->delete();
+
+            // Dompet, transaksi turunan, kategori, target tabungan, dan
+            // notifikasi ikut terhapus otomatis via cascadeOnDelete.
+            $user->delete();
+        });
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();
