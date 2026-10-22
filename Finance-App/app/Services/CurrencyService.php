@@ -15,9 +15,11 @@ class CurrencyService
      */
     public const BASE = 'IDR';
 
+    public const MAX_BASE_AMOUNT = '999999999999999999.99';
+
     /**
      * Memoisasi kurs per-request (konversi dipanggil berkali-kali per halaman).
-     * @var array<string, float>|null
+     * @var array<string, string>|null
      */
     private static ?array $kursMemo = null;
 
@@ -75,8 +77,8 @@ class CurrencyService
         $dari = $rates[$from] ?? null;
         $ke = $rates[$to] ?? null;
 
-        if (! $dari || ! $ke) {
-            return $amount;
+        if (! is_numeric($dari) || ! is_numeric($ke) || (float) $dari <= 0 || (float) $ke <= 0) {
+            throw new \RuntimeException("Kurs {$from} atau {$to} tidak tersedia atau tidak valid.");
         }
 
         return $amount * ($dari / $ke);
@@ -134,18 +136,17 @@ class CurrencyService
         $fromRate = $rates[$from] ?? null;
         $toRate = $rates[$to] ?? null;
 
-        if (! is_numeric($fromRate) || ! is_numeric($toRate)
-            || (float) $fromRate <= 0 || (float) $toRate <= 0) {
+        if (! is_string($fromRate) || ! is_string($toRate)
+            || ! preg_match('/^\d+(?:\.\d+)?$/', $fromRate)
+            || ! preg_match('/^\d+(?:\.\d+)?$/', $toRate)
+            || bccomp($fromRate, '0', 12) <= 0
+            || bccomp($toRate, '0', 12) <= 0) {
             throw new \RuntimeException('Kurs mata uang tidak tersedia atau tidak valid.');
         }
 
-        // Ubah representasi kurs ke string desimal sebelum operasi BCMath.
-        $fromRateString = rtrim(rtrim(sprintf('%.10F', (float) $fromRate), '0'), '.');
-        $toRateString = rtrim(rtrim(sprintf('%.10F', (float) $toRate), '0'), '.');
-
         // Tambahkan presisi antara agar pembagian tidak langsung dibulatkan.
-        $baseAmount = bcmul($amount, $fromRateString, 12);
-        $result = bcdiv($baseAmount, $toRateString, 12);
+        $baseAmount = bcmul($amount, $fromRate, 12);
+        $result = bcdiv($baseAmount, $toRate, 12);
 
         // Bulatkan hasil akhir ke dua angka desimal.
         $thirdDecimal = (int) substr(
@@ -189,6 +190,11 @@ class CurrencyService
         );
 
         return self::convertExact($amount, self::BASE, $currency);
+    }
+
+    public static function baseAmountWithinStorageLimit(string $amount): bool
+    {
+        return bccomp($amount, self::MAX_BASE_AMOUNT, 2) <= 0;
     }
 
     public function setUserCurrency(User $user, string $newCurrency): User

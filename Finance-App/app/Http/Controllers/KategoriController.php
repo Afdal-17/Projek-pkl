@@ -7,6 +7,7 @@ use App\Http\Requests\UpdateKategoriRequest;
 use App\Models\Kategori;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class KategoriController extends Controller
@@ -68,16 +69,29 @@ class KategoriController extends Controller
     public function destroy(Kategori $kategori): \Illuminate\Http\Response|\Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
     {
         abort_unless($kategori->id_user === Auth::id(), 404);
-        
-        // Cannot delete category if it has transactions
-        if ($kategori->transaksi()->count() > 0) {
-            if (request()->expectsJson() || request()->wantsJson()) {
-                return response()->json(['message' => 'Category cannot be deleted because it has transactions. You can only edit it.'], 422);
+
+        $jumlah = DB::transaction(function () use ($kategori): int {
+            $lockedCategory = Kategori::whereKey($kategori->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
+            $jumlah = $lockedCategory->transaksi()->count();
+
+            if ($jumlah === 0) {
+                $lockedCategory->delete();
             }
-            return redirect()->route('kategori.index')->withErrors(['message' => 'Category cannot be deleted because it has transactions. You can only edit it.']);
+
+            return $jumlah;
+        });
+
+        if ($jumlah > 0) {
+            $pesan = "Kategori \"".$kategori->nama_kategori."\" tidak dapat dihapus karena masih digunakan oleh {$jumlah} transaksi. Ubah atau hapus transaksi terkait terlebih dahulu.";
+
+            if (request()->expectsJson() || request()->wantsJson()) {
+                return response()->json(['message' => $pesan], 422);
+            }
+            return redirect()->back()->withErrors(['message' => $pesan]);
         }
-        
-        $kategori->delete();
+
         return redirect()->route('kategori.index');
     }
 }

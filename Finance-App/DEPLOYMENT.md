@@ -21,6 +21,10 @@ Salin `.env.example` ke `.env` di server, lalu **wajib** ubah:
 | `DB_USERNAME` / `DB_PASSWORD` | user DB khusus **bukan** `root` | Batasi hak database aplikasi |
 | `MAIL_*`, `FONNTE_TOKEN`, `GOOGLE_CLIENT_SECRET` | nilai asli dari **rotasi baru** | Lihat bagian 4 |
 
+PHP di server juga harus mengaktifkan ekstensi `BCMath` (`ext-bcmath`). Aplikasi
+menggunakannya untuk validasi dan perhitungan nominal desimal tanpa kehilangan presisi.
+Verifikasi di server dengan `composer check-platform-reqs --no-dev`.
+
 ## 2. Langkah perintah di server
 
 ```bash
@@ -37,14 +41,42 @@ php artisan view:cache
 - `chmod`/`chown` agar `storage/` dan `bootstrap/cache/` dapat ditulis user web server.
 - **Jangan jalankan `php artisan db:seed` di production** — `DatabaseSeeder` membuat
   akun `admin@finance.test` dengan password `password` (akun demo).
+- Duplicate guard transaksi/transfer memakai cache lock. Gunakan cache store yang
+  mendukung lock dan dibagi oleh seluruh instance aplikasi (konfigurasi bawaan
+  `database` memakai tabel `cache_locks`; jangan gunakan `array` untuk production
+  atau `file` pada beberapa instance).
+- Migrasi baru menyelaraskan `notifikasi.jumlah` ke `DECIMAL(20,2)`, sama dengan
+  nominal keuangan lain. Sebelum menjalankan migrasi pada database yang pernah
+  memakai kolom tersebut, pastikan backup tersedia dan periksa riwayat migrasi
+  serta nominal tersimpan; jangan mengulang atau mengubah migrasi backfill lama.
 
-## 3. HTTPS
+## 3. Google OAuth
+
+Kode mendaftarkan callback sebagai `GET /auth/google/callback`. Socialite memakai
+`GOOGLE_REDIRECT_URI` dari konfigurasi; jika variabel itu tidak diisi, nilainya
+dibentuk dari `APP_URL` ditambah `/auth/google/callback`. Pastikan URL HTTPS yang
+benar-benar dihasilkan konfigurasi server sama persis dengan **Authorized redirect
+URI** pada kredensial OAuth di Google Cloud Console (termasuk skema, host, port
+jika ada, dan path). Host production belum diketahui dari repository ini, jadi
+URI production dan pengaturan Console harus dikonfirmasi manual sebelum deploy.
+
+## 4. Foto profil
+
+Upload saat ini disimpan pada disk `public` lokal di `storage/app/public/avatars`
+dan URL-nya memakai `/storage/...`. Pada hosting, pastikan file tersebut dapat
+diakses melalui URL itu: sediakan symbolic link `public/storage` atau pemetaan web
+server yang setara. Jika hosting tidak mendukung symbolic link, konfigurasikan
+penyimpanan publik yang didukung hosting dan URL disk-nya; verifikasi URL gambar
+setelah upload dan login ulang. Repository hanya dapat memastikan alur lokal,
+bukan konfigurasi filesystem server production.
+
+## 5. HTTPS
 
 - Pasang sertifikat (Let's Encrypt / dll) dan paksa redirect HTTP → HTTPS di nginx.
 - Dengan `TRUSTED_PROXIES` + `SESSION_SECURE_COOKIE=true`, header
   `Strict-Transport-Security` akan otomatis dikirim oleh aplikasi (via `SecurityHeaders`).
 
-## 4. Rotasi rahasia (repo GitHub publik: https://github.com/Afdal-17/Projek-pkl)
+## 6. Rotasi rahasia (repo GitHub publik: https://github.com/Afdal-17/Projek-pkl)
 
 `.env` tidak pernah ter-commit (sudah diverifikasi), tetapi **file `.env` lokal Anda
 berisi rahasia asli** — siapa pun yang pernah melihat layar/backup Anda bisa memilikinya.
@@ -55,7 +87,7 @@ Rotasi semuanya sebelum / saat deploy:
 - [ ] `FONNTE_TOKEN` (token Fonnte WhatsApp)
 - [ ] Password akun `admin@finance.test` / `user@finance.test` jika pernah dipakai di luar
 
-## 5. Pemantauan pasca-deploy
+## 7. Pemantauan pasca-deploy
 
 - [ ] Buka URL yang sengaja salah (mis. `/route-tidak-ada`) — pastikan **tidak** ada
       tampilan debug/stack trace (harus halaman 404 polos).
@@ -65,6 +97,23 @@ Rotasi semuanya sebelum / saat deploy:
 - [ ] Cek header respons: `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`,
       `Referrer-Policy`.
 - [ ] Pantau `storage/logs/laravel.log`.
+
+## 8. Paket InfinityFree tanpa SSH
+
+Paket dan layout hosting khusus InfinityFree ada di
+`deploy/infinityfree/README.txt`; ZIP final dibangun dari worktree terkini.
+Paket mengirim source ke `htdocs/core`, hanya public entry/assets di `htdocs`,
+menyertakan vendor `--no-dev` dan `public/build`, serta tidak menyertakan `.env`.
+Source, konfigurasi, dan dependency ditolak oleh `.htaccess`; avatar disimpan
+ke direktori publik fisik tanpa symbolic link.
+
+InfinityFree tidak memiliki akses SSH/Composer yang diasumsikan oleh petunjuk
+deploy umum di atas. Paket menyediakan pemeriksaan PHP sekali-pakai dan skrip
+migrasi sementara via web yang dilindungi token dari `.env`; backup database
+dan tinjauan migration tetap wajib dilakukan manual sebelum skrip migrasi
+dijalankan. PHP hosting harus minimal 8.2 dan menyediakan BCMath serta PDO
+MySQL. Gunakan FTP untuk upload; uji layanan SMTP/OTP dan HTTPS dari domain
+hosting sebelum membuka pendaftaran. Host belum diakses dari sesi ini.
 
 ---
 

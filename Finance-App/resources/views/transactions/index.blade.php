@@ -113,12 +113,12 @@
                 const key = t.date || 'unknown';
 
                 if (!map[key]) {
-                    map[key] = { date: key, label: this.labelFor(t.date), total: 0, items: [] };
+                    map[key] = { date: key, label: this.labelFor(t.date), total: '0.00', items: [] };
                     order.push(key);
                 }
 
                 map[key].items.push(t);
-                map[key].total += this.signed(t);
+                map[key].total = window.financeMoney.add(map[key].total, this.signed(t));
             });
 
             return order.map(key => map[key]);
@@ -142,12 +142,19 @@
         /* ---------- Helper tampilan ---------- */
 
         rp(n) {
-            return window.financeMoney.format(Math.abs(n));
+            const amount = String(n);
+            return window.financeMoney.format(
+                amount.startsWith('-')
+                    ? window.financeMoney.subtract('0', amount)
+                    : amount
+            );
         },
 
         /* Income positif; expense dan transfer dihitung uang keluar (sama seperti Figma) */
         signed(t) {
-            return t.type === 'income' ? Number(t.amount) : -Number(t.amount);
+            return t.type === 'income'
+                ? String(t.amount)
+                : window.financeMoney.subtract('0', t.amount);
         },
 
         sign(type, Jenis) {
@@ -425,7 +432,7 @@
                 <span
                     class="text-sm font-medium"
                     :class="g.total < 0 ? 'text-muted' : 'text-income'"
-                    x-text="(g.total < 0 ? '-' : '+') + rp(g.total)"
+                    x-text="(window.financeMoney.compare(g.total, '0') < 0 ? '-' : '+') + rp(g.total)"
                 ></span>
 
             </div>
@@ -588,5 +595,3 @@
 </div>
 
 @endsection
-
-

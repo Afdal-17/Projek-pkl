@@ -16,8 +16,8 @@ class CurrencyRateProvider
     public const STALE_KEY = 'currency.rates.stale';
 
     /**
-     * Kurs relatif terhadap IDR (IDR = 1.0).
-     * Contoh hasil: ['IDR' => 1.0, 'USD' => 17857.14, 'EUR' => 20000.0]
+     * Kurs relatif terhadap IDR (IDR = 1), disimpan sebagai string desimal.
+     * Contoh hasil: ['IDR' => '1', 'USD' => '17857.14', 'EUR' => '20000']
      *
      * Prioritas: cache → API Frankfurter → cache lama (stale) → fallback statis.
      */
@@ -85,16 +85,22 @@ class CurrencyRateProvider
             throw new RuntimeException('Respons API kurs tidak valid.');
         }
 
-        $result = [CurrencyService::BASE => 1.0];
+        if (! preg_match('/"rates"\s*:\s*\{([^}]*)\}/s', $response->body(), $rateObject)) {
+            throw new RuntimeException('Respons API kurs tidak valid.');
+        }
+
+        $result = [CurrencyService::BASE => '1'];
 
         foreach ($targets as $code) {
-            $perIdr = isset($rates[$code]) ? (float) $rates[$code] : 0.0;
+            $pattern = '/"'.preg_quote($code, '/').'"\\s*:\\s*(\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)/';
 
-            if ($perIdr <= 0) {
+            if (! isset($rates[$code])
+                || ! preg_match($pattern, $rateObject[1], $match)
+                || bccomp($this->decimalString($match[1]), '0', 12) <= 0) {
                 throw new RuntimeException("Kurs {$code} tidak tersedia di respons API.");
             }
 
-            $result[$code] = 1.0 / $perIdr;
+            $result[$code] = bcdiv('1', $this->decimalString($match[1]), 12);
         }
 
         return $result;
@@ -110,15 +116,18 @@ class CurrencyRateProvider
 
     protected function hanyaDidukung(array $rates, array $supported): array
     {
-        $out = [CurrencyService::BASE => 1.0];
+        $out = [CurrencyService::BASE => '1'];
 
         foreach ($supported as $code) {
             if ($code === CurrencyService::BASE) {
                 continue;
             }
 
-            if (isset($rates[$code]) && is_numeric($rates[$code]) && $rates[$code] > 0) {
-                $out[$code] = (float) $rates[$code];
+            $rate = isset($rates[$code]) ? trim((string) $rates[$code]) : '';
+
+            if (preg_match('/^\d+(?:\.\d+)?$/', $rate)
+                && bccomp($rate, '0', 12) > 0) {
+                $out[$code] = $rate;
             }
         }
 
@@ -131,5 +140,33 @@ class CurrencyRateProvider
             [CurrencyService::BASE],
             (array) config('currency.supported', [CurrencyService::BASE])
         )));
+    }
+
+    private function decimalString(string $value): string
+    {
+        if (! preg_match('/^(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/', $value, $matches)) {
+            throw new RuntimeException('Kurs dari API tidak berbentuk desimal yang valid.');
+        }
+
+        $whole = $matches[1];
+        $fraction = $matches[2] ?? '';
+        $exponent = (int) ($matches[3] ?? 0);
+
+        if (abs($exponent) > 20) {
+            throw new RuntimeException('Kurs dari API memiliki eksponen di luar batas.');
+        }
+
+        $digits = $whole.$fraction;
+        $decimalPosition = strlen($whole) + $exponent;
+
+        if ($decimalPosition <= 0) {
+            return '0.'.str_repeat('0', -$decimalPosition).$digits;
+        }
+
+        if ($decimalPosition >= strlen($digits)) {
+            return $digits.str_repeat('0', $decimalPosition - strlen($digits));
+        }
+
+        return substr($digits, 0, $decimalPosition).'.'.substr($digits, $decimalPosition);
     }
 }

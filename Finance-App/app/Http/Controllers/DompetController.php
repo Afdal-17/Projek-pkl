@@ -49,7 +49,7 @@ class DompetController extends Controller
                 'category' => $transaction->id_transfer !== null
                     ? 'Transfer'
                     : ($transaction->kategori?->nama_kategori ?? ($transaction->nama_transaksi === 'Saldo awal' ? 'Saldo awal' : 'Without category')),
-                'amount' => (float) $transaction->jumlah,
+                'amount' => (string) $transaction->jumlah,
                 'jenis' => $transaction->jenis,
                 'icon' => $transaction->id_transfer !== null
                     ? 'transfer'
@@ -80,7 +80,7 @@ class DompetController extends Controller
         if ($saldoAwal !== null && $saldoAwal !== '') {
             $saldoAwal = $currency === CurrencyService::BASE
                 ? bcadd((string) $saldoAwal, '0', 2)
-                : CurrencyService::toBase((float) $saldoAwal);
+                : CurrencyService::toBaseExact((string) $saldoAwal, $currency);
         } else {
             $saldoAwal = '0.00';
         }
@@ -88,7 +88,7 @@ class DompetController extends Controller
         if ($saldo !== null && $saldo !== '') {
             $saldo = $currency === CurrencyService::BASE
                 ? bcadd((string) $saldo, '0', 2)
-                : CurrencyService::toBase((float) $saldo);
+                : CurrencyService::toBaseExact((string) $saldo, $currency);
         } else {
             $saldo = $saldoAwal;
         }
@@ -189,6 +189,7 @@ class DompetController extends Controller
             $data['saldo'],
             $currency
         );
+        $this->validateSaldoBase($newBalance, 'saldo');
 
         DB::transaction(function () use ($data, $dompet, $notifikasiService, $newBalance): void {
             $wallet = Dompet::where('id_user', Auth::id())
@@ -224,7 +225,7 @@ class DompetController extends Controller
                 TargetTabungan::where('id_user', $wallet->id_user)
                     ->where('id_dompet', $wallet->id_dompet)
                     ->get()
-                    ->each(fn (TargetTabungan $target) => $notifikasiService->targetBaruTercapai($target, (float) $oldBalance));
+                    ->each(fn (TargetTabungan $target) => $notifikasiService->targetBaruTercapai($target, $oldBalance));
             }
         });
 
@@ -303,11 +304,11 @@ class DompetController extends Controller
                 $dompetTetap = Dompet::whereKey($idDompetTetap)->lockForUpdate()->first();
 
                 if ($dompetTetap !== null) {
-                    $delta = (int) $transfer->id_dompet_tujuan === $idDompetDihapus
-                        ? -(float) $transfer->jumlah
-                        : (float) $transfer->jumlah;
+                    $saldoBaru = (int) $transfer->id_dompet_tujuan === $idDompetDihapus
+                        ? bcsub((string) $dompetTetap->saldo, (string) $transfer->jumlah, 2)
+                        : bcadd((string) $dompetTetap->saldo, (string) $transfer->jumlah, 2);
 
-                    $dompetTetap->update(['saldo' => (float) $dompetTetap->saldo + $delta]);
+                    $dompetTetap->update(['saldo' => $saldoBaru]);
                 }
 
                 // Hapus dua baris transaksi turunan (dompet asal & tujuan) lebih
@@ -326,9 +327,9 @@ class DompetController extends Controller
 
         return redirect()->back()->with('status', 'Wallet telah dihapus.');
     }
-    private const MAX_SALDO = '9999999999999999999999999999.99';
+    private const MAX_SALDO = CurrencyService::MAX_BASE_AMOUNT;
 
-    private function validateSaldoBase(string|int|float $amount, string $field): void
+    private function validateSaldoBase(string|int $amount, string $field): void
     {
         $amount = trim((string) $amount);
 

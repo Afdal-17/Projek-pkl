@@ -8,13 +8,13 @@ use App\Models\TargetTabungan;
 use App\Models\Transfer;
 use App\Models\User;
 use App\Services\CurrencyService;
+use App\Services\DuplicateSubmissionGuard;
 use App\Services\NotifikasiService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Throwable;
@@ -35,7 +35,7 @@ class TransferController extends Controller
             ->map(fn (Dompet $wallet): array => [
                 'id' => $wallet->id_dompet,
                 'name' => $wallet->nama_dompet,
-                'balance' => (float) $wallet->saldo,
+                'balance' => (string) $wallet->saldo,
             ]);
 
         return view('transfer', compact('wallets'));
@@ -49,13 +49,15 @@ class TransferController extends Controller
         $recipient = User::query()
             ->where('status', true)
             ->where('role', 'user')
+            ->whereNotNull('email_verified_at')
+            ->whereNull('banned_at')
             ->where(function (Builder $queryBuilder) use ($query): void {
                 $queryBuilder->where('email', $query)
                     ->orWhere('nama', $query)
                     ->orWhere('id_user', ctype_digit($query) ? (int) $query : 0);
             })
-            ->whereHas('dompet')
-            ->with(['dompet' => fn ($wallets) => $wallets->orderBy('nama_dompet')])
+            ->whereHas('dompet', fn ($wallets) => $wallets->where('terima_transfer', true))
+            ->with(['dompet' => fn ($wallets) => $wallets->where('terima_transfer', true)->orderBy('nama_dompet')])
             ->first();
 
         abort_if($recipient === null, 404, 'User tidak ditemukan atau belum memiliki dompet.');
@@ -81,7 +83,9 @@ class TransferController extends Controller
 
         $users = User::query()
             ->where('role', 'user')
+            ->where('status', true)
             ->whereNotNull('email_verified_at')
+            ->whereNull('banned_at')
             ->where('id_user', '!=', (int) Auth::id())
             ->where(function (Builder $builder) use ($query): void {
                 $builder->where('nama', 'like', '%'.$query.'%')
@@ -134,7 +138,11 @@ class TransferController extends Controller
         ]);
     }
 
-    public function store(StoreTransferRequest $request, NotifikasiService $notifikasiService): RedirectResponse
+    public function store(
+        StoreTransferRequest $request,
+        NotifikasiService $notifikasiService,
+        DuplicateSubmissionGuard $duplicateGuard
+    ): RedirectResponse
     {
         $data = $request->validated();
         $userId = (int) Auth::id();
@@ -144,20 +152,18 @@ class TransferController extends Controller
         $dupKey = 'transfer-duplikat:'.$userId.':'.sha1(json_encode([
             $data['id_dompet_asal'],
             $data['id_dompet_tujuan'],
-            (float) $data['jumlah'],
+            bcadd((string) $data['jumlah'], '0', 2),
             $data['tanggal_transfer'],
             $data['catatan'] ?? null,
         ]));
 
-        if (RateLimiter::tooManyAttempts($dupKey, 1)) {
+        if (! $duplicateGuard->reserve($dupKey, self::DUPLICATE_GUARD_SECONDS)) {
             throw ValidationException::withMessages([
                 'jumlah' => 'Transfer ini baru saja diproses — hanya satu yang tersimpan. '
                     .'Jika memang disengaja, ubah sedikit jumlahnya, '
                     .'atau tunggu '.self::DUPLICATE_GUARD_SECONDS.' detik.',
             ]);
         }
-
-        RateLimiter::hit($dupKey, self::DUPLICATE_GUARD_SECONDS);
 
         try {
             DB::transaction(function () use ($data, $userId, $notifikasiService): void {
@@ -170,15 +176,35 @@ class TransferController extends Controller
                 $target = $wallets->get((int) $data['id_dompet_tujuan']);
 
                 abort_unless($source?->id_user === $userId && $target !== null, 403);
+                abort_if((int) $source->id_dompet === (int) $target->id_dompet, 422, 'Dompet tujuan harus berbeda dari dompet asal.');
 
                 /* Transfer antar-user hanya boleh ke dompet yang diaktifkan
                  * sebagai penerima transfer (terima_transfer = true). */
-                if ((int) $target->id_user !== $userId && ! (bool) $target->terima_transfer) {
-                    abort(403, 'Dompet tujuan belum diaktifkan untuk menerima transfer.');
+                if ((int) $target->id_user !== $userId) {
+                    $recipient = User::query()
+                        ->whereKey($target->id_user)
+                        ->lockForUpdate()
+                        ->firstOrFail();
+
+                    abort_if(
+                        $recipient->isBanned()
+                        || ! $recipient->status
+                        || $recipient->role !== 'user'
+                        || $recipient->email_verified_at === null,
+                        422,
+                        'Akun penerima tidak aktif atau belum terverifikasi.'
+                    );
+                    abort_unless((bool) $target->terima_transfer, 422, 'Dompet tujuan belum diaktifkan untuk menerima transfer.');
                 }
 
-                $amount = CurrencyService::toBase((float) $data['jumlah']);
-                if ((float) $source->saldo < $amount) {
+                $amount = CurrencyService::toBaseExact((string) $data['jumlah']);
+                if (! CurrencyService::baseAmountWithinStorageLimit($amount)) {
+                    throw ValidationException::withMessages([
+                        'jumlah' => 'Jumlah setelah konversi melebihi batas nominal yang didukung.',
+                    ]);
+                }
+
+                if (bccomp((string) $source->saldo, $amount, 2) < 0) {
                     throw ValidationException::withMessages([
                         'jumlah' => 'Saldo dompet asal tidak mencukupi.',
                     ]);
@@ -193,9 +219,9 @@ class TransferController extends Controller
                     'tanggal_transfer' => $data['tanggal_transfer'],
                 ]);
 
-                $saldoTujuanSebelumnya = (float) $target->saldo;
-                $source->update(['saldo' => (float) $source->saldo - $amount]);
-                $target->update(['saldo' => (float) $target->saldo + $amount]);
+                $saldoTujuanSebelumnya = (string) $target->saldo;
+                $source->update(['saldo' => bcsub((string) $source->saldo, $amount, 2)]);
+                $target->update(['saldo' => bcadd((string) $target->saldo, $amount, 2)]);
 
                 $transfer->transaksi()->createMany([
                     [
@@ -222,7 +248,7 @@ class TransferController extends Controller
             });
         } catch (Throwable $e) {
             /* Proses gagal (mis. saldo kurang) — buka lagi pintu retry-nya. */
-            RateLimiter::clear($dupKey);
+            $duplicateGuard->release($dupKey);
             throw $e;
         }
 

@@ -55,6 +55,32 @@ class GoogleAuthController extends Controller
             $user = User::where('email', $email)->first();
         }
 
+        if ($user?->isBanned()) {
+            if ($user->banned_at && $user->banned_at->addDays(30)->isPast()) {
+                $user->update([
+                    'status' => true,
+                    'banned_at' => null,
+                    'ban_reason' => null,
+                ]);
+            } else {
+                $banReason = $user->ban_reason ?: 'Melanggar ketentuan layanan';
+                $daysRemaining = $user->banned_at ? (int) floor(max(0, 30 - $user->banned_at->diffInDays(now()))) : 30;
+
+                return redirect()->route('login')
+                    ->with('banned_modal', [
+                        'reason' => $banReason,
+                        'days_remaining' => $daysRemaining,
+                    ])
+                    ->with('error', "Akun Anda telah diblokir selama 30 hari karena {$banReason}. Sisa {$daysRemaining} hari lagi.")
+                    ->with('show_contact_admin', true);
+            }
+        }
+
+        if ($user?->otp_verified_at && ! ($user->status_aktif ?? $user->status ?? true)) {
+            return redirect()->route('login')
+                ->with('error', 'Akun Anda sedang tidak aktif. Silakan hubungi admin.');
+        }
+
         // Jika user mencoba LOGIN dengan Google tetapi belum memiliki akun
         if ($mode === 'login' && ! $user) {
             return redirect()->route('register')->with('error', 'Akun Google Anda belum terdaftar. Silakan lakukan pendaftaran (register) terlebih dahulu.');
@@ -106,28 +132,6 @@ class GoogleAuthController extends Controller
                 $user->otp_verified_at = now();
             }
             $user->save();
-        }
-
-        // Akun yang diblokir (banned) oleh admin
-        if ($user->isBanned()) {
-            if ($user->banned_at && $user->banned_at->addDays(30)->isPast()) {
-                $user->update([
-                    'status' => true,
-                    'banned_at' => null,
-                    'ban_reason' => null,
-                ]);
-            } else {
-                $banReason = $user->ban_reason ?: 'Melanggar ketentuan layanan';
-                $daysRemaining = $user->banned_at ? (int) floor(max(0, 30 - $user->banned_at->diffInDays(now()))) : 30;
-
-                return redirect()->route('login')
-                    ->with('banned_modal', [
-                        'reason' => $banReason,
-                        'days_remaining' => $daysRemaining,
-                    ])
-                    ->with('error', "Akun Anda telah diblokir selama 30 hari karena {$banReason}. Sisa {$daysRemaining} hari lagi.")
-                    ->with('show_contact_admin', true);
-            }
         }
 
         if (! $user->status) {

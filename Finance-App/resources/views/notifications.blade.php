@@ -93,7 +93,9 @@
         },
 
         pct(g) {
-            return g.target ? Math.min(100, Math.round(g.saved / g.target * 100)) : 100;
+            return window.financeMoney.compare(g.target, '0') > 0
+                ? Math.min(100, window.financeMoney.percent(g.saved, g.target))
+                : 100;
         }
     }"
 >

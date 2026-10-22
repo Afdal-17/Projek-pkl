@@ -7,11 +7,11 @@ use App\Http\Requests\UpdateTargetTabunganRequest;
 use App\Models\Dompet;
 use App\Models\TargetTabungan;
 use App\Services\CurrencyService;
+use App\Services\DuplicateSubmissionGuard;
 use App\Services\NotifikasiService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Throwable;
@@ -35,8 +35,10 @@ class TargetTabunganController extends Controller
                 'name' => $target->nama_target,
                 'note' => $target->deskripsi ?: $target->dompet->nama_dompet,
                 'wallet' => $target->dompet->nama_dompet,
-                'saved' => min((float) $target->jumlah_terkumpul, (float) $target->nominal_target),
-                'target' => (float) $target->nominal_target,
+                'saved' => bccomp((string) $target->jumlah_terkumpul, (string) $target->nominal_target, 2) > 0
+                    ? (string) $target->nominal_target
+                    : (string) $target->jumlah_terkumpul,
+                'target' => (string) $target->nominal_target,
             ]);
 
         return view('saving.index', compact('targets'));
@@ -46,12 +48,12 @@ class TargetTabunganController extends Controller
     {
         return view('saving.create', [
             'wallets' => Dompet::where('id_user', Auth::id())
-                ->orderBy('nama_dompet')
+                ->orderBy('id_dompet')
                 ->get()
                 ->map(fn (Dompet $wallet): array => [
                     'id' => $wallet->id_dompet,
                     'name' => $wallet->nama_dompet,
-                    'balance' => (float) $wallet->saldo,
+                    'balance' => (string) $wallet->saldo,
                 ]),
         ]);
     }
@@ -69,11 +71,15 @@ class TargetTabunganController extends Controller
     public function create(): View
     {
         return view('target-tabungan.create', [
-            'dompet' => Dompet::where('id_user', Auth::id())->orderBy('nama_dompet')->get(),
+            'dompet' => Dompet::where('id_user', Auth::id())->orderBy('id_dompet')->get(),
         ]);
     }
 
-    public function store(StoreTargetTabunganRequest $request, NotifikasiService $notifikasiService): RedirectResponse|JsonResponse
+    public function store(
+        StoreTargetTabunganRequest $request,
+        NotifikasiService $notifikasiService,
+        DuplicateSubmissionGuard $duplicateGuard
+    ): RedirectResponse|JsonResponse
     {
         $data = $request->validated();
         $userId = (int) Auth::id();
@@ -84,11 +90,11 @@ class TargetTabunganController extends Controller
             $data['id_dompet'],
             $data['nama_target'],
             $data['deskripsi'] ?? null,
-            (float) $data['nominal_target'],
+            bcadd((string) $data['nominal_target'], '0', 2),
             $data['initial_savings'] ?? null,
         ]));
 
-        if (RateLimiter::tooManyAttempts($dupKey, 1)) {
+        if (! $duplicateGuard->reserve($dupKey, self::DUPLICATE_GUARD_SECONDS)) {
             throw ValidationException::withMessages([
                 'nama_target' => 'Target tabungan ini baru saja dicatat — hanya satu yang tersimpan. '
                     .'Jika memang ingin membuat target serupa, ubah sedikit nama atau nominalnya, '
@@ -96,14 +102,23 @@ class TargetTabunganController extends Controller
             ]);
         }
 
-        RateLimiter::hit($dupKey, self::DUPLICATE_GUARD_SECONDS);
-
         try {
             $wallet = Dompet::where('id_user', Auth::id())->findOrFail($data['id_dompet']);
-            $nominalTarget = CurrencyService::toBase((float) $data['nominal_target']);
-            $initialSavings = CurrencyService::toBase((float) ($data['initial_savings'] ?? $wallet->saldo));
+            $nominalTarget = CurrencyService::toBaseExact((string) $data['nominal_target']);
+            $initialSavings = isset($data['initial_savings'])
+                ? CurrencyService::toBaseExact((string) $data['initial_savings'])
+                : (string) $wallet->saldo;
 
-            if ((float) $initialSavings > (float) $nominalTarget || (float) $initialSavings > (float) $wallet->saldo) {
+            if (
+                ! CurrencyService::baseAmountWithinStorageLimit($nominalTarget)
+                || ! CurrencyService::baseAmountWithinStorageLimit($initialSavings)
+            ) {
+                throw ValidationException::withMessages([
+                    'nominal_target' => 'Nominal setelah konversi melebihi batas nominal yang didukung.',
+                ]);
+            }
+
+            if (bccomp($initialSavings, $nominalTarget, 2) > 0 || bccomp($initialSavings, (string) $wallet->saldo, 2) > 0) {
                 throw ValidationException::withMessages([
                     'initial_savings' => 'Initial savings tidak boleh melebihi saldo wallet atau target.',
                 ]);
@@ -114,10 +129,10 @@ class TargetTabunganController extends Controller
                 'nama_target' => $data['nama_target'],
                 'deskripsi' => $data['deskripsi'] ?? null,
                 'nominal_target' => $nominalTarget,
-                'nominal_terkumpul' => (float) $initialSavings,
+                'nominal_terkumpul' => $initialSavings,
                 'saldo_awal_dompet' => $wallet->saldo,
                 'id_user' => Auth::id(),
-                'status' => (float) $initialSavings >= (float) $nominalTarget ? 'tercapai' : 'belum_tercapai',
+                'status' => bccomp($initialSavings, $nominalTarget, 2) >= 0 ? 'tercapai' : 'belum_tercapai',
             ]);
 
             if ($target->status === 'tercapai') {
@@ -125,7 +140,7 @@ class TargetTabunganController extends Controller
             }
         } catch (Throwable $e) {
             /* Proses gagal — buka lagi pintu retry-nya. */
-            RateLimiter::clear($dupKey);
+            $duplicateGuard->release($dupKey);
             throw $e;
         }
 
@@ -149,7 +164,7 @@ class TargetTabunganController extends Controller
 
         return view('target-tabungan.edit', [
             'target' => $targetTabungan,
-            'dompet' => Dompet::where('id_user', Auth::id())->orderBy('nama_dompet')->get(),
+            'dompet' => Dompet::where('id_user', Auth::id())->orderBy('id_dompet')->get(),
         ]);
     }
 
@@ -158,7 +173,12 @@ class TargetTabunganController extends Controller
         $targetTabungan = $this->ownedTarget($targetTabungan);
         $data = $request->validated();
         $wallet = Dompet::where('id_user', Auth::id())->findOrFail($data['id_dompet']);
-        $nominalTarget = CurrencyService::toBase((float) $data['nominal_target']);
+        $nominalTarget = CurrencyService::toBaseExact((string) $data['nominal_target']);
+        if (! CurrencyService::baseAmountWithinStorageLimit($nominalTarget)) {
+            throw ValidationException::withMessages([
+                'nominal_target' => 'Nominal setelah konversi melebihi batas nominal yang didukung.',
+            ]);
+        }
         $updates = [
             'id_dompet' => $wallet->id_dompet,
             'nama_target' => $data['nama_target'],
@@ -169,21 +189,29 @@ class TargetTabunganController extends Controller
 
         if (($data['initial_savings'] ?? null) !== null || $walletChanged) {
             $initialSavings = isset($data['initial_savings'])
-                ? CurrencyService::toBase((float) $data['initial_savings'])
-                : min(
-                    (float) $targetTabungan->jumlah_terkumpul,
-                    (float) $wallet->saldo,
-                    (float) $nominalTarget
-                );
+                ? CurrencyService::toBaseExact((string) $data['initial_savings'])
+                : (string) $targetTabungan->jumlah_terkumpul;
 
-            if ((float) $initialSavings > (float) $nominalTarget || (float) $initialSavings > (float) $wallet->saldo) {
+            if (! isset($data['initial_savings'])) {
+                foreach ([(string) $wallet->saldo, $nominalTarget] as $upperBound) {
+                    if (bccomp($initialSavings, $upperBound, 2) > 0) {
+                        $initialSavings = $upperBound;
+                    }
+                }
+            }
+
+            if (
+                ! CurrencyService::baseAmountWithinStorageLimit($initialSavings)
+                || bccomp($initialSavings, $nominalTarget, 2) > 0
+                || bccomp($initialSavings, (string) $wallet->saldo, 2) > 0
+            ) {
                 throw ValidationException::withMessages([
                     'initial_savings' => 'Initial savings tidak boleh melebihi saldo wallet atau target.',
                 ]);
             }
 
-            $updates['nominal_terkumpul'] = (float) $initialSavings;
-            $updates['saldo_awal_dompet'] = (float) $wallet->saldo;
+            $updates['nominal_terkumpul'] = $initialSavings;
+            $updates['saldo_awal_dompet'] = (string) $wallet->saldo;
         }
 
         $targetTabungan->update($updates);

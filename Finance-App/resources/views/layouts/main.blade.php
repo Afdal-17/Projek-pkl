@@ -55,7 +55,7 @@
 <body class="min-h-screen bg-page font-sans text-ink antialiased overflow-x-hidden">
 
     <header
-        class="border-b border-line bg-white"
+        class="sticky top-0 z-30 border-b border-line bg-white"
         x-data="{ nav: false }"
         x-on:keydown.escape.window="nav = false"
     >
@@ -196,7 +196,7 @@
                         x-show="open"
                         @click.outside="open = false"
                         x-transition.opacity.scale.origin.top.right
-                        class="absolute right-0 z-30 mt-2 w-72 overflow-hidden rounded-xl border border-line bg-white shadow-lg sm:w-80"
+                        class="absolute right-0 z-50 mt-2 w-72 overflow-hidden rounded-xl border border-line bg-white shadow-lg sm:w-80"
                     >
 
                         {{-- Header --}}
@@ -405,7 +405,7 @@
                         x-cloak
                         x-show="open"
                         x-on:click.outside="open = false"
-                        class="absolute right-0 z-20 mt-2 w-44 rounded-xl border border-line bg-white p-1 text-sm shadow-lg"
+                        class="absolute right-0 z-50 mt-2 w-44 rounded-xl border border-line bg-white p-1 text-sm shadow-lg"
                     >
 
                         <a
@@ -442,7 +442,7 @@
                     :aria-expanded="nav.toString()"
                     aria-label="Open menu"
                     title="Menu"
-                    class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-line bg-white text-muted hover:bg-page hover:text-ink transition active:scale-95 focus:outline-none focus:ring-2 focus:ring-brand/20 sm:hidden"
+                    class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-line bg-white text-muted transition hover:bg-page hover:text-ink active:scale-95 focus:outline-none focus:ring-2 focus:ring-brand/20 sm:hidden"
                 >
 
                     <svg
@@ -499,7 +499,7 @@
                         type="button"
                         x-on:click="nav = false"
                         aria-label="Close menu"
-                        class="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-page"
+                        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-line bg-white text-muted transition hover:bg-page hover:text-ink focus:outline-none focus:ring-2 focus:ring-brand/20"
                     >
                         <x-icon name="x" size="h-4 w-4" />
                     </button>

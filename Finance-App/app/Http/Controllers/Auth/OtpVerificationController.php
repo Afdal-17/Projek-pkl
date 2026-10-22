@@ -28,6 +28,16 @@ class OtpVerificationController extends Controller
             return redirect()->route('login')->with('error', 'Silakan masuk terlebih dahulu.');
         }
 
+        $this->autoUnbanIfExpired($user);
+
+        // Akun yang diblokir tidak boleh mengakses halaman verifikasi OTP
+        if ($user->isBanned()) {
+            $request->session()->forget('otp_user_id');
+            $banReason = $user->ban_reason ?: 'melanggar ketentuan layanan';
+            return redirect()->route('login')
+                ->with('error', "Akun Anda telah diblokir karena {$banReason}. Silakan hubungi admin.");
+        }
+
         if ($user->otp_verified_at) {
             $request->session()->forget('otp_user_id');
 
@@ -49,6 +59,24 @@ class OtpVerificationController extends Controller
 
         if (! $user) {
             return redirect()->route('login')->with('error', 'Silakan masuk terlebih dahulu.');
+        }
+
+        $this->autoUnbanIfExpired($user);
+
+        // Akun yang diblokir tidak boleh mendapatkan sesi autentikasi melalui OTP
+        if ($user->isBanned()) {
+            $request->session()->forget('otp_user_id');
+            $banReason = $user->ban_reason ?: 'melanggar ketentuan layanan';
+            return redirect()->route('login')
+                ->with('error', "Akun Anda telah diblokir karena {$banReason}. Silakan hubungi admin.");
+        }
+
+        // Akun yang sudah pernah aktif (otp_verified_at ada) tetapi kini dinonaktifkan
+        // admin tidak boleh login kembali via jalur OTP.
+        if ($user->otp_verified_at && ! ($user->status ?? true)) {
+            $request->session()->forget('otp_user_id');
+            return redirect()->route('login')
+                ->with('error', 'Akun Anda sedang tidak aktif. Silakan hubungi admin.');
         }
 
         if ($user->otp_verified_at) {
@@ -104,6 +132,21 @@ class OtpVerificationController extends Controller
             return redirect()->route('login')->with('error', 'Silakan masuk terlebih dahulu.');
         }
 
+        $this->autoUnbanIfExpired($user);
+
+        if ($user->isBanned()) {
+            $request->session()->forget('otp_user_id');
+            $banReason = $user->ban_reason ?: 'melanggar ketentuan layanan';
+            return redirect()->route('login')
+                ->with('error', "Akun Anda telah diblokir karena {$banReason}. Silakan hubungi admin.");
+        }
+
+        if ($user->otp_verified_at && ! ($user->status ?? true)) {
+            $request->session()->forget('otp_user_id');
+            return redirect()->route('login')
+                ->with('error', 'Akun Anda sedang tidak aktif. Silakan hubungi admin.');
+        }
+
         if ($user->otp_verified_at) {
             $request->session()->forget('otp_user_id');
 
@@ -145,6 +188,17 @@ class OtpVerificationController extends Controller
         $id = $request->session()->get('otp_user_id');
 
         return $id ? User::find($id) : null;
+    }
+
+    private function autoUnbanIfExpired(User $user): void
+    {
+        if ($user->isBanned() && $user->banned_at->addDays(30)->isPast()) {
+            $user->update([
+                'status' => true,
+                'banned_at' => null,
+                'ban_reason' => null,
+            ]);
+        }
     }
 
     /**

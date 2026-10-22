@@ -15,32 +15,35 @@
         },
 
         pct(t) {
-            if (!t.target) return 0;
-            return Math.min(100, Math.round(t.saved / t.target * 100));
+            if (window.financeMoney.compare(t.target, '0') <= 0) return 0;
+            return Math.min(100, window.financeMoney.percent(t.saved, t.target));
         },
 
         get totalSaved() {
-            return this.targets.reduce((sum, t) => sum + Number(t.saved), 0);
+            return this.targets.reduce((sum, t) => window.financeMoney.add(sum, t.saved), '0.00');
         },
 
         get totalTarget() {
-            return this.targets.reduce((sum, t) => sum + Number(t.target), 0);
+            return this.targets.reduce((sum, t) => window.financeMoney.add(sum, t.target), '0.00');
         },
 
         get overallPct() {
-            if (!this.totalTarget) return 0;
-            return Math.round(this.totalSaved / this.totalTarget * 100);
+            return window.financeMoney.percent(this.totalSaved, this.totalTarget);
         },
 
         get nextMilestone() {
             const open = this.targets
-                .filter(t => t.saved < t.target)
-                .sort((a, b) => (a.target - a.saved) - (b.target - b.saved));
+                .filter(t => window.financeMoney.compare(t.saved, t.target) < 0)
+                .sort((a, b) => window.financeMoney.compare(
+                    window.financeMoney.subtract(a.target, a.saved),
+                    window.financeMoney.subtract(b.target, b.saved)
+                ));
 
             return open[0] ?? null;
         },
 
         isDeleting: false,
+        deleteError: '',
         confirmDialog: {
             open: false,
             targetId: null,
@@ -56,6 +59,7 @@
 
             this.confirmDialog.targetId = target.id;
             this.confirmDialog.targetName = target.name || '';
+            this.deleteError = '';
             this.confirmDialog.open = true;
         },
 
@@ -64,6 +68,7 @@
             this.confirmDialog.open = false;
             this.confirmDialog.targetId = null;
             this.confirmDialog.targetName = '';
+            this.deleteError = '';
         },
 
         async executeDelete() {
@@ -84,12 +89,21 @@
                     return;
                 }
 
-                this.isDeleting = false;
-                this.closeConfirm();
+                let result = {};
+
+                try {
+                    result = await response.json();
+                } catch (error) {
+                    // Keep a useful message if the server did not return JSON.
+                }
+
+                this.deleteError = Object.values(result.errors ?? {}).flat()[0]
+                    ?? result.message
+                    ?? 'Target tabungan gagal dihapus. Silakan coba lagi.';
             } catch (err) {
-                console.error(err);
+                this.deleteError = 'Koneksi gagal. Target tabungan belum dihapus; silakan coba lagi.';
+            } finally {
                 this.isDeleting = false;
-                this.closeConfirm();
             }
         },
 
@@ -145,7 +159,7 @@
                 </span>
             </div>
             <p class="mt-4 text-2xl font-bold"
-               x-text="nextMilestone ? rp(nextMilestone.target - nextMilestone.saved) : rp(0)"></p>
+               x-text="nextMilestone ? rp(window.financeMoney.subtract(nextMilestone.target, nextMilestone.saved)) : rp('0.00')"></p>
             <p class="mt-2 text-xs text-muted"
                x-text="nextMilestone ? @js(__('saving.to_complete')) + ' ' + nextMilestone.name : @js(__('saving.all_completed'))"></p>
         </x-card>
@@ -340,6 +354,7 @@
                 <p class="mt-2 text-sm text-muted leading-relaxed">
                     Are you sure you want to delete the <span class="font-medium text-ink" x-text="confirmDialog.targetName"></span> target? This action cannot be undone.
                 </p>
+                <p x-show="deleteError" x-cloak class="mt-3 text-sm text-expense" x-text="deleteError"></p>
             </div>
 
             <div class="mt-6 flex flex-col-reverse gap-2.5 sm:flex-row sm:justify-end">

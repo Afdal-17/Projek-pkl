@@ -22,8 +22,8 @@ class StoreTargetTabunganRequest extends FormRequest
             ],
             'nama_target' => ['required', 'string', 'max:150'],
             'deskripsi' => ['nullable', 'string', 'max:1000'],
-            'nominal_target' => ['required', 'numeric', 'gt:0', 'max:999999999999999999'],
-            'initial_savings' => ['nullable', 'numeric', 'min:0', 'max:999999999999999999'],
+            'nominal_target' => ['required', 'numeric', 'gt:0', 'regex:/^\d+(?:\.\d{1,2})?$/', 'max:999999999999999999.99'],
+            'initial_savings' => ['nullable', 'numeric', 'min:0', 'regex:/^\d+(?:\.\d{1,2})?$/', 'max:999999999999999999.99'],
         ];
     }
 }

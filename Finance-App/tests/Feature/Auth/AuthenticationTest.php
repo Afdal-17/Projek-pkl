@@ -104,4 +104,41 @@ class AuthenticationTest extends TestCase
         $this->assertAuthenticatedAs($admin);
         $response->assertRedirect(route('admin.users', absolute: false));
     }
+
+    public function test_banned_user_cannot_authenticate_with_password(): void
+    {
+        $user = User::factory()->create([
+            'status' => false,
+            'email_verified_at' => now(),
+            'banned_at' => now(),
+            'ban_reason' => 'Pelanggaran',
+        ]);
+
+        $response = $this->post('/login', [
+            'email' => $user->email,
+            'password' => 'password',
+        ]);
+
+        $this->assertGuest();
+        $response->assertRedirect(route('login'));
+        $response->assertSessionHas('banned_modal');
+    }
+
+    public function test_inactive_verified_user_cannot_create_login_session(): void
+    {
+        $user = User::factory()->create([
+            'status' => false,
+            'email_verified_at' => now(),
+            'otp_verified_at' => now(),
+        ]);
+
+        $response = $this->post('/login', [
+            'email' => $user->email,
+            'password' => 'password',
+        ]);
+
+        $this->assertGuest();
+        $response->assertRedirect(route('login'));
+        $response->assertSessionHasErrors('email');
+    }
 }

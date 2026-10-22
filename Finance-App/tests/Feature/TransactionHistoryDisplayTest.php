@@ -117,6 +117,33 @@ class TransactionHistoryDisplayTest extends TestCase
             ->assertSee('Makan Siang', false);
     }
 
+    public function test_large_transaction_amount_is_serialized_as_a_decimal_string(): void
+    {
+        [$user, $wallet] = $this->userWithWallet(
+            'large-history@example.com',
+            'Large Balance Wallet',
+            1000000000000000
+        );
+        $category = Kategori::create([
+            'id_user' => $user->id_user,
+            'nama_kategori' => 'Large expense',
+            'jenis' => 'pengeluaran',
+        ]);
+        \App\Models\Transaksi::create([
+            'id_dompet' => $wallet->id_dompet,
+            'id_kategori' => $category->id_kategori,
+            'nama_transaksi' => 'Large transaction',
+            'jumlah' => '1000000000000000.00',
+            'jenis' => 'pengeluaran',
+            'tanggal' => now(),
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('transactions.index'))
+            ->assertOk()
+            ->assertSee('1000000000000000.00', false);
+    }
+
     private function userWithWallet(string $email, string $walletName, int $balance): array
     {
         $user = User::create([

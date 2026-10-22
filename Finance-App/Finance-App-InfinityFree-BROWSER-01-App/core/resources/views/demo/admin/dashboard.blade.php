@@ -1,0 +1,4 @@
+<x-app-layout>
+    <x-slot name="header"><h2 class="font-semibold text-xl text-gray-800">Admin Dashboard</h2></x-slot>
+    <div class="py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><div class="grid grid-cols-1 gap-6 md:grid-cols-3"><div class="bg-white p-6 shadow-sm rounded-lg"><p class="text-sm text-gray-500">Total User</p><p class="mt-2 text-3xl font-semibold">{{ $summary['total_user'] }}</p></div><div class="bg-white p-6 shadow-sm rounded-lg"><p class="text-sm text-gray-500">User Aktif</p><p class="mt-2 text-3xl font-semibold text-green-600">{{ $summary['user_aktif'] }}</p></div><div class="bg-white p-6 shadow-sm rounded-lg"><p class="text-sm text-gray-500">Total Transaksi</p><p class="mt-2 text-3xl font-semibold">{{ $summary['total_transaksi'] }}</p></div></div><div class="mt-6 flex justify-end"><a href="{{ route('admin.users') }}" class="px-4 py-2 bg-gray-800 text-white rounded-md">Kelola User</a></div></div>
+</x-app-layout>

@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\View\View;
+use RuntimeException;
 
 class ProfileController extends Controller
 {
@@ -111,11 +112,16 @@ class ProfileController extends Controller
         $user = $request->user();
         $path = $request->file('avatar')->store('avatars', 'public');
 
-        if ($user->avatar_path) {
-            Storage::disk('public')->delete($user->avatar_path);
+        if (! is_string($path) || $path === '') {
+            throw new RuntimeException('Profile photo could not be written to the public storage disk.');
         }
 
+        $previousPath = $user->avatar_path;
         $user->update(['avatar_path' => $path]);
+
+        if ($previousPath && $previousPath !== $path) {
+            Storage::disk('public')->delete($previousPath);
+        }
 
         return response()->json(['avatar_url' => asset('storage/'.$path)]);
     }

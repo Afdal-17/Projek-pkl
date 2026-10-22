@@ -31,7 +31,7 @@
         },
 
         get fromBalance() {
-            return Number(this.fromWallet?.balance ?? 0);
+            return this.fromWallet?.balance ?? '0';
         },
 
         get fromLabel() {
@@ -48,7 +48,7 @@
 
         get formattedAmount() {
             // this.amount adalah input user dalam mata uang aktif
-            return window.financeMoney.formatNative(Number(this.amount) || 0);
+            return window.financeMoney.formatNative(this.amount || '0');
         },
 
         formatAmount(value) {
@@ -114,11 +114,11 @@
         async saveTransfer() {
             if (this.saving) return;
 
-            const amount = Number(this.amount);
+            const amount = this.amount;
             const amountInBase = window.financeMoney.toBase(amount);
             let targetWalletId = this.to;
 
-            if (!amount || amount <= 0) {
+            if (window.financeMoney.compare(amount, '0.00') <= 0) {
                 window.financeAlert({
                     title: 'Invalid Amount',
                     message: 'Amount must be greater than 0.',
@@ -172,7 +172,7 @@
                 return;
             }
 
-            if (amountInBase > this.fromBalance) {
+            if (window.financeMoney.compare(amountInBase, this.fromBalance) > 0) {
                 window.financeAlert({
                     title: 'Insufficient Balance',
                     message: 'Insufficient wallet balance for this transfer.',
@@ -189,7 +189,7 @@
                 _token: this.csrfToken,
                 id_dompet_asal: String(this.from),
                 id_dompet_tujuan: String(targetWalletId),
-                jumlah: String(amount),
+                jumlah: amount,
                 tanggal_transfer: new Date().toLocaleDateString('en-CA'),
             });
 
@@ -250,7 +250,7 @@
     <div class="mt-8 grid gap-6 lg:grid-cols-[2fr_1.2fr]">
 
         {{-- FORM --}}
-        <x-card class="p-8">
+        <x-card class="p-4 sm:p-8">
 
             {{-- Label + tombol ganti mode --}}
             <div class="flex items-center justify-between">
@@ -272,7 +272,7 @@
 
 
             {{-- Dari ... ke ... --}}
-            <div class="mt-2 flex flex-col gap-3 rounded-xl bg-page p-2 sm:flex-row sm:items-center">
+            <div class="mt-2 flex min-w-0 flex-col gap-3 rounded-xl bg-page p-2 sm:flex-row sm:items-center">
 
                 {{-- Dari wallet --}}
                 <div
@@ -416,7 +416,7 @@
                 </div>
 
                 {{-- Tujuan: user --}}
-                <div class="relative flex-1" x-show="mode === 'user'" x-cloak>
+                <div class="relative min-w-0 flex-1" x-show="mode === 'user'" x-cloak>
                     <x-icon name="user" size="h-4 w-4"
                         class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-brand" />
 
@@ -424,7 +424,7 @@
                         type="text"
                         x-model="userQuery"
                         x-on:input.debounce.300ms="searchUsers()"
-                        placeholder="Seacrh username/email"
+                        placeholder="Search username or email"
                         class="w-full rounded-full border border-line bg-white py-2.5 pl-9 pr-9 text-sm placeholder:text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
                     >
 
@@ -540,7 +540,6 @@
                                         >
                                             <span x-text="w.name" class="truncate font-medium"></span>
                                             <div class="flex items-center gap-1.5 shrink-0">
-                                                <span class="text-xs text-muted" x-text="window.financeMoney.format(Number(w.balance) || 0)"></span>
                                                 <x-icon x-show="String(recipientWalletId) === String(w.id)" name="check" size="h-4 w-4" class="text-brand" />
                                             </div>
                                         </button>
@@ -568,15 +567,16 @@
                 </div>
 
                 <div class="relative">
-                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-semibold text-muted" x-text="window.financeMoney.symbol"></span>
+                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-base sm:text-lg font-semibold text-muted" x-text="window.financeMoney.symbol"></span>
 
                     <input
                         id="amount"
                         type="text"
+                        inputmode="decimal"
                         x-model="amountDisplay"
                         x-on:input="formatAmount($event.target.value)"
                         x-on:focus="$event.target.select()"
-                        class="w-full rounded-lg border border-line bg-white py-3 pl-12 pr-4 text-2xl font-semibold focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+                        class="w-full rounded-lg border border-line bg-white py-3 pl-12 pr-4 text-xl sm:text-2xl font-semibold focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
                         placeholder="0"
                     >
                 </div>
@@ -607,7 +607,7 @@
 
         {{-- SUMMARY --}}
         <div>
-            <x-card class="p-6">
+            <x-card class="p-4 sm:p-6">
 
                 <h2 class="text-lg font-semibold">Summary</h2>
 

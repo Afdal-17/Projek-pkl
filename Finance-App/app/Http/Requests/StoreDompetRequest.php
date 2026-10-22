@@ -6,7 +6,7 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class StoreDompetRequest extends FormRequest
 {
-    private const MAX_SALDO = '9999999999999999999999999999.99';
+    private const MAX_SALDO = '999999999999999999.99';
 
     protected function prepareForValidation(): void
     {
@@ -73,7 +73,7 @@ class StoreDompetRequest extends FormRequest
                 ...$saldoRules,
                 'numeric',
                 'min:0',
-                'max:999999999999999999',
+                'max:999999999999999999.99',
                 'prohibits:saldo_awal',
             ],
 
@@ -81,7 +81,7 @@ class StoreDompetRequest extends FormRequest
                 ...$saldoRules,
                 'numeric',
                 'min:0',
-                'max:999999999999999999',
+                'max:999999999999999999.99',
                 'prohibits:saldo',
             ],
         ];

@@ -10,13 +10,16 @@
         note: '',
         wallet: @js((string) ($wallets->first()['id'] ?? '')),
         target: '',
-        initial: @js((float) ($wallets->first()['balance'] ?? 0)),
+        targetDisplay: '',
+        initial: '0',
+        initialDisplay: '',
         initialManual: false,
         saving: false,
         wallets: @js($wallets),
         csrfToken: @js(csrf_token()),
 
         init() {
+            this.setInitial(this.walletBalanceDisplay);
             this.$watch('wallet', () => this.syncInitial());
             this.$watch('target', () => this.syncInitial());
         },
@@ -30,11 +33,29 @@
             return window.financeMoney.fromBase(this.selectedWallet.balance);
         },
 
+        formatTarget(value) {
+            const result = window.financeMoney.formatTyped(value);
+            this.target = result.value === '0' && result.display === '' ? '' : result.value;
+            this.targetDisplay = result.display;
+        },
+
+        formatInitial(value) {
+            const result = window.financeMoney.formatTyped(value);
+            this.initial = result.value;
+            this.initialDisplay = result.display;
+            this.initialManual = true;
+        },
+
+        setInitial(value) {
+            this.initial = String(value ?? '0');
+            this.initialDisplay = window.financeMoney.formatNumber(this.initial);
+        },
+
         syncInitial() {
             if (!this.initialManual) {
-                this.initial = this.target
-                    ? Math.min(this.walletBalanceDisplay, Number(this.target))
-                    : this.walletBalanceDisplay;
+                this.setInitial(this.target
+                    ? window.financeMoney.min(this.walletBalanceDisplay, this.target)
+                    : this.walletBalanceDisplay);
             }
         },
 
@@ -46,8 +67,8 @@
         async saveTarget() {
             if (this.saving) return;
 
-            const target = Number(this.target);
-            const initial = Number(this.initial) || 0;
+            const target = String(this.target || '0');
+            const initial = String(this.initial || '0');
 
             if (!this.name.trim()) {
                 window.financeAlert({
@@ -58,7 +79,7 @@
                 return;
             }
 
-            if (!target || target <= 0) {
+            if (window.financeMoney.compare(target, '0') <= 0) {
                 window.financeAlert({
                     title: 'Invalid Target Amount',
                     message: 'Target amount must be greater than 0.',
@@ -67,7 +88,7 @@
                 return;
             }
 
-            if (initial < 0 || initial > target) {
+            if (window.financeMoney.compare(initial, '0') < 0 || window.financeMoney.compare(initial, target) > 0) {
                 window.financeAlert({
                     title: 'Invalid Initial Savings',
                     message: 'Initial deposit cannot exceed the target amount.',
@@ -76,7 +97,7 @@
                 return;
             }
 
-            if (initial > this.walletBalanceDisplay) {
+            if (window.financeMoney.compare(initial, this.walletBalanceDisplay) > 0) {
                 window.financeAlert({
                     title: 'Insufficient Balance',
                     message: 'Initial deposit cannot exceed the selected wallet balance.',
@@ -90,8 +111,8 @@
                 id_dompet: this.wallet,
                 nama_target: this.name.trim(),
                 deskripsi: this.note.trim(),
-                nominal_target: String(target),
-                initial_savings: this.initial === '' ? '' : String(initial),
+                nominal_target: target,
+                initial_savings: this.initial === '' ? '' : initial,
             });
 
             this.saving = true;
@@ -135,6 +156,9 @@
     } finally {
         this.saving = false;
     }
+    },
+    }"
+>
 
     {{-- Header --}}
     <div>
@@ -250,9 +274,10 @@
                     <span class="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-semibold text-muted" x-text="window.financeMoney.symbol"></span>
                     <input
                         id="target_amount"
-                        type="number"
-                        min="0"
-                        x-model.number="target"
+                        type="text"
+                        inputmode="decimal"
+                        x-model="targetDisplay"
+                        x-on:input="formatTarget($event.target.value)"
                         placeholder="0"
                         class="w-full rounded-lg border border-line bg-white py-3 pl-12 pr-4 text-2xl font-semibold placeholder:text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
                     >
@@ -267,10 +292,10 @@
                     <span class="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-semibold text-muted" x-text="window.financeMoney.symbol"></span>
                     <input
                         id="initial_amount"
-                        type="number"
-                        min="0"
-                        x-model.number="initial"
-                        x-on:input="initialManual = true"
+                        type="text"
+                        inputmode="decimal"
+                        x-model="initialDisplay"
+                        x-on:input="formatInitial($event.target.value)"
                         placeholder="0"
                         class="w-full rounded-lg border border-line bg-white py-3 pl-12 pr-4 text-2xl font-semibold placeholder:text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
                     >

@@ -46,7 +46,7 @@ class Notifikasi extends Model
             return $this->pesan;
         }
 
-        return str_replace('{jumlah}', finance_money((float) $this->jumlah), $this->pesan_template);
+        return str_replace('{jumlah}', finance_money((string) $this->jumlah), $this->pesan_template);
     }
 
     public function user(): BelongsTo

@@ -63,10 +63,28 @@ class ProfileTest extends TestCase
             'avatar' => UploadedFile::fake()->image('avatar.png'),
         ])->assertOk();
 
-        $avatarPath = $user->fresh()->avatar_path;
+        $firstAvatarPath = $user->fresh()->avatar_path;
 
-        $this->assertNotNull($avatarPath);
+        $this->assertNotNull($firstAvatarPath);
+        Storage::disk('public')->assertExists($firstAvatarPath);
+
+        $this->actingAs($user)->postJson(route('account.avatar.update'), [
+            'avatar' => UploadedFile::fake()->image('replacement.png'),
+        ])->assertOk();
+
+        $avatarPath = $user->fresh()->avatar_path;
+        $this->assertNotSame($firstAvatarPath, $avatarPath);
         Storage::disk('public')->assertExists($avatarPath);
+        Storage::disk('public')->assertMissing($firstAvatarPath);
+
+        $this->post(route('logout'));
+        $this->post(route('login'), [
+            'email' => $user->email,
+            'password' => 'password',
+        ])->assertRedirect(route('user.dashboard', absolute: false));
+        $this->get(route('account'))
+            ->assertOk()
+            ->assertSee('storage/'.$avatarPath);
 
         $this->actingAs($user)->deleteJson(route('account.avatar.destroy'))->assertNoContent();
         Storage::disk('public')->assertMissing($avatarPath);

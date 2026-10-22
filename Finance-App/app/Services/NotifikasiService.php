@@ -21,7 +21,7 @@ class NotifikasiService
         int $userId,
         string $pesan,
         mixed $tanggal,
-        ?float $jumlah = null,
+        ?string $jumlah = null,
         ?string $pesanTemplate = null,
     ): void {
         Notifikasi::create([
@@ -43,9 +43,9 @@ class NotifikasiService
         $template = $jenisLabel.' "'.$transaksi->nama_transaksi.'" sebesar {jumlah} berhasil dicatat.';
         $this->catatTransaksi(
             $userId,
-            str_replace('{jumlah}', finance_money((float) $transaksi->jumlah), $template),
+            str_replace('{jumlah}', finance_money((string) $transaksi->jumlah), $template),
             now(),
-            (float) $transaksi->jumlah,
+            (string) $transaksi->jumlah,
             $template,
         );
     }
@@ -55,7 +55,7 @@ class NotifikasiService
         $this->catatTransaksi($userId, "Transaksi \"{$transaksi->nama_transaksi}\" telah diperbarui.", now());
     }
 
-    public function transaksiDihapus(string $namaTransaksi, float $jumlah, int $userId): void
+    public function transaksiDihapus(string $namaTransaksi, string $jumlah, int $userId): void
     {
         $template = 'Transaksi "'.$namaTransaksi.'" sebesar {jumlah} telah dihapus.';
         $this->catatTransaksi(
@@ -71,7 +71,7 @@ class NotifikasiService
     {
         $transfer->loadMissing(['dompetAsal.user', 'dompetTujuan.user']);
         $now = now();
-        $jumlah = (float) $transfer->jumlah;
+        $jumlah = (string) $transfer->jumlah;
 
         $senderId = (int) $transfer->dompetAsal->id_user;
         $recipientId = (int) $transfer->dompetTujuan->id_user;
@@ -145,17 +145,17 @@ class NotifikasiService
         session()->flash('notif_popup', 'Target '.$target->nama_target.' telah tercapai.');
     }
 
-    public function targetBaruTercapai(TargetTabungan $target, float $saldoSebelumnya): void
+    public function targetBaruTercapai(TargetTabungan $target, string $saldoSebelumnya): void
     {
         $target->loadMissing('dompet');
-        $savedBefore = max(
-            0,
-            (float) $target->nominal_terkumpul
-                + $saldoSebelumnya
-                - (float) $target->saldo_awal_dompet
+        $savedBefore = bcadd(
+            (string) $target->nominal_terkumpul,
+            bcsub($saldoSebelumnya, (string) $target->saldo_awal_dompet, 2),
+            2
         );
+        $savedBefore = bccomp($savedBefore, '0.00', 2) < 0 ? '0.00' : $savedBefore;
 
-        if ($savedBefore < (float) $target->nominal_target && $target->tercapai) {
+        if (bccomp($savedBefore, (string) $target->nominal_target, 2) < 0 && $target->tercapai) {
             $this->targetTercapai($target);
         }
     }

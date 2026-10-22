@@ -26,28 +26,18 @@ if (! function_exists('finance_money')) {
                 return "Rp {$sign}{$grouped}";
             }
 
-            try {
-                $converted = \App\Services\CurrencyService::fromBaseExact($clean, $currency);
-                [$cInteger, $cDecimal] = array_pad(explode('.', $converted), 2, '00');
-                $cDecimal = substr(str_pad($cDecimal, 2, '0'), 0, 2);
+            $converted = \App\Services\CurrencyService::fromBaseExact($clean, $currency);
+            [$cInteger, $cDecimal] = array_pad(explode('.', $converted), 2, '00');
+            $cDecimal = substr(str_pad($cDecimal, 2, '0'), 0, 2);
 
-                return match ($currency) {
-                    'USD' => '$' . $sign . preg_replace('/\B(?=(\d{3})+(?!\d))/', ',', $cInteger) . '.' . $cDecimal,
-                    'EUR' => $sign . preg_replace('/\B(?=(\d{3})+(?!\d))/', '.', $cInteger) . ',' . $cDecimal . ' €',
-                    default => "Rp {$sign}" . preg_replace('/\B(?=(\d{3})+(?!\d))/', '.', $cInteger),
-                };
-            } catch (\Throwable) {
-                // fallback ke konversi float jika fromBaseExact tidak bisa
-            }
+            return match ($currency) {
+                'USD' => '$' . $sign . preg_replace('/\B(?=(\d{3})+(?!\d))/', ',', $cInteger) . '.' . $cDecimal,
+                'EUR' => $sign . preg_replace('/\B(?=(\d{3})+(?!\d))/', '.', $cInteger) . ',' . $cDecimal . ' €',
+                default => "Rp {$sign}" . preg_replace('/\B(?=(\d{3})+(?!\d))/', '.', $cInteger),
+            };
         }
 
-        $display = \App\Services\CurrencyService::fromBase((float) $amount, $currency);
-
-        return match ($currency) {
-            'USD' => '$' . number_format($display, 2, '.', ','),
-            'EUR' => number_format($display, 2, ',', '.') . ' €',
-            default => 'Rp ' . number_format($display, 0, ',', '.'),
-        };
+        throw new \InvalidArgumentException('Money amount must be a plain decimal string.');
     }
 }
 

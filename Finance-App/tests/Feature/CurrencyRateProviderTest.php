@@ -41,13 +41,14 @@ class CurrencyRateProviderTest extends TestCase
 
         $rates = CurrencyService::rates();
 
-        $this->assertSame(1.0, $rates['IDR']);
-        $this->assertEqualsWithDelta(20000.0, $rates['USD'], 0.01);
-        $this->assertEqualsWithDelta(25000.0, $rates['EUR'], 0.01);
+        $this->assertSame('1', $rates['IDR']);
+        $this->assertSame('20000.000000000000', $rates['USD']);
+        $this->assertSame('25000.000000000000', $rates['EUR']);
 
         // Konversi memakai kurs live, bukan fallback statis
         $this->assertEqualsWithDelta(10.0, CurrencyService::convert(200000, 'IDR', 'USD'), 0.001);
         $this->assertEqualsWithDelta(200000.0, CurrencyService::convert(10, 'USD', 'IDR'), 0.001);
+        $this->assertSame('200000.00', CurrencyService::toBaseExact('10.00', 'USD'));
     }
 
     public function test_provider_is_called_once_and_rates_are_cached(): void
@@ -77,8 +78,8 @@ class CurrencyRateProviderTest extends TestCase
         $rates = CurrencyService::rates();
 
         // Kurs cadangan statis dipakai saat API gagal
-        $this->assertSame(16000.0, $rates['USD']);
-        $this->assertSame(17500.0, $rates['EUR']);
+        $this->assertSame('16000', $rates['USD']);
+        $this->assertSame('17500', $rates['EUR']);
         $this->assertEqualsWithDelta(10.0, CurrencyService::convert(160000, 'IDR', 'USD'), 0.001);
     }
 
@@ -109,9 +110,9 @@ class CurrencyRateProviderTest extends TestCase
 
         $rates = CurrencyService::rates();
 
-        $this->assertSame(1.0, $rates['IDR']);
-        $this->assertSame(16000.0, $rates['USD']);
-        $this->assertSame(17500.0, $rates['EUR']);
+        $this->assertSame('1', $rates['IDR']);
+        $this->assertSame('16000', $rates['USD']);
+        $this->assertSame('17500', $rates['EUR']);
 
         Http::assertNothingSent();
     }
@@ -123,5 +124,37 @@ class CurrencyRateProviderTest extends TestCase
         $this->assertFalse(CurrencyService::isSupported('JPY'));
         $this->assertTrue(CurrencyService::isSupported('eur'));
         $this->assertSame(['IDR', 'USD', 'EUR'], CurrencyService::supported());
+    }
+
+    public function test_exact_conversion_preserves_cents_and_fails_when_a_rate_is_missing(): void
+    {
+        config(['currency.live' => false]);
+        CurrencyService::flushRates();
+
+        $this->assertSame('160800.00', CurrencyService::toBaseExact('10.05', 'USD'));
+        $this->assertSame('0.63', CurrencyService::fromBaseExact('10000.00', 'USD'));
+
+        config([
+            'currency.supported' => ['IDR', 'EUR'],
+            'currency.fallback_rates' => ['EUR' => 0],
+        ]);
+        CurrencyService::flushRates();
+
+        $this->expectException(\RuntimeException::class);
+        CurrencyService::convertExact('1.00', 'EUR', 'IDR');
+    }
+
+    public function test_exact_conversion_keeps_large_amounts_as_decimal_strings(): void
+    {
+        config(['currency.live' => false]);
+
+        $this->assertSame(
+            '999999999999999999.99',
+            CurrencyService::toBaseExact('999999999999999999.99', 'IDR')
+        );
+        $this->assertSame(
+            '62500000000000.00',
+            CurrencyService::fromBaseExact('1000000000000000000.00', 'USD')
+        );
     }
 }

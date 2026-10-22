@@ -229,4 +229,80 @@ class GoogleAndPhoneAuthTest extends TestCase
         $this->assertAuthenticatedAs($existingUser);
         $response->assertRedirect(route('user.dashboard'));
     }
+
+    public function test_banned_user_cannot_login_with_google(): void
+    {
+        config([
+            'services.google.client_id' => 'fake-client-id',
+            'services.google.client_secret' => 'fake-client-secret',
+        ]);
+
+        $user = User::create([
+            'nama' => 'Banned Google Member',
+            'email' => 'banned-google@gmail.com',
+            'google_id' => 'google-banned-99',
+            'password' => Hash::make('secret123'),
+            'role' => 'user',
+            'status' => false,
+            'email_verified_at' => now(),
+            'banned_at' => now(),
+            'ban_reason' => 'Pelanggaran',
+        ]);
+
+        $abstractUser = Mockery::mock(SocialiteUser::class);
+        $abstractUser->shouldReceive('getId')->andReturn('google-banned-99');
+        $abstractUser->shouldReceive('getName')->andReturn('Banned Google Member');
+        $abstractUser->shouldReceive('getNickname')->andReturn('banned');
+        $abstractUser->shouldReceive('getEmail')->andReturn('banned-google@gmail.com');
+
+        $provider = Mockery::mock('Laravel\Socialite\Two\GoogleProvider');
+        $provider->shouldReceive('user')->andReturn($abstractUser);
+        Socialite::shouldReceive('driver')->with('google')->andReturn($provider);
+
+        $response = $this->withSession(['google_auth_mode' => 'login'])
+            ->get(route('auth.google.callback'));
+
+        $this->assertGuest();
+        $response->assertRedirect(route('login'));
+        $response->assertSessionHas('banned_modal');
+        $this->assertSame('google-banned-99', $user->fresh()->google_id);
+        $this->assertFalse((bool) $user->fresh()->status);
+    }
+
+    public function test_inactive_verified_user_cannot_login_with_google(): void
+    {
+        config([
+            'services.google.client_id' => 'fake-client-id',
+            'services.google.client_secret' => 'fake-client-secret',
+        ]);
+
+        $user = User::create([
+            'nama' => 'Inactive Google Member',
+            'email' => 'inactive-google@gmail.com',
+            'google_id' => 'google-inactive-99',
+            'password' => Hash::make('secret123'),
+            'role' => 'user',
+            'status' => false,
+            'email_verified_at' => null,
+        ]);
+        $user->forceFill(['otp_verified_at' => now()])->save();
+
+        $abstractUser = Mockery::mock(SocialiteUser::class);
+        $abstractUser->shouldReceive('getId')->andReturn('google-inactive-99');
+        $abstractUser->shouldReceive('getName')->andReturn('Inactive Google Member');
+        $abstractUser->shouldReceive('getNickname')->andReturn('inactive');
+        $abstractUser->shouldReceive('getEmail')->andReturn('inactive-google@gmail.com');
+
+        $provider = Mockery::mock('Laravel\Socialite\Two\GoogleProvider');
+        $provider->shouldReceive('user')->andReturn($abstractUser);
+        Socialite::shouldReceive('driver')->with('google')->andReturn($provider);
+
+        $response = $this->withSession(['google_auth_mode' => 'login'])
+            ->get(route('auth.google.callback'));
+
+        $this->assertGuest();
+        $response->assertRedirect(route('login'));
+        $this->assertNull($user->fresh()->email_verified_at);
+        $this->assertFalse((bool) $user->fresh()->status);
+    }
 }

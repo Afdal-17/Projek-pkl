@@ -48,7 +48,10 @@ class TargetTabunganTest extends TestCase
             ->assertSee('Dompet Target');
         $this->actingAs($user)->get(route('saving.create'))
             ->assertOk()
-            ->assertSee('Dompet Target');
+            ->assertSee('Dompet Target')
+            ->assertViewHas('wallets', fn ($wallets) => $wallets->contains(
+                fn (array $item): bool => (int) $item['id'] === (int) $dompet->id_dompet
+            ));
 
         $dompet->update(['saldo' => 100000]);
         $target->refresh()->load('dompet');
@@ -121,6 +124,38 @@ class TargetTabunganTest extends TestCase
         $this->assertSame(1, Notifikasi::where('id_user', $user->id_user)->where('tipe', 'target')->count());
     }
 
+    public function test_default_initial_savings_is_not_converted_twice_for_non_idr_user(): void
+    {
+        $user = User::create([
+            'nama' => 'USD Saving User',
+            'email' => 'usd-saving@example.com',
+            'password' => 'password',
+            'role' => 'user',
+            'status' => true,
+            'email_verified_at' => now(),
+            'mata_uang' => 'USD',
+        ]);
+        $wallet = Dompet::create([
+            'id_user' => $user->id_user,
+            'nama_dompet' => 'USD Wallet',
+            'saldo_awal' => 800000,
+            'saldo' => 800000,
+        ]);
+
+        $this->actingAs($user)->post(route('saving.store'), [
+            'id_dompet' => $wallet->id_dompet,
+            'nama_target' => 'Laptop in USD',
+            'nominal_target' => '100.00',
+        ])->assertRedirect(route('target-tabungan.index'));
+
+        $this->assertDatabaseHas('target_tabungan', [
+            'id_user' => $user->id_user,
+            'nominal_target' => '1600000.00',
+            'nominal_terkumpul' => '800000.00',
+            'saldo_awal_dompet' => '800000.00',
+        ]);
+    }
+
     public function test_saving_page_renders_with_notif_popup_session(): void
     {
         $user = User::create([
@@ -137,5 +172,39 @@ class TargetTabunganTest extends TestCase
             ->get(route('saving.index'))
             ->assertOk()
             ->assertSee('Target Dana Darurat has been reached.');
+    }
+
+    public function test_saving_target_can_be_deleted_from_the_frontend_route(): void
+    {
+        $user = User::create([
+            'nama' => 'Delete Saving User',
+            'email' => 'delete-saving@example.com',
+            'password' => 'password',
+            'role' => 'user',
+            'status' => true,
+            'email_verified_at' => now(),
+        ]);
+        $wallet = Dompet::create([
+            'id_user' => $user->id_user,
+            'nama_dompet' => 'Delete Wallet',
+            'saldo_awal' => 1000,
+            'saldo' => 1000,
+        ]);
+        $target = TargetTabungan::create([
+            'id_user' => $user->id_user,
+            'id_dompet' => $wallet->id_dompet,
+            'nama_target' => 'Delete me',
+            'nominal_target' => 2000,
+            'nominal_terkumpul' => 0,
+            'saldo_awal_dompet' => 1000,
+            'status' => 'belum_tercapai',
+        ]);
+
+        $this->actingAs($user)
+            ->deleteJson(route('saving.destroy', $target))
+            ->assertOk()
+            ->assertJson(['status' => 'deleted']);
+
+        $this->assertDatabaseMissing('target_tabungan', ['id_target' => $target->id_target]);
     }
 }

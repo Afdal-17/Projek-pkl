@@ -237,4 +237,89 @@ class OtpVerificationTest extends TestCase
         Mail::assertNothingSent();
         $this->assertNull(session('otp_user_id'));
     }
+
+    public function test_banned_user_cannot_verify_otp_and_get_session(): void
+    {
+        $user = $this->userPendingOtp();
+        $kode = app(OtpService::class)->buatKode($user);
+
+        // Admin mem-banned user ini
+        $user->forceFill([
+            'banned_at' => now(),
+            'ban_reason' => 'Penyalahgunaan akun',
+        ])->save();
+
+        // Coba akses halaman OTP (show)
+        $showResponse = $this->withSession(['otp_user_id' => $user->id_user])
+            ->get(route('otp.show'));
+
+        $showResponse->assertRedirect(route('login'));
+        $showResponse->assertSessionHas('error');
+        $this->assertNull(session('otp_user_id'));
+
+        // Coba submit kode OTP (verify)
+        $verifyResponse = $this->withSession(['otp_user_id' => $user->id_user])
+            ->post(route('otp.verify'), ['kode' => $kode]);
+
+        $verifyResponse->assertRedirect(route('login'));
+        $verifyResponse->assertSessionHas('error');
+        $this->assertGuest();
+        $this->assertNull($user->fresh()->otp_verified_at);
+    }
+
+    public function test_inactive_user_cannot_verify_otp_and_get_session(): void
+    {
+        $user = $this->userPendingOtp();
+        $kode = app(OtpService::class)->buatKode($user);
+
+        // User ini pernah aktif sebelumnya (sudah terverifikasi OTP),
+        // tapi admin kemudian menonaktifkan akun mereka.
+        $user->forceFill([
+            'otp_verified_at' => now()->subDay(),
+            'status' => false,
+        ])->save();
+
+        // Coba submit kode OTP — harus ditolak karena akun sudah di-nonaktifkan admin
+        $response = $this->withSession(['otp_user_id' => $user->id_user])
+            ->post(route('otp.verify'), ['kode' => $kode]);
+
+        $response->assertRedirect(route('login'));
+        $response->assertSessionHas('error');
+        $this->assertGuest();
+    }
+
+    public function test_expired_ban_is_auto_unbanned_before_otp_verification(): void
+    {
+        $user = $this->userPendingOtp([
+            'banned_at' => now()->subDays(31),
+            'ban_reason' => 'Pelanggaran lama',
+        ]);
+        $kode = app(OtpService::class)->buatKode($user);
+
+        $response = $this->withSession(['otp_user_id' => $user->id_user])
+            ->post(route('otp.verify'), ['kode' => $kode]);
+
+        $response->assertRedirect(route('user.dashboard'));
+        $this->assertAuthenticatedAs($user->fresh());
+        $this->assertNull($user->fresh()->banned_at);
+        $this->assertNull($user->fresh()->ban_reason);
+        $this->assertTrue((bool) $user->fresh()->status);
+    }
+
+    public function test_banned_user_cannot_resend_otp(): void
+    {
+        Mail::fake();
+
+        $user = $this->userPendingOtp(['banned_at' => now()]);
+        app(OtpService::class)->buatKode($user);
+        $oldCodeHash = $user->fresh()->otp_kode;
+
+        $response = $this->withSession(['otp_user_id' => $user->id_user])
+            ->post(route('otp.resend'));
+
+        $response->assertRedirect(route('login'));
+        $response->assertSessionHas('error');
+        Mail::assertNothingSent();
+        $this->assertSame($oldCodeHash, $user->fresh()->otp_kode);
+    }
 }

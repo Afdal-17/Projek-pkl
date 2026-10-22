@@ -149,10 +149,69 @@ class TransaksiTest extends TestCase
         $this->actingAs($user)->get(route('transactions.create'))
             ->assertOk()
             ->assertSee('Frontend Wallet')
-            ->assertSee('Frontend Category');
+            ->assertSee('Frontend Category')
+            ->assertViewHas('wallets', fn ($wallets) => $wallets->contains(
+                fn (array $item): bool => (int) $item['id'] === (int) $wallet->id_dompet
+            ));
 
         $this->actingAs($user)->get(route('categories.index'))
             ->assertOk()
             ->assertSee('Frontend Category');
+    }
+
+    public function test_frontend_transaction_store_uses_the_selected_wallet_id(): void
+    {
+        $user = User::create([
+            'nama' => 'Wallet Selection User',
+            'email' => 'wallet-selection@example.com',
+            'password' => 'password',
+            'role' => 'user',
+            'status' => true,
+            'email_verified_at' => now(),
+        ]);
+        $firstWallet = Dompet::create([
+            'id_user' => $user->id_user,
+            'nama_dompet' => 'Dompet Utama',
+            'saldo_awal' => 50000,
+            'saldo' => 50000,
+        ]);
+        $selectedWallet = Dompet::create([
+            'id_user' => $user->id_user,
+            'nama_dompet' => 'Dompet Utama',
+            'saldo_awal' => 25000,
+            'saldo' => 25000,
+        ]);
+        $category = Kategori::create([
+            'id_user' => $user->id_user,
+            'nama_kategori' => 'Makan',
+            'jenis' => 'pengeluaran',
+        ]);
+
+        $this->actingAs($user)->get(route('transactions.create'))
+            ->assertOk()
+            ->assertViewHas('wallets', fn ($wallets) => (int) $wallets->first()['id'] === (int) $firstWallet->id_dompet);
+
+        $this->actingAs($user)->post(route('transactions.store'), [
+            'id_dompet' => $selectedWallet->id_dompet,
+            'id_kategori' => $category->id_kategori,
+            'nama_transaksi' => 'Selected wallet purchase',
+            'jumlah' => '1000',
+            'jenis' => 'pengeluaran',
+            'tanggal' => '2026-10-22',
+        ])->assertRedirect(route('transaksi.index'));
+
+        $this->assertDatabaseHas('transaksi', [
+            'id_dompet' => $selectedWallet->id_dompet,
+            'nama_transaksi' => 'Selected wallet purchase',
+            'jumlah' => 1000,
+        ]);
+        $this->assertDatabaseHas('dompet', [
+            'id_dompet' => $selectedWallet->id_dompet,
+            'saldo' => 24000,
+        ]);
+        $this->assertDatabaseHas('dompet', [
+            'id_dompet' => $firstWallet->id_dompet,
+            'saldo' => 50000,
+        ]);
     }
 }

@@ -266,6 +266,39 @@ window.financeMoney = {
         return cleaned;
     },
 
+    compare(left, right) {
+        const a = decimalToCents(left);
+        const b = decimalToCents(right);
+
+        return a > b ? 1 : a < b ? -1 : 0;
+    },
+
+    add(...values) {
+        return centsToDecimal(
+            values.reduce((sum, value) => sum + decimalToCents(value), 0n)
+        );
+    },
+
+    subtract(left, right) {
+        return centsToDecimal(decimalToCents(left) - decimalToCents(right));
+    },
+
+    min(left, right) {
+        return this.compare(left, right) <= 0 ? String(left) : String(right);
+    },
+
+    percent(amount, total) {
+        const totalCents = decimalToCents(total);
+
+        if (totalCents <= 0n) {
+            return 0;
+        }
+
+        return Number(
+            roundedDivide(decimalToCents(amount) * 100n, totalCents)
+        );
+    },
+
     formatTyped,
 
     formatNumber(
@@ -274,33 +307,86 @@ window.financeMoney = {
     ) {
         const raw = String(numericValue ?? '0').trim();
 
-        if (currency === 'IDR' && /^\d+(?:\.0+)?$/.test(raw)) {
-            const integer = raw.split('.')[0];
+        const match = raw.match(/^(-?)(\d+)(?:\.(\d+))?$/);
 
-            return integer.replace(
-                /\B(?=(\d{3})+(?!\d))/g,
-                groupSep
-            );
+        if (!match) {
+            return raw;
         }
 
-        if (currency === 'IDR' && /^\d+\.\d+$/.test(raw)) {
-            const [integer, decimal = ''] = raw.split('.');
-            const grouped = integer.replace(
-                /\B(?=(\d{3})+(?!\d))/g,
-                groupSep
-            );
+        const sign = match[1];
+        const integer = match[2].replace(/\B(?=(\d{3})+(?!\d))/g, groupSep);
+        let fraction = (match[3] ?? '').slice(0, maxDecimals);
 
-            return `${grouped}${decimalSep}${decimal}`;
+        while (fraction.length > minDecimals && fraction.endsWith('0')) {
+            fraction = fraction.slice(0, -1);
         }
 
-        const num = Number(raw) || 0;
+        fraction = fraction.padEnd(minDecimals, '0');
 
-        return new Intl.NumberFormat(locale, {
-            minimumFractionDigits: minDecimals,
-            maximumFractionDigits: maxDecimals,
-        }).format(num);
+        return `${sign}${integer}${fraction ? decimalSep + fraction : ''}`;
     },
 };
+
+function formatMoneyInput(input) {
+    const initialValue = input.value.trim();
+    const canonicalValue = initialValue === ''
+        ? ''
+        : /^\d+(?:\.\d{1,2})?$/.test(initialValue)
+            ? initialValue
+            : window.financeMoney.parseFormatted(initialValue);
+
+    input.dataset.moneyValue = canonicalValue;
+    input.value = canonicalValue === '' || canonicalValue === '0'
+        ? ''
+        : window.financeMoney.formatNumber(canonicalValue);
+}
+
+document.querySelectorAll('input[data-money-input]').forEach(formatMoneyInput);
+
+document.addEventListener('input', (event) => {
+    const input = event.target;
+
+    if (!(input instanceof HTMLInputElement) || !input.matches('input[data-money-input]')) {
+        return;
+    }
+
+    const cursor = input.selectionStart ?? input.value.length;
+    const digitsBeforeCursor = input.value.slice(0, cursor).replace(/\D/g, '').length;
+    const result = window.financeMoney.formatTyped(input.value);
+    input.dataset.moneyValue = result.value;
+    input.value = result.display;
+
+    let nextCursor = 0;
+    let digitsSeen = 0;
+
+    while (nextCursor < input.value.length && digitsSeen < digitsBeforeCursor) {
+        if (/\d/.test(input.value[nextCursor])) {
+            digitsSeen += 1;
+        }
+        nextCursor += 1;
+    }
+
+    input.setSelectionRange(nextCursor, nextCursor);
+
+    if (input.id === 'saldo' || input.id === 'saldo_awal') {
+        const otherInput = document.getElementById(input.id === 'saldo' ? 'saldo_awal' : 'saldo');
+
+        if (input.value && otherInput instanceof HTMLInputElement) {
+            otherInput.value = '';
+            otherInput.dataset.moneyValue = '';
+        }
+    }
+});
+
+document.addEventListener('submit', (event) => {
+    if (!(event.target instanceof HTMLFormElement)) {
+        return;
+    }
+
+    event.target.querySelectorAll('input[data-money-input][name]').forEach((input) => {
+        input.value = input.dataset.moneyValue ?? window.financeMoney.parseFormatted(input.value);
+    });
+}, true);
 
 window.Alpine = Alpine;
 Alpine.start();

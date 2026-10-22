@@ -59,14 +59,16 @@ class NotifikasiController extends Controller
                     }
 
                     if ($matchedTarget) {
-                        $targetNominal = (float) $matchedTarget->nominal_target;
-                        $savedNominal = max((float) $matchedTarget->jumlah_terkumpul, $targetNominal);
+                        $targetNominal = (string) $matchedTarget->nominal_target;
+                        $savedNominal = bccomp((string) $matchedTarget->jumlah_terkumpul, $targetNominal, 2) > 0
+                            ? (string) $matchedTarget->jumlah_terkumpul
+                            : $targetNominal;
 
                         $goal = [
                             'name' => $matchedTarget->nama_target,
                             'note' => $matchedTarget->deskripsi ?: 'Savings target',
                             'saved' => $savedNominal,
-                            'target' => $targetNominal > 0 ? $targetNominal : $savedNominal,
+                            'target' => bccomp($targetNominal, '0.00', 2) > 0 ? $targetNominal : $savedNominal,
                         ];
                     } elseif ($targetName) {
                         $goal = [
