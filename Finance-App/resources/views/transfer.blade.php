@@ -14,7 +14,7 @@
         window.Alpine.data('transferForm', () => ({
         mode: 'wallet',
         from: @js((string) ($wallets->first()['id'] ?? '')),
-        to: @js((string) ($wallets->skip(1)->first()['id'] ?? $wallets->first()['id'] ?? '')),
+        to: @js((string) ($wallets->count() > 1 ? ($wallets->skip(1)->first()['id'] ?? '') : '')),
         userQuery: '',
         recipient: null,
         recipientWalletId: '',
@@ -23,6 +23,7 @@
         saving: false,
         amount: '',
         amountDisplay: '',
+        pendingIdempotencyKeys: {},
         wallets: @js($wallets),
         csrfToken: @js(csrf_token()),
 
@@ -58,6 +59,41 @@
 
             this.amount = result.value;
             this.amountDisplay = result.display;
+        },
+
+        idempotencyFor(fingerprint) {
+            const storageKey = 'finance.transfer.idempotency.' + encodeURIComponent(fingerprint);
+
+            try {
+                let key = sessionStorage.getItem(storageKey);
+
+                if (!key) {
+                    key = (window.crypto && window.crypto.randomUUID)
+                        ? window.crypto.randomUUID()
+                        : ('tx_' + Date.now() + '_' + Math.random().toString(36).substring(2));
+                    sessionStorage.setItem(storageKey, key);
+                }
+
+                this.pendingIdempotencyKeys[fingerprint] = key;
+                return { key, storageKey };
+            } catch (error) {
+                if (this.pendingIdempotencyKeys[fingerprint]) {
+                    return {
+                        key: this.pendingIdempotencyKeys[fingerprint],
+                        storageKey: null,
+                    };
+                }
+
+                throw new Error('Browser storage is unavailable; the transfer was not sent.');
+            }
+        },
+
+        clearIdempotency(fingerprint, key, storageKey) {
+            if (storageKey && sessionStorage.getItem(storageKey) === key) {
+                sessionStorage.removeItem(storageKey);
+            }
+
+            delete this.pendingIdempotencyKeys[fingerprint];
         },
 
         toggleMode() {
@@ -185,12 +221,32 @@
                 targetWalletId = this.recipientWalletId;
             }
 
+            const transferDate = new Date().toLocaleDateString('en-CA');
+            const fingerprint = JSON.stringify([
+                String(this.from),
+                String(targetWalletId),
+                String(amount),
+            ]);
+            let idempotency;
+
+            try {
+                idempotency = this.idempotencyFor(fingerprint);
+            } catch (error) {
+                window.financeAlert({
+                    title: 'Transfer Not Sent',
+                    message: error.message,
+                    variant: 'danger',
+                });
+                return;
+            }
+
             const payload = new URLSearchParams({
                 _token: this.csrfToken,
                 id_dompet_asal: String(this.from),
                 id_dompet_tujuan: String(targetWalletId),
                 jumlah: amount,
-                tanggal_transfer: new Date().toLocaleDateString('en-CA'),
+                tanggal_transfer: transferDate,
+                idempotency_key: idempotency.key,
             });
 
             this.saving = true;
@@ -207,28 +263,50 @@
 
                 if (!response.ok) {
                     let result = {};
+                    let errorMessage = 'Transfer could not be processed. Please try again.';
 
                     try {
                         result = await response.json();
+                        const firstError = Object.values(result.errors ?? {}).flat()[0]
+                            ?? result.message
+                            ?? null;
+                        if (firstError) errorMessage = firstError;
                     } catch (e) {
-                        // Respons server bukan JSON.
+                        // Respons server bukan JSON (mis. 500 server error).
+                        if (response.status === 422) {
+                            errorMessage = 'The transfer data is invalid. Please check the amount and wallets.';
+                        } else if (response.status === 403) {
+                            errorMessage = 'You are not authorized to perform this transfer.';
+                        } else if (response.status === 500) {
+                            errorMessage = 'A server error occurred. Please try again later.';
+                        }
+                    }
+
+                    if (
+                        response.status === 422
+                        && errorMessage.includes('This transfer was already completed')
+                    ) {
+                        this.clearIdempotency(fingerprint, idempotency.key, idempotency.storageKey);
+                        window.location.href = '/transactions';
+                        return;
                     }
 
                     window.financeAlert({
                         title: 'Transfer Failed',
-                        message: Object.values(result.errors ?? {}).flat()[0]
-                            ?? 'Transfer could not be processed.',
+                        message: errorMessage,
                         variant: 'danger',
+                        icon: 'transfer',
                     });
 
                     return;
                 }
 
+                this.clearIdempotency(fingerprint, idempotency.key, idempotency.storageKey);
                 window.location.href = '/transactions';
             } catch (e) {
                 window.financeAlert({
                     title: 'Connection Error',
-                    message: 'Connection problem. Your transfer was not sent. Please try again.',
+                    message: 'Connection problem. We could not confirm whether the transfer completed. Retry with the same details; the request key will prevent a duplicate.',
                     variant: 'danger',
                 });
             } finally {
