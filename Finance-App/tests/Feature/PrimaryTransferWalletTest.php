@@ -75,7 +75,59 @@ class PrimaryTransferWalletTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonValidationErrors('set_primary');
 
-        $this->assertFalse((bool) $wallet->fresh()->terima_transfer);
+        $this->actingAs($user)
+            ->patchJson(route('dompet.toggleTransfer', $wallet), [
+                'set_primary' => true,
+            ])
+            ->assertOk();
+
+        $this->actingAs($user)
+            ->patchJson(route('dompet.toggleTransfer', $wallet), [
+                'set_primary' => false,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('set_primary');
+
+        $this->actingAs($user)
+            ->patchJson(route('dompet.toggleTransfer', $wallet))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('set_primary');
+
+        $this->assertTrue((bool) $wallet->fresh()->terima_transfer);
+    }
+
+    public function test_transfer_receiving_wallet_is_selected_in_account_preferences_not_dashboard(): void
+    {
+        $user = User::create([
+            'nama' => 'Transfer Preferences User',
+            'email' => 'transfer-preferences@example.com',
+            'password' => 'password',
+            'role' => 'user',
+            'status' => true,
+            'email_verified_at' => now(),
+        ]);
+
+        Dompet::create([
+            'id_user' => $user->id_user,
+            'nama_dompet' => 'Receiving Wallet',
+            'jenis' => 'digital',
+            'warna' => 'brand',
+            'saldo_awal' => '100.00',
+            'saldo' => '100.00',
+            'terima_transfer' => false,
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('account'))
+            ->assertOk()
+            ->assertSee('Transfer receiving wallet')
+            ->assertSee('type="radio"', false)
+            ->assertSee('name="transfer_receiving_wallet"', false);
+
+        $this->get(route('user.dashboard'))
+            ->assertOk()
+            ->assertDontSee('Set as transfer wallet')
+            ->assertDontSee('Primary transfer wallet');
     }
 
     public function test_setting_new_primary_wallet_automatically_deactivates_previous_wallet(): void

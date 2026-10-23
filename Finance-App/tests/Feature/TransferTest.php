@@ -107,6 +107,7 @@ class TransferTest extends TestCase
         $this->assertArrayNotHasKey('balance', $response->json()[0]['wallets'][0]);
         $this->assertArrayNotHasKey('saldo', $response->json()[0]);
         $this->assertArrayNotHasKey('balance', $response->json()[0]);
+        $this->assertArrayNotHasKey('email', $response->json()[0]);
 
         // Pencarian email
         $response = $this->actingAs($pengirim)->get(route('transfer.recipients.search', ['query' => 'beta@example.com']));

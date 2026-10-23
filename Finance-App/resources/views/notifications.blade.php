@@ -1,6 +1,6 @@
 @extends('layouts.main')
 
-@section('title', 'Notifications')
+@section('title', __('notifications.title'))
 
 @section('content')
 
@@ -102,8 +102,8 @@
 
     {{-- Header --}}
     <div>
-        <h1 class="text-3xl font-bold text-ink">Notifications</h1>
-        <p class="mt-1 text-sm text-muted">Stay up to date with your money activity.</p>
+        <h1 class="text-3xl font-bold text-ink">{{ __('notifications.title') }}</h1>
+        <p class="mt-1 text-sm text-muted">{{ __('notifications.subtitle') }}</p>
     </div>
 
     {{-- Baris 1: Filter Status (Segmented Control: All | Unread | Read) --}}
@@ -116,7 +116,7 @@
                 class="flex items-center gap-2 rounded-lg px-3 sm:px-3.5 py-1.5 text-xs sm:text-sm font-semibold transition cursor-pointer"
                 :class="status === 'all' ? 'bg-brand-soft text-brand font-bold shadow-xs' : 'text-muted hover:text-ink hover:bg-page font-medium'"
             >
-                <span>All</span>
+                <span>Semua</span>
                 <span
                     x-show="items.length > 0"
                     x-text="items.length > 99 ? '99+' : items.length"
@@ -134,7 +134,7 @@
                 class="flex items-center gap-2 rounded-lg px-3 sm:px-3.5 py-1.5 text-xs sm:text-sm font-semibold transition cursor-pointer"
                 :class="status === 'unread' ? 'bg-brand-soft text-brand font-bold shadow-xs' : 'text-muted hover:text-ink hover:bg-page font-medium'"
             >
-                <span>Unread</span>
+                <span>Belum dibaca</span>
                 <span
                     x-show="unreadCount > 0"
                     x-text="unreadCount > 9 ? '9+' : unreadCount"
@@ -151,7 +151,7 @@
                 class="flex items-center gap-2 rounded-lg px-3 sm:px-3.5 py-1.5 text-xs sm:text-sm font-semibold transition cursor-pointer"
                 :class="status === 'read' ? 'bg-brand-soft text-brand font-bold shadow-xs' : 'text-muted hover:text-ink hover:bg-page font-medium'"
             >
-                <span>Read</span>
+                <span>Sudah dibaca</span>
             </button>
         </div>
 
@@ -164,7 +164,7 @@
             class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs sm:text-sm font-medium text-brand hover:text-brand-dark hover:bg-brand-soft/60 transition cursor-pointer"
         >
             <x-icon name="check" size="h-4 w-4" />
-            <span>Mark all as read</span>
+            <span>{{ __('notifications.mark_all_read') }}</span>
         </button>
     </div>
 
@@ -180,7 +180,7 @@
             <input
                 type="text"
                 x-model="search"
-                placeholder="Search notifications..."
+                placeholder="Cari notifikasi..."
                 class="w-full rounded-xl border border-line bg-white py-2.5 pl-10 pr-9 text-sm text-ink placeholder:text-muted/70 shadow-sm transition hover:border-brand/40 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
             />
             <button
@@ -188,7 +188,7 @@
                 x-cloak
                 @click="search = ''"
                 type="button"
-                aria-label="Clear search"
+                aria-label="Hapus pencarian"
                 class="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-ink cursor-pointer"
             >
                 <x-icon name="x" size="h-4 w-4" />
@@ -202,12 +202,12 @@
                 open: false,
                 dropUp: false,
                 categories: [
-                    { key: 'all', label: 'All' },
-                    { key: 'goal', label: 'Goal' },
+                    { key: 'all', label: 'Semua' },
+                    { key: 'goal', label: 'Target' },
                     { key: 'transfer', label: 'Transfer' },
-                    { key: 'transaction', label: 'Transaction' },
-                    { key: 'verification', label: 'Verification' },
-                    { key: 'system', label: 'System' }
+                    { key: 'transaction', label: 'Transaksi' },
+                    { key: 'verification', label: 'Verifikasi' },
+                    { key: 'system', label: 'Sistem' }
                 ],
                 toggle(el) {
                     this.open = !this.open;
@@ -226,7 +226,7 @@
                 class="flex items-center justify-between gap-2 sm:gap-3 rounded-xl border border-line bg-white py-2.5 px-3 sm:px-4 text-sm font-medium text-ink shadow-sm transition hover:border-brand/40 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 min-w-[105px] sm:w-36 cursor-pointer"
                 :class="open ? 'border-brand ring-2 ring-brand/20' : ''"
             >
-                <span x-text="category === 'all' ? 'Category' : (categories.find(c => c.key === category)?.label ?? 'Category')" class="truncate"></span>
+                <span x-text="category === 'all' ? 'Kategori' : (categories.find(c => c.key === category)?.label ?? 'Kategori')" class="truncate"></span>
                 <x-icon name="chevron-down" size="h-3.5 w-3.5" class="text-muted shrink-0 transition-transform duration-200" x-bind:class="open ? 'rotate-180' : ''" />
             </button>
 
@@ -286,7 +286,7 @@
 
                             <template x-if="n.goal">
                                 <span class="rounded-full bg-brand-soft px-2.5 py-0.5 text-xs font-semibold text-brand">
-                                    Goal
+                                    Target
                                 </span>
                             </template>
                         </div>
@@ -333,7 +333,7 @@
                                 {{-- Kolom 2: Progress Bar & Info Tersimpan --}}
                                 <div class="w-full">
                                     <div class="flex items-center justify-between text-xs text-muted">
-                                        <span class="font-medium" x-text="rp(n.goal.saved) + ' saved'"></span>
+                                        <span class="font-medium" x-text="rp(n.goal.saved) + ' terkumpul'"></span>
                                         <span class="hidden sm:inline-block rounded-full bg-white px-2.5 py-0.5 text-xs font-bold text-brand shadow-xs ring-1 ring-black/5"
                                               x-text="pct(n.goal) + '%'"></span>
                                     </div>
@@ -346,7 +346,7 @@
                                 <div class="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t border-black/5 sm:border-t-0">
                                     <div class="text-left sm:text-right leading-tight">
                                         <p class="text-sm sm:text-base font-bold text-ink" x-text="rp(n.goal.saved)"></p>
-                                        <p class="text-xs text-muted" x-text="'of ' + rp(n.goal.target)"></p>
+                                        <p class="text-xs text-muted" x-text="'dari ' + rp(n.goal.target)"></p>
                                     </div>
                                     <x-icon name="check" size="h-6 w-6" class="text-emerald-500 shrink-0 stroke-[2.5]" />
                                 </div>
@@ -357,7 +357,7 @@
                         {{-- Detail notifikasi biasa --}}
                         <template x-if="!n.goal">
                             <p class="text-sm text-muted">
-                                This activity was added to your history. You can review it any time in Transactions.
+                                Aktivitas ini telah ditambahkan ke riwayat. Anda dapat melihatnya kembali di Transaksi.
                             </p>
                         </template>
 
@@ -373,10 +373,10 @@
         <template x-if="visible.length === 0">
             <div class="px-6 py-12 text-center text-sm text-muted">
                 <template x-if="search.trim()">
-                    <p>No notifications found matching "<span class="font-semibold text-ink" x-text="search"></span>".</p>
+                    <p>Tidak ada notifikasi yang cocok dengan "<span class="font-semibold text-ink" x-text="search"></span>".</p>
                 </template>
                 <template x-if="!search.trim()">
-                    <p>No notifications to show.</p>
+                    <p>Tidak ada notifikasi untuk ditampilkan.</p>
                 </template>
             </div>
         </template>

@@ -109,44 +109,36 @@ class Notifikasi extends Model
             return '';
         }
 
-        // Expense recorded: Pengeluaran "..." sebesar ... berhasil dicatat.
         if (preg_match('/^Pengeluaran "([^"]+)" sebesar (.+?) berhasil dicatat\.?$/u', $pesan, $m)) {
-            return "Expense \"{$m[1]}\" of {$m[2]} was successfully recorded.";
+            return "Pengeluaran \"{$m[1]}\" sebesar {$m[2]} berhasil dicatat.";
         }
 
-        // Income recorded: Pemasukan "..." sebesar ... berhasil dicatat.
         if (preg_match('/^Pemasukan "([^"]+)" sebesar (.+?) berhasil dicatat\.?$/u', $pesan, $m)) {
-            return "Income \"{$m[1]}\" of {$m[2]} was successfully recorded.";
+            return "Pemasukan \"{$m[1]}\" sebesar {$m[2]} berhasil dicatat.";
         }
 
-        // Transaction updated: Transaksi "..." telah diperbarui.
         if (preg_match('/^Transaksi "([^"]+)" telah diperbarui\.?$/u', $pesan, $m)) {
-            return "Transaction \"{$m[1]}\" has been updated.";
+            return "Transaksi \"{$m[1]}\" telah diperbarui.";
         }
 
-        // Transaction deleted: Transaksi "..." sebesar ... telah dihapus.
         if (preg_match('/^Transaksi "([^"]+)" sebesar (.+?) telah dihapus\.?$/u', $pesan, $m)) {
-            return "Transaction \"{$m[1]}\" of {$m[2]} has been deleted.";
+            return "Transaksi \"{$m[1]}\" sebesar {$m[2]} telah dihapus.";
         }
 
-        // Transfer between own wallets: Transfer ... dari ... ke ... berhasil.
         if (preg_match('/^Transfer (.+?) dari (.+?) ke (.+?) berhasil\.?$/u', $pesan, $m)) {
-            return "Transfer of {$m[1]} from {$m[2]} to {$m[3]} was successful.";
+            return "Transfer sebesar {$m[1]} dari {$m[2]} ke {$m[3]} berhasil.";
         }
 
-        // Transfer to recipient: Transfer berhasil ke ... dari ... sebesar ...
         if (preg_match('/^Transfer berhasil ke (.+?) dari (.+?) sebesar (.+?)\.?$/u', $pesan, $m)) {
-            return "Transfer to {$m[1]} from {$m[2]} of {$m[3]} was successful.";
+            return "Transfer sebesar {$m[3]} ke {$m[1]} dari {$m[2]} berhasil.";
         }
 
-        // Transfer received: Anda di transfer oleh ... sebesar ...
         if (preg_match('/^Anda di transfer oleh (.+?) sebesar (.+?)\.?$/u', $pesan, $m)) {
-            return "You received a transfer of {$m[2]} from {$m[1]}.";
+            return "Anda menerima transfer sebesar {$m[2]} dari {$m[1]}.";
         }
 
-        // Target reached: Target ... telah tercapai.
         if (preg_match('/^Target (.+?) telah tercapai\.?$/u', $pesan, $m)) {
-            return "Target {$m[1]} has been reached.";
+            return "Target {$m[1]} telah tercapai.";
         }
 
         return $pesan;
@@ -166,7 +158,7 @@ class Notifikasi extends Model
     public function getDisplayTitleAttribute(): string
     {
         if ($this->tipe === 'target') {
-            return 'Savings goal reached 🤩';
+            return 'Target tabungan tercapai 🤩';
         }
 
         if (
@@ -174,12 +166,13 @@ class Notifikasi extends Model
             str_starts_with($this->pesan ?? '', 'Transfer of ') ||
             str_starts_with($this->pesan ?? '', 'Transfer to ') ||
             str_starts_with($this->pesan ?? '', 'You received a transfer ') ||
-            str_starts_with($this->pesan ?? '', 'Anda di transfer oleh ')
+            str_starts_with($this->pesan ?? '', 'Anda di transfer oleh ') ||
+            str_starts_with($this->pesan ?? '', 'Anda menerima transfer ')
         ) {
-            return 'Transfer success!';
+            return 'Transfer berhasil';
         }
 
-        return 'Transaction update';
+        return 'Pembaruan transaksi';
     }
 
     /**
@@ -196,7 +189,8 @@ class Notifikasi extends Model
             str_starts_with($this->pesan ?? '', 'Transfer of ') ||
             str_starts_with($this->pesan ?? '', 'Transfer to ') ||
             str_starts_with($this->pesan ?? '', 'You received a transfer ') ||
-            str_starts_with($this->pesan ?? '', 'Anda di transfer oleh ')
+            str_starts_with($this->pesan ?? '', 'Anda di transfer oleh ') ||
+            str_starts_with($this->pesan ?? '', 'Anda menerima transfer ')
         ) {
             return 'transfer';
         }

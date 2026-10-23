@@ -65,7 +65,7 @@ class TransferBackendConsistencyTest extends TestCase
             ->get(route('transfer.index'))
             ->assertOk()
             ->assertSee('finance.transfer.idempotency.', false)
-            ->assertSee('Connection problem. We could not confirm whether the transfer completed.', false);
+            ->assertSee('Status transfer belum dapat dipastikan.', false);
     }
 
     /**

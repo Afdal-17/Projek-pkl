@@ -56,7 +56,6 @@
                 default => 'smartphone',
             },
             'color' => $wallet->warna ?: $colors[$index % count($colors)],
-            'terima_transfer' => (bool) $wallet->terima_transfer,
         ];
     })->all();
 
@@ -149,58 +148,8 @@
             mode: 'edit',
             csrfToken: @js(csrf_token()),
             wallets: @js($wallets),
-            togglingWallet: null,
             isSubmitting: false,
             isDeleting: false,
-
-            async setPrimaryTransfer(walletId) {
-                if (this.togglingWallet) return;
-                this.togglingWallet = walletId;
-                try {
-                    const response = await fetch(@js(route('dompet.toggleTransfer', '__ID__')).replace('__ID__', walletId), {
-                        method: 'PATCH',
-                        headers: {
-                            'Accept': 'application/json',
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': this.csrfToken,
-                        },
-                        body: JSON.stringify({ set_primary: true })
-                    });
-
-                    if (!response.ok) {
-                        const errData = await response.json().catch(() => ({}));
-                        window.financeAlert({
-                            title: 'Action Failed',
-                            message: errData.message || 'Failed to update transfer wallet settings.',
-                            variant: 'danger',
-                            icon: 'alert-circle',
-                        });
-                        return;
-                    }
-
-                    const result = await response.json();
-
-                    if (result.terima_transfer) {
-                        this.wallets.forEach(w => {
-                            w.terima_transfer = (String(w.id) === String(walletId));
-                        });
-                    }
-
-                    window.financeToast?.({
-                        message: 'Primary transfer wallet updated successfully.',
-                        variant: 'income',
-                    });
-                } catch (e) {
-                    window.financeAlert({
-                        title: 'Network Error',
-                        message: 'Connection issue — please try again.',
-                        variant: 'danger',
-                        icon: 'alert-circle',
-                    });
-                } finally {
-                    this.togglingWallet = null;
-                }
-            },
 
             normalizeColor(color) {
                 if (!color) return '';
@@ -1004,37 +953,6 @@
 
 
                     <div class="flex items-center gap-2">
-                        <div
-                            x-data="{ currentWallet() { return wallets.find(w => String(w.id) === String({{ $w['id'] }})) || @js($w); } }"
-                            class="flex items-center"
-                        >
-                            <template x-if="currentWallet().terima_transfer">
-                                <span
-                                    class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-brand-soft text-brand border border-brand/20 shadow-xs"
-                                    title="Primary transfer wallet"
-                                >
-                                    <x-icon name="check" size="h-3 w-3 stroke-[2.5]" />
-                                    <span>Transfer wallet</span>
-                                </span>
-                            </template>
-
-                            <template x-if="!currentWallet().terima_transfer">
-                                <button
-                                    type="button"
-                                    x-on:click="setPrimaryTransfer({{ $w['id'] }})"
-                                    x-bind:disabled="togglingWallet === {{ $w['id'] }}"
-                                    class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600 hover:text-ink bg-page hover:bg-slate-200/70 border border-line transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    title="Set this wallet as your primary transfer wallet"
-                                >
-                                    <span x-show="togglingWallet !== {{ $w['id'] }}">Set as transfer wallet</span>
-                                    <span x-show="togglingWallet === {{ $w['id'] }}" class="inline-flex items-center gap-1" x-cloak>
-                                        <svg class="h-3 w-3 animate-spin text-muted" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
-                                        <span>Updating...</span>
-                                    </span>
-                                </button>
-                            </template>
-                        </div>
-
                         <button
                             type="button"
                             x-on:click="
@@ -1437,7 +1355,7 @@
                             max="360"
                             x-model.number="colorPicker.hue"
                             @input="syncFromHsv()"
-                            class="h-3 w-full cursor-pointer appearance-none rounded-full focus:outline-none shadow-inner"
+                            class="finance-color-hue h-3 w-full cursor-pointer appearance-none rounded-full focus:outline-none shadow-inner"
                             style="background: linear-gradient(to right, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%);"
                         />
                     </div>

@@ -34,7 +34,7 @@ Route::middleware(['auth', CheckRole::class.':user'])->group(function () {
     Route::get('/dashboard/summary', [UserController::class, 'summary'])->name('user.dashboard.summary');
     Route::get('/wallet/{dompet}', [DompetController::class, 'frontendShow'])->name('dompet.history');
     Route::resource('dompet', DompetController::class);
-    Route::patch('/dompet/{dompet}/toggle-transfer', [DompetController::class, 'toggleTransfer'])->name('dompet.toggleTransfer');
+    Route::patch('/dompet/{dompet}/toggle-transfer', [DompetController::class, 'setPrimaryTransfer'])->name('dompet.toggleTransfer');
     Route::patch('/dompet/{dompet}/manage', [DompetController::class, 'frontendUpdate'])->name('dompet.manage');
     Route::resource('kategori', KategoriController::class);
     Route::get('/transactions/categories', [KategoriController::class, 'frontendIndex'])->name('categories.index');

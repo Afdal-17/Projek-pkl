@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Models\Dompet;
 use App\Models\Transfer;
 use App\Services\CurrencyService;
 use Illuminate\Http\JsonResponse;
@@ -57,6 +58,15 @@ class ProfileController extends Controller
         return view('account', [
             'user' => $user,
             'avatarUrl' => $user->avatar_path ? asset('storage/'.$user->avatar_path) : null,
+            'transferWallets' => Dompet::query()
+                ->where('id_user', $user->id_user)
+                ->orderBy('nama_dompet')
+                ->get()
+                ->map(fn (Dompet $wallet): array => [
+                    'id' => $wallet->id_dompet,
+                    'name' => $wallet->nama_dompet,
+                    'is_primary' => (bool) $wallet->terima_transfer,
+                ]),
         ]);
     }
 

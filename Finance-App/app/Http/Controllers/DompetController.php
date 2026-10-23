@@ -226,17 +226,15 @@ class DompetController extends Controller
         return response()->json(['status' => 'wallet-updated']);
     }
 
-    public function toggleTransfer(Request $request, Dompet $dompet): JsonResponse
+    public function setPrimaryTransfer(Request $request, Dompet $dompet): JsonResponse
     {
         abort_unless($dompet->id_user === (int) Auth::id(), 404);
 
-        if ($request->has('set_primary')) {
-            $request->validate([
-                'set_primary' => ['required', 'boolean'],
-            ]);
-        }
+        $request->validate([
+            'set_primary' => ['required', 'accepted'],
+        ]);
 
-        DB::transaction(function () use ($request, $dompet): void {
+        DB::transaction(function () use ($dompet): void {
             $wallets = Dompet::where('id_user', (int) $dompet->id_user)
                 ->orderBy('id_dompet')
                 ->lockForUpdate()
@@ -247,20 +245,7 @@ class DompetController extends Controller
 
             abort_unless($lockedWallet !== null, 404);
 
-            if ($request->has('set_primary')) {
-                $setPrimary = $request->boolean('set_primary');
-                if ($setPrimary) {
-                    $lockedWallet->setSebagaiPenerimaTransfer();
-                } else {
-                    $lockedWallet->update(['terima_transfer' => false]);
-                }
-            } else {
-                if (! $lockedWallet->terima_transfer) {
-                    $lockedWallet->setSebagaiPenerimaTransfer();
-                } else {
-                    $lockedWallet->update(['terima_transfer' => false]);
-                }
-            }
+            $lockedWallet->setSebagaiPenerimaTransfer();
         });
 
         return response()->json([

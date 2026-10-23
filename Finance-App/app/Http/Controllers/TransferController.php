@@ -112,7 +112,6 @@ class TransferController extends Controller
                 return [
                     'id_user' => $user->id_user,
                     'nama' => $user->nama,
-                    'email' => $user->email,
                     'is_banned' => $user->isBanned(),
                     'has_any_wallet' => $hasAnyWallet,
                     'has_wallet' => $walletsAktif->isNotEmpty(),

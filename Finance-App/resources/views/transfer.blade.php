@@ -47,6 +47,28 @@
             return this.recipient?.wallets.find(w => String(w.id) === String(this.recipientWalletId)) ?? null;
         },
 
+        translateTransferError(message, field = null) {
+            const translations = {
+                'Insufficient balance in source wallet.': 'Saldo dompet sumber tidak mencukupi.',
+                'Destination wallet must be different from source wallet.': 'Dompet sumber dan tujuan harus berbeda.',
+                'Recipient account is suspended and cannot receive transfers.': 'Akun penerima sedang ditangguhkan dan tidak dapat menerima transfer.',
+                'Recipient account is inactive or unverified.': 'Akun penerima tidak aktif atau belum terverifikasi.',
+                'Recipient wallet is not enabled to receive transfers.': 'Dompet penerima belum diaktifkan untuk menerima transfer.',
+                'Destination wallet is not enabled to receive transfers.': 'Dompet tujuan belum diaktifkan untuk menerima transfer.',
+                'Sender wallet not found.': 'Dompet sumber tidak ditemukan.',
+                'Converted amount exceeds the maximum supported limit.': 'Nominal hasil konversi melebihi batas yang didukung.',
+                'This idempotency key was already used for a different transfer request.': 'Kunci permintaan ini sudah digunakan untuk detail transfer yang berbeda.',
+            };
+            const fieldMessages = {
+                jumlah: 'Nominal transfer tidak valid. Periksa kembali jumlah dan format desimalnya.',
+                id_dompet_asal: 'Dompet sumber tidak valid atau bukan milik Anda.',
+                id_dompet_tujuan: 'Dompet tujuan tidak valid atau tidak memenuhi syarat menerima transfer.',
+                tanggal_transfer: 'Tanggal transfer tidak valid.',
+            };
+
+            return translations[message] ?? fieldMessages[field] ?? message;
+        },
+
         get formattedAmount() {
             // this.amount adalah input user dalam mata uang aktif
             return window.financeMoney.formatNative(this.amount || '0');
@@ -84,7 +106,7 @@
                     };
                 }
 
-                throw new Error('Browser storage is unavailable; the transfer was not sent.');
+                throw new Error('Penyimpanan browser tidak tersedia; transfer tidak dikirim.');
             }
         },
 
@@ -156,8 +178,8 @@
 
             if (window.financeMoney.compare(amount, '0.00') <= 0) {
                 window.financeAlert({
-                    title: 'Invalid Amount',
-                    message: 'Amount must be greater than 0.',
+                    title: 'Nominal tidak valid',
+                    message: 'Nominal transfer harus lebih dari 0.',
                     variant: 'danger',
                 });
                 return;
@@ -165,8 +187,8 @@
 
             if (this.mode === 'wallet' && !targetWalletId) {
                 window.financeAlert({
-                    title: 'Destination Required',
-                    message: 'Please select a destination wallet.',
+                    title: 'Dompet tujuan diperlukan',
+                    message: 'Pilih dompet tujuan transfer.',
                     variant: 'danger',
                 });
                 return;
@@ -174,8 +196,8 @@
 
             if (this.mode === 'user' && !this.recipient) {
                 window.financeAlert({
-                    title: 'Recipient Required',
-                    message: 'Please search and verify the recipient first.',
+                    title: 'Penerima diperlukan',
+                    message: 'Cari dan verifikasi penerima terlebih dahulu.',
                     variant: 'danger',
                 });
                 return;
@@ -183,8 +205,8 @@
 
             if (this.mode === 'user' && this.recipient?.is_banned) {
                 window.financeAlert({
-                    title: 'Recipient Suspended',
-                    message: 'Recipient account is currently suspended and cannot receive transfers.',
+                    title: 'Akun penerima ditangguhkan',
+                    message: 'Akun penerima sedang ditangguhkan dan tidak dapat menerima transfer.',
                     variant: 'danger',
                 });
                 return;
@@ -192,8 +214,8 @@
 
             if (this.mode === 'user' && !this.recipientWalletId) {
                 window.financeAlert({
-                    title: 'Recipient Wallet Required',
-                    message: 'Please select the recipient destination wallet.',
+                    title: 'Dompet penerima diperlukan',
+                    message: 'Pilih dompet tujuan milik penerima.',
                     variant: 'danger',
                 });
                 return;
@@ -201,8 +223,8 @@
 
             if (this.mode === 'wallet' && String(this.from) === String(this.to)) {
                 window.financeAlert({
-                    title: 'Same Wallet Selected',
-                    message: 'Source and destination wallets cannot be the same.',
+                    title: 'Dompet yang sama dipilih',
+                    message: 'Dompet sumber dan tujuan harus berbeda.',
                     variant: 'danger',
                 });
                 return;
@@ -210,8 +232,8 @@
 
             if (window.financeMoney.compare(amountInBase, this.fromBalance) > 0) {
                 window.financeAlert({
-                    title: 'Insufficient Balance',
-                    message: 'Insufficient wallet balance for this transfer.',
+                    title: 'Saldo tidak mencukupi',
+                    message: 'Saldo dompet sumber tidak mencukupi untuk transfer ini.',
                     variant: 'danger',
                 });
                 return;
@@ -233,7 +255,7 @@
                 idempotency = this.idempotencyFor(fingerprint);
             } catch (error) {
                 window.financeAlert({
-                    title: 'Transfer Not Sent',
+                    title: 'Transfer tidak dikirim',
                     message: error.message,
                     variant: 'danger',
                 });
@@ -263,22 +285,23 @@
 
                 if (!response.ok) {
                     let result = {};
-                    let errorMessage = 'Transfer could not be processed. Please try again.';
+                    let errorMessage = 'Transfer tidak dapat diproses. Silakan coba lagi.';
 
                     try {
                         result = await response.json();
+                        const firstErrorField = Object.keys(result.errors ?? {})[0];
                         const firstError = Object.values(result.errors ?? {}).flat()[0]
                             ?? result.message
                             ?? null;
-                        if (firstError) errorMessage = firstError;
+                        if (firstError) errorMessage = this.translateTransferError(firstError, firstErrorField);
                     } catch (e) {
                         // Respons server bukan JSON (mis. 500 server error).
                         if (response.status === 422) {
-                            errorMessage = 'The transfer data is invalid. Please check the amount and wallets.';
+                            errorMessage = 'Data transfer tidak valid. Periksa nominal dan dompet yang dipilih.';
                         } else if (response.status === 403) {
-                            errorMessage = 'You are not authorized to perform this transfer.';
+                            errorMessage = 'Anda tidak memiliki izin untuk melakukan transfer ini.';
                         } else if (response.status === 500) {
-                            errorMessage = 'A server error occurred. Please try again later.';
+                            errorMessage = 'Terjadi kesalahan server. Silakan coba lagi nanti.';
                         }
                     }
 
@@ -292,7 +315,7 @@
                     }
 
                     window.financeAlert({
-                        title: 'Transfer Failed',
+                        title: 'Transfer gagal',
                         message: errorMessage,
                         variant: 'danger',
                         icon: 'transfer',
@@ -305,8 +328,8 @@
                 window.location.href = '/transactions';
             } catch (e) {
                 window.financeAlert({
-                    title: 'Connection Error',
-                    message: 'Connection problem. We could not confirm whether the transfer completed. Retry with the same details; the request key will prevent a duplicate.',
+                    title: 'Koneksi bermasalah',
+                    message: 'Status transfer belum dapat dipastikan. Coba ulangi dengan detail yang sama; kunci permintaan akan mencegah transaksi ganda.',
                     variant: 'danger',
                 });
             } finally {
