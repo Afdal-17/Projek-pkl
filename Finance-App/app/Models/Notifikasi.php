@@ -75,12 +75,10 @@ class Notifikasi extends Model
     }
 
     /**
-     * Pesan yang ditampilkan ke pemilik notifikasi.
+     * Message shown to the notification owner.
      *
-     * Nominal dikonversi sesuai mata uang pemilik SAAT INI (bukan mata uang
-     * saat notifikasi dibuat), sehingga notifikasi ikut berubah saat user
-     * mengganti preferensi mata uang akunnya. Notifikasi lama tanpa template
-     * jatuh kembali ke teks tersimpan (pesan).
+     * Amounts use the owner's current currency preference. Notifications
+     * without a template fall back to their stored message.
      */
     public function pesanTampil(): string
     {
@@ -110,35 +108,35 @@ class Notifikasi extends Model
         }
 
         if (preg_match('/^Pengeluaran "([^"]+)" sebesar (.+?) berhasil dicatat\.?$/u', $pesan, $m)) {
-            return "Pengeluaran \"{$m[1]}\" sebesar {$m[2]} berhasil dicatat.";
+            return "Expense \"{$m[1]}\" of {$m[2]} was successfully recorded.";
         }
 
         if (preg_match('/^Pemasukan "([^"]+)" sebesar (.+?) berhasil dicatat\.?$/u', $pesan, $m)) {
-            return "Pemasukan \"{$m[1]}\" sebesar {$m[2]} berhasil dicatat.";
+            return "Income \"{$m[1]}\" of {$m[2]} was successfully recorded.";
         }
 
         if (preg_match('/^Transaksi "([^"]+)" telah diperbarui\.?$/u', $pesan, $m)) {
-            return "Transaksi \"{$m[1]}\" telah diperbarui.";
+            return "Transaction \"{$m[1]}\" has been updated.";
         }
 
         if (preg_match('/^Transaksi "([^"]+)" sebesar (.+?) telah dihapus\.?$/u', $pesan, $m)) {
-            return "Transaksi \"{$m[1]}\" sebesar {$m[2]} telah dihapus.";
+            return "Transaction \"{$m[1]}\" of {$m[2]} has been deleted.";
         }
 
         if (preg_match('/^Transfer (.+?) dari (.+?) ke (.+?) berhasil\.?$/u', $pesan, $m)) {
-            return "Transfer sebesar {$m[1]} dari {$m[2]} ke {$m[3]} berhasil.";
+            return "Transfer of {$m[1]} from {$m[2]} to {$m[3]} was successful.";
         }
 
         if (preg_match('/^Transfer berhasil ke (.+?) dari (.+?) sebesar (.+?)\.?$/u', $pesan, $m)) {
-            return "Transfer sebesar {$m[3]} ke {$m[1]} dari {$m[2]} berhasil.";
+            return "Transfer to {$m[1]} from {$m[2]} of {$m[3]} was successful.";
         }
 
         if (preg_match('/^Anda di transfer oleh (.+?) sebesar (.+?)\.?$/u', $pesan, $m)) {
-            return "Anda menerima transfer sebesar {$m[2]} dari {$m[1]}.";
+            return "You received a transfer of {$m[2]} from {$m[1]}.";
         }
 
         if (preg_match('/^Target (.+?) telah tercapai\.?$/u', $pesan, $m)) {
-            return "Target {$m[1]} telah tercapai.";
+            return "Target {$m[1]} has been reached.";
         }
 
         return $pesan;
@@ -158,7 +156,7 @@ class Notifikasi extends Model
     public function getDisplayTitleAttribute(): string
     {
         if ($this->tipe === 'target') {
-            return 'Target tabungan tercapai 🤩';
+            return 'Savings goal reached 🤩';
         }
 
         if (
@@ -169,10 +167,10 @@ class Notifikasi extends Model
             str_starts_with($this->pesan ?? '', 'Anda di transfer oleh ') ||
             str_starts_with($this->pesan ?? '', 'Anda menerima transfer ')
         ) {
-            return 'Transfer berhasil';
+            return 'Transfer success!';
         }
 
-        return 'Pembaruan transaksi';
+        return 'Transaction update';
     }
 
     /**

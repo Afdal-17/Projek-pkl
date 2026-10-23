@@ -50,7 +50,7 @@ class NotifikasiTest extends TestCase
         $recipientNotification->update(['sudah_dibaca' => false]);
         $this->actingAs($penerima)->get(route('notifications.index'))
             ->assertOk()
-            ->assertSee('Transfer berhasil')
+            ->assertSee('Transfer success!')
             ->assertSee($recipientNotification->formatted_pesan);
         $this->actingAs($penerima)->patch(route('notifications.read', $recipientNotification))->assertRedirect();
         $this->assertTrue((bool) $recipientNotification->fresh()->sudah_dibaca);
@@ -112,7 +112,7 @@ class NotifikasiTest extends TestCase
         $this->assertDatabaseHas('notifikasi', [
             'id_user' => $user->id_user,
             'tipe' => 'target',
-            'pesan' => 'Target tabungan Dana Darurat telah tercapai.',
+            'pesan' => 'Savings goal Dana Darurat has been reached.',
             'sudah_dibaca' => false,
         ]);
         $this->assertTrue($target->load('dompet')->tercapai);
@@ -136,7 +136,7 @@ class NotifikasiTest extends TestCase
                 ->withSession(['notif_popup' => 'Pengeluaran "Makan Siang" sebesar Rp 25.000 berhasil dicatat.'])
                 ->get($url)
                 ->assertOk()
-                ->assertSee('Pengeluaran &quot;Makan Siang&quot; sebesar Rp 25.000 berhasil dicatat.', false)
+                ->assertSee('Expense &quot;Makan Siang&quot; of Rp 25.000 was successfully recorded.', false)
                 ->assertSee('href="/notifications"', false);
         }
     }
@@ -166,17 +166,17 @@ class NotifikasiTest extends TestCase
         $response = $this->actingAs($user)->get(route('notifications.index'));
 
         $response->assertOk()
-            ->assertSee('Cari notifikasi...')
-            ->assertSee('Target tabungan tercapai')
+            ->assertSee('Search notifications...')
+            ->assertSee('Savings goal reached')
             ->assertSee('New Laptop')
             ->assertSee('Work equipment')
-            ->assertSee('Kategori')
-            ->assertSee('Belum dibaca')
-            ->assertSee('Sudah dibaca')
-            ->assertSee('Target')
+            ->assertSee('Category')
+            ->assertSee('Unread')
+            ->assertSee('Read')
+            ->assertSee('Goal')
             ->assertSee('Transfer')
-            ->assertSee('Transaksi')
-            ->assertSee('Tandai semua sudah dibaca');
+            ->assertSee('Transaction')
+            ->assertSee('Mark all as read');
     }
 
     private function userWithWallet(string $email, string $walletName, int $balance): array

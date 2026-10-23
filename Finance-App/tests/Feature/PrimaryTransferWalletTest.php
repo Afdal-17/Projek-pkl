@@ -96,7 +96,7 @@ class PrimaryTransferWalletTest extends TestCase
         $this->assertTrue((bool) $wallet->fresh()->terima_transfer);
     }
 
-    public function test_transfer_receiving_wallet_is_selected_in_account_preferences_not_dashboard(): void
+    public function test_transfer_receiving_wallet_can_be_selected_from_account_or_dashboard(): void
     {
         $user = User::create([
             'nama' => 'Transfer Preferences User',
@@ -126,8 +126,8 @@ class PrimaryTransferWalletTest extends TestCase
 
         $this->get(route('user.dashboard'))
             ->assertOk()
-            ->assertDontSee('Set as transfer wallet')
-            ->assertDontSee('Primary transfer wallet');
+            ->assertSee('Set as recipient')
+            ->assertSee('Primary recipient');
     }
 
     public function test_setting_new_primary_wallet_automatically_deactivates_previous_wallet(): void

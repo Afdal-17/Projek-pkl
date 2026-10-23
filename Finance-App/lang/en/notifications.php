@@ -1,10 +1,10 @@
 <?php
 
 return [
-    'title' => 'Notifikasi',
-    'subtitle' => 'Informasi aktivitas keuangan dan sistem Anda.',
-    'no_notifications' => 'Belum ada notifikasi.',
-    'mark_all_read' => 'Tandai semua sudah dibaca',
-    'view_all' => 'Lihat semua',
-    'target_reached' => 'Target tabungan :name telah tercapai.',
+    'title' => 'Notifications',
+    'subtitle' => 'Alerts for your financial activities and system.',
+    'no_notifications' => 'No notifications yet.',
+    'mark_all_read' => 'Mark all as read',
+    'view_all' => 'View all',
+    'target_reached' => 'Savings goal :name has been reached.',
 ];

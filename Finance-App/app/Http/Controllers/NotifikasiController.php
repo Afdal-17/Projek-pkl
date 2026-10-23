@@ -25,13 +25,14 @@ class NotifikasiController extends Controller
 
                 $isTransfer = str_starts_with($notification->pesan ?? '', 'Transfer ')
                     || str_starts_with($notification->pesan ?? '', 'Anda di transfer oleh ')
+                    || str_starts_with($notification->pesan ?? '', 'You received a transfer ')
                     || str_starts_with($notification->pesan ?? '', 'Anda menerima transfer ');
 
                 $type = $isTarget ? 'saving' : ($isTransfer ? 'transfer' : 'transaction');
 
                 $title = $isTarget
-                    ? 'Target tabungan tercapai'
-                    : ($isTransfer ? 'Transfer berhasil' : 'Pembaruan transaksi');
+                    ? 'Savings goal reached'
+                    : ($isTransfer ? 'Transfer success!' : 'Transaction update');
 
                 $goal = null;
 

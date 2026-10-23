@@ -45,10 +45,10 @@
 
                 if (!response.ok) {
                     window.financeAlert({
-                        title: 'Pembaruan gagal',
+                        title: 'Update Failed',
                         message: Object.keys(result.errors ?? {}).length
-                            ? 'Pilihan dompet penerima tidak valid. Muat ulang halaman lalu coba lagi.'
-                            : 'Dompet penerima transfer tidak dapat diperbarui.',
+                            ? 'The selected receiving wallet is invalid. Reload the page and try again.'
+                            : 'The transfer receiving wallet could not be updated.',
                         variant: 'danger',
                     });
                     return;
@@ -59,13 +59,13 @@
                     wallet.is_primary = String(wallet.id) === this.primaryTransferWalletId;
                 });
                 window.financeToast({
-                    message: 'Dompet penerima transfer berhasil diperbarui.',
+                    message: 'The transfer receiving wallet was updated successfully.',
                     variant: 'income',
                 });
             } catch (error) {
                 window.financeAlert({
-                    title: 'Koneksi bermasalah',
-                    message: 'Dompet penerima transfer tidak dapat diperbarui. Silakan coba lagi.',
+                    title: 'Connection Error',
+                    message: 'The transfer receiving wallet could not be updated. Please try again.',
                     variant: 'danger',
                 });
             } finally {

@@ -50,6 +50,7 @@
             },
             'description' => $wallet->deskripsi,
             'balance' => (string) $wallet->saldo,
+            'is_primary' => (bool) $wallet->terima_transfer,
             'icon' => match ($wallet->jenis) {
                 'physical' => 'banknote',
                 'bank' => 'landmark',
@@ -148,8 +149,52 @@
             mode: 'edit',
             csrfToken: @js(csrf_token()),
             wallets: @js($wallets),
+            settingTransferWallet: false,
+            primaryTransferWalletId: @js((string) (collect($wallets)->firstWhere('is_primary', true)['id'] ?? '')),
             isSubmitting: false,
             isDeleting: false,
+
+            async chooseTransferWallet(walletId) {
+                if (this.settingTransferWallet || String(walletId) === this.primaryTransferWalletId) return;
+
+                this.settingTransferWallet = true;
+                try {
+                    const response = await fetch(@js(route('dompet.toggleTransfer', '__ID__')).replace('__ID__', walletId), {
+                        method: 'PATCH',
+                        headers: {
+                            'X-CSRF-TOKEN': this.csrfToken,
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ set_primary: true }),
+                    });
+                    if (!response.ok) {
+                        window.financeAlert({
+                            title: 'Update Failed',
+                            message: 'The transfer receiving wallet could not be updated. Reload the page and try again.',
+                            variant: 'danger',
+                        });
+                        return;
+                    }
+
+                    this.primaryTransferWalletId = String(walletId);
+                    this.wallets.forEach(wallet => {
+                        wallet.is_primary = String(wallet.id) === this.primaryTransferWalletId;
+                    });
+                    window.financeToast({
+                        message: 'Primary transfer wallet updated successfully.',
+                        variant: 'income',
+                    });
+                } catch (error) {
+                    window.financeAlert({
+                        title: 'Connection Error',
+                        message: 'The transfer receiving wallet could not be updated. Please try again.',
+                        variant: 'danger',
+                    });
+                } finally {
+                    this.settingTransferWallet = false;
+                }
+            },
 
             normalizeColor(color) {
                 if (!color) return '';
@@ -1022,6 +1067,27 @@
                     View history
                 </a>
 
+                <div class="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-4">
+                    <span
+                        x-show="String(primaryTransferWalletId) === String({{ $w['id'] }})"
+                        class="inline-flex items-center gap-1.5 rounded-full bg-brand-soft px-2.5 py-1 text-xs font-semibold text-brand"
+                    >
+                        <x-icon name="check" size="h-3.5 w-3.5" />
+                        Primary recipient
+                    </span>
+
+                    <button
+                        type="button"
+                        x-show="String(primaryTransferWalletId) !== String({{ $w['id'] }})"
+                        x-on:click.stop="chooseTransferWallet('{{ $w['id'] }}')"
+                        x-bind:disabled="settingTransferWallet"
+                        class="rounded-lg border border-line bg-white px-3 py-1.5 text-xs font-medium text-ink transition hover:border-brand/40 hover:bg-page disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        <span x-show="!settingTransferWallet">Set as recipient</span>
+                        <span x-show="settingTransferWallet" x-cloak>Updating...</span>
+                    </button>
+                </div>
+
             </x-card>
 
         @empty
@@ -1256,36 +1322,37 @@
                         </span>
                     </button>
 
-                    <div
-                        x-show="typeOpen"
-                        x-cloak
-                        x-transition:enter="transition ease-out duration-100"
-                        x-transition:enter-start="opacity-0 scale-95"
-                        x-transition:enter-end="opacity-100 scale-100"
-                        x-transition:leave="transition ease-in duration-75"
-                        x-transition:leave-start="opacity-100 scale-100"
-                        x-transition:leave-end="opacity-0 scale-95"
-                        x-ref="typeMenu"
-                        x-on:click.stop
-                        x-on:scroll="positionTypeMenu()"
-                        x-teleport="body"
-                        :style="typeMenuStyle"
-                        class="overflow-y-auto rounded-xl border border-line bg-white p-1 shadow-lg ring-1 ring-black/5"
-                    >
-                        <template x-for="t in ['Physical wallet', 'Digital wallet', 'Bank account']" :key="t">
-                            <button
-                                type="button"
-                                x-on:click="editing.type = t; typeOpen = false"
-                                class="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm transition text-left cursor-pointer"
-                                :class="editing.type === t ? 'bg-brand-soft text-brand font-semibold' : 'text-ink hover:bg-page font-medium'"
-                            >
-                                <span x-text="t"></span>
-                                <span x-show="editing.type === t" class="text-brand shrink-0">
-                                    <x-icon name="check" size="h-4 w-4" />
-                                </span>
-                            </button>
-                        </template>
-                    </div>
+                    <template x-teleport="body">
+                        <div
+                            x-show="typeOpen"
+                            x-cloak
+                            x-transition:enter="transition ease-out duration-100"
+                            x-transition:enter-start="opacity-0 scale-95"
+                            x-transition:enter-end="opacity-100 scale-100"
+                            x-transition:leave="transition ease-in duration-75"
+                            x-transition:leave-start="opacity-100 scale-100"
+                            x-transition:leave-end="opacity-0 scale-95"
+                            x-ref="typeMenu"
+                            x-on:click.stop
+                            x-on:scroll="positionTypeMenu()"
+                            :style="typeMenuStyle"
+                            class="overflow-y-auto rounded-xl border border-line bg-white p-1 shadow-lg ring-1 ring-black/5"
+                        >
+                            <template x-for="t in ['Physical wallet', 'Digital wallet', 'Bank account']" :key="t">
+                                <button
+                                    type="button"
+                                    x-on:click="editing.type = t; typeOpen = false"
+                                    class="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm transition text-left cursor-pointer"
+                                    :class="editing.type === t ? 'bg-brand-soft text-brand font-semibold' : 'text-ink hover:bg-page font-medium'"
+                                >
+                                    <span x-text="t"></span>
+                                    <span x-show="editing.type === t" class="text-brand shrink-0">
+                                        <x-icon name="check" size="h-4 w-4" />
+                                    </span>
+                                </button>
+                            </template>
+                        </div>
+                    </template>
                 </div>
 
                 <x-input
@@ -1447,7 +1514,7 @@
 
 
             {{-- Modal actions --}}
-            <div class="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div class="sticky bottom-0 z-20 -mx-6 -mb-6 mt-7 flex flex-col-reverse gap-3 border-t border-line bg-white px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
 
                 <x-button
                     variant="danger"

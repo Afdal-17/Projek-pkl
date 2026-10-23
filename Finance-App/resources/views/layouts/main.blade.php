@@ -170,7 +170,7 @@
                     <button
                         type="button"
                         @click="open = !open"
-                        aria-label="Notifikasi"
+                        aria-label="Notifications"
                         class="relative flex h-10 w-10 items-center justify-center rounded-lg bg-page text-ink transition hover:bg-line/40"
                     >
 
@@ -209,7 +209,7 @@
                             <div class="flex items-center gap-1.5">
 
                                 <h3 class="text-xs font-bold text-ink">
-                                    Notifikasi
+                                    Notifications
                                 </h3>
 
                                 <template x-if="unread > 0">
@@ -227,7 +227,7 @@
                                     @click="markAllAsRead()"
                                     class="text-[11px] text-brand hover:underline"
                                 >
-                                    Tandai semua dibaca
+                                    Mark all as read
                                 </button>
                             </template>
 
@@ -341,7 +341,7 @@
                                 @click="open = false"
                                 class="inline-flex items-center justify-center gap-1 text-[11px] font-semibold text-brand hover:underline"
                             >
-                                <span>Lihat semua</span>
+                                <span>View all</span>
                                 <x-icon name="arrow-right" size="h-3 w-3" />
                             </a>
 
@@ -655,7 +655,7 @@
 
             <div class="min-w-0 flex-1">
                 <p class="text-sm font-semibold text-dark">
-                    Notifikasi
+                    Notifications
                 </p>
                 <p class="mt-0.5 text-sm text-muted line-clamp-2">
                     {{ \App\Models\Notifikasi::formatMessage(session('notif_popup')) }}
@@ -667,7 +667,7 @@
                     href="/notifications"
                     class="rounded-lg px-2 py-1.5 text-sm font-medium text-brand hover:bg-brand-soft"
                 >
-                    Lihat
+                    View
                 </a>
 
                 <button
