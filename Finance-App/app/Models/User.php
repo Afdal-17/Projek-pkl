@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Storage;
 
 class User extends Authenticatable
 {
@@ -71,6 +72,21 @@ class User extends Authenticatable
     public function getNameAttribute(): string
     {
         return $this->nama;
+    }
+
+    public function getAvatarUrlAttribute(): ?string
+    {
+        $path = $this->avatar_path;
+
+        if (
+            ! is_string($path)
+            || preg_match('/\Aavatars\/([A-Za-z0-9_-]+\.(?:jpe?g|png))\z/iD', $path, $matches) !== 1
+            || ! Storage::disk('public')->exists($path)
+        ) {
+            return null;
+        }
+
+        return route('avatars.show', ['filename' => $matches[1]], false);
     }
 
     public function isAdmin(): bool

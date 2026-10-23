@@ -9,7 +9,7 @@
         'id' => $user->id_user,
         'name' => $user->nama,
         'email' => $user->email,
-        'avatar' => $user->avatar_path ? asset('storage/' . $user->avatar_path) : null,
+        'avatar' => $user->avatar_url,
         'status' => $user->banned_at ? __('admin.banned') : ($user->status ? __('admin.active') : 'Inactive'),
         'banned' => $user->banned_at !== null,
         'ban_reason' => $user->ban_reason,

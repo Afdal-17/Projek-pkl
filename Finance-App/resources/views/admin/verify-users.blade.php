@@ -9,7 +9,7 @@
         'id' => $user->id_user,
         'name' => $user->nama,
         'email' => $user->email,
-        'avatar' => $user->avatar_path ? asset('storage/' . $user->avatar_path) : null,
+        'avatar' => $user->avatar_url,
         'created_at' => $user->created_at->format('d M Y H:i'),
         'created_diff' => $user->created_at->diffForHumans(),
     ])->values();

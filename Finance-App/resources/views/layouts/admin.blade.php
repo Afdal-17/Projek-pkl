@@ -86,8 +86,8 @@
         {{-- Mobile Admin Profile & Sign Out --}}
         <div class="mt-auto border-t border-line pt-4">
             <a href="{{ route('admin.profile') }}" class="flex items-center gap-3 rounded-lg p-2 hover:bg-page">
-                @if (auth()->user()?->avatar_path)
-                    <img src="{{ asset('storage/' . auth()->user()->avatar_path) }}" alt="{{ auth()->user()->nama }}" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';" class="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-line" />
+                @if (auth()->user()?->avatar_url)
+                    <img src="{{ auth()->user()->avatar_url }}" alt="{{ auth()->user()->nama }}" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';" class="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-line" />
                     <span class="hidden h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-soft text-sm font-semibold text-brand">{{ strtoupper(substr(trim(auth()->user()?->nama ?? 'A'), 0, 1)) }}</span>
                 @else
                     <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-soft text-sm font-semibold text-brand">{{ strtoupper(substr(trim(auth()->user()?->nama ?? 'A'), 0, 1)) }}</span>
@@ -131,8 +131,8 @@
         {{-- Desktop Admin Profile & Sign Out --}}
         <div class="mt-auto border-t border-line pt-4">
             <a href="{{ route('admin.profile') }}" class="flex items-center gap-3 rounded-lg p-2 hover:bg-page">
-                @if (auth()->user()?->avatar_path)
-                    <img src="{{ asset('storage/' . auth()->user()->avatar_path) }}" alt="{{ auth()->user()->nama }}" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';" class="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-line" />
+                @if (auth()->user()?->avatar_url)
+                    <img src="{{ auth()->user()->avatar_url }}" alt="{{ auth()->user()->nama }}" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';" class="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-line" />
                     <span class="hidden h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-soft text-sm font-semibold text-brand">{{ strtoupper(substr(trim(auth()->user()?->nama ?? 'A'), 0, 1)) }}</span>
                 @else
                     <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-soft text-sm font-semibold text-brand">{{ strtoupper(substr(trim(auth()->user()?->nama ?? 'A'), 0, 1)) }}</span>

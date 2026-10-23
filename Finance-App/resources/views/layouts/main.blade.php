@@ -2,9 +2,7 @@
     $currentUser = auth()->user();
 
     // User data dari backend
-    $headerAvatarUrl = $currentUser && $currentUser->avatar_path
-        ? asset('storage/' . $currentUser->avatar_path)
-        : null;
+    $headerAvatarUrl = $currentUser?->avatar_url;
 
     $headerInitials = $currentUser && $currentUser->nama
         ? collect(explode(' ', trim($currentUser->nama)))

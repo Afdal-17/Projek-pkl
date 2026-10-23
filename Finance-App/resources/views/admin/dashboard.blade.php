@@ -12,7 +12,7 @@
         'id' => $user->id_user,
         'name' => $user->nama,
         'email' => $user->email,
-        'avatar' => $user->avatar_path ? asset('storage/' . $user->avatar_path) : null,
+        'avatar' => $user->avatar_url,
         'status' => $user->status ? 'Active' : 'Inactive',
         'canToggle' => ! $user->isAdmin() && ! $user->is(auth()->user()),
         'canBan' => ! $user->isAdmin() && ! $user->is(auth()->user()) && $user->email_verified_at !== null,

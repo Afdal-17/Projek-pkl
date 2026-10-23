@@ -54,28 +54,38 @@ class ProfileTest extends TestCase
             ->assertSee('<html lang="en-GB">', false);
     }
 
-    public function test_account_avatar_can_be_uploaded_and_removed(): void
+    public function test_account_avatar_can_be_uploaded_served_and_removed(): void
     {
         Storage::fake('public');
         $user = User::factory()->create();
 
-        $this->actingAs($user)->postJson(route('account.avatar.update'), [
+        $response = $this->actingAs($user)->postJson(route('account.avatar.update'), [
             'avatar' => UploadedFile::fake()->image('avatar.png'),
         ])->assertOk();
 
         $firstAvatarPath = $user->fresh()->avatar_path;
+        $firstAvatarUrl = $response->json('avatar_url');
 
         $this->assertNotNull($firstAvatarPath);
+        $this->assertSame(route('avatars.show', ['filename' => basename($firstAvatarPath)], false), $firstAvatarUrl);
         Storage::disk('public')->assertExists($firstAvatarPath);
+        $this->get($firstAvatarUrl)
+            ->assertOk()
+            ->assertHeader('Content-Type', 'image/png')
+            ->assertHeader('X-Content-Type-Options', 'nosniff');
 
         $this->actingAs($user)->postJson(route('account.avatar.update'), [
-            'avatar' => UploadedFile::fake()->image('replacement.png'),
-        ])->assertOk();
+            'avatar' => UploadedFile::fake()->image('replacement.jpg'),
+        ])->assertOk()
+            ->assertJsonPath('avatar_url', route('avatars.show', ['filename' => basename($user->fresh()->avatar_path)], false));
 
         $avatarPath = $user->fresh()->avatar_path;
         $this->assertNotSame($firstAvatarPath, $avatarPath);
         Storage::disk('public')->assertExists($avatarPath);
         Storage::disk('public')->assertMissing($firstAvatarPath);
+        $this->get($user->fresh()->avatar_url)
+            ->assertOk()
+            ->assertHeader('Content-Type', 'image/jpeg');
 
         $this->post(route('logout'));
         $this->post(route('login'), [
@@ -84,11 +94,56 @@ class ProfileTest extends TestCase
         ])->assertRedirect(route('user.dashboard', absolute: false));
         $this->get(route('account'))
             ->assertOk()
-            ->assertSee('storage/'.$avatarPath);
+            ->assertSee($user->fresh()->avatar_url);
 
         $this->actingAs($user)->deleteJson(route('account.avatar.destroy'))->assertNoContent();
         Storage::disk('public')->assertMissing($avatarPath);
         $this->assertNull($user->fresh()->avatar_path);
+    }
+
+    public function test_avatar_upload_reports_missing_invalid_and_oversized_files_as_json_validation_errors(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
+        $this->postJson(route('account.avatar.update'))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('avatar');
+
+        $this->postJson(route('account.avatar.update'), [
+            'avatar' => UploadedFile::fake()->create('not-an-image.jpg', 10, 'text/plain'),
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('avatar');
+
+        $this->postJson(route('account.avatar.update'), [
+            'avatar' => UploadedFile::fake()->image('too-large.png')->size(2049),
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('avatar');
+
+        $this->assertNull($user->fresh()->avatar_path);
+        $this->assertSame([], Storage::disk('public')->allFiles());
+    }
+
+    public function test_avatar_serving_rejects_missing_files_and_path_traversal(): void
+    {
+        Storage::fake('public');
+
+        $this->get(route('avatars.show', ['filename' => 'missing.jpg']))
+            ->assertNotFound();
+        $this->get('/avatars/..%2Foutside.jpg')
+            ->assertNotFound();
+    }
+
+    public function test_invalid_or_missing_avatar_path_uses_the_initial_fallback(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create(['avatar_path' => 'avatars/../private.jpg']);
+
+        $this->assertNull($user->avatar_url);
+
+        $user->update(['avatar_path' => 'avatars/missing.jpg']);
+        $this->assertNull($user->fresh()->avatar_url);
     }
 
     public function test_profile_information_can_be_updated(): void

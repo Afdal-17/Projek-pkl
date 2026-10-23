@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AvatarController;
 use App\Http\Controllers\DompetController;
 use App\Http\Controllers\KategoriController;
 use App\Http\Controllers\NotifikasiController;
@@ -12,6 +13,10 @@ use App\Http\Controllers\UserController;
 use App\Http\Middleware\CheckRole;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
+
+Route::get('/avatars/{filename}', [AvatarController::class, 'show'])
+    ->where('filename', '[A-Za-z0-9_-]+\.(?:jpe?g|png)')
+    ->name('avatars.show');
 
 // Route khusus ADMIN
 Route::middleware(['auth', CheckRole::class.':admin'])->prefix('admin')->group(function () {

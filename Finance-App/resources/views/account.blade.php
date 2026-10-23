@@ -63,34 +63,66 @@
             const file = event.target.files[0];
             if (!file) return;
 
-            const data = new FormData();
-            data.append('avatar', file);
+            try {
+                const data = new FormData();
+                data.append('avatar', file);
 
-            const response = await fetch(@js(route('account.avatar.update')), {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': this.csrfToken,
-                    'Accept': 'application/json'
-                },
-                body: data,
-            });
+                const response = await fetch(@js(route('account.avatar.update')), {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        'Accept': 'application/json'
+                    },
+                    body: data,
+                });
+                const body = await response.text();
+                let result = null;
 
-            if (response.ok) {
-                this.avatarUrl = (await response.json()).avatar_url;
+                try {
+                    result = body ? JSON.parse(body) : null;
+                } catch {
+                    result = null;
+                }
+
+                if (!response.ok) {
+                    const message = Object.values(result?.errors ?? {}).flat()[0]
+                        ?? result?.message
+                        ?? (response.status === 422
+                            ? 'Choose a valid JPG or PNG photo no larger than 2 MB.'
+                            : 'Photo could not be uploaded. Please try again.');
+                    window.financeAlert({
+                        title: 'Upload Failed',
+                        message,
+                        variant: 'danger',
+                    });
+                    return;
+                }
+
+                if (typeof result?.avatar_url !== 'string' || result.avatar_url === '') {
+                    throw new Error('The server did not return a photo URL.');
+                }
+
+                await new Promise((resolve, reject) => {
+                    const image = new Image();
+                    image.onload = resolve;
+                    image.onerror = reject;
+                    image.src = result.avatar_url;
+                });
+
+                this.avatarUrl = result.avatar_url;
                 window.financeToast({
                     message: 'Photo successfully updated.',
                     variant: 'income',
                 });
-            } else {
-                const result = await response.json();
+            } catch {
                 window.financeAlert({
                     title: 'Upload Failed',
-                    message: Object.values(result.errors ?? {}).flat()[0] ?? 'Photo could not be uploaded.',
+                    message: 'Photo could not be uploaded or displayed. Check your connection and storage access, then try again.',
                     variant: 'danger',
                 });
+            } finally {
+                event.target.value = '';
             }
-
-            event.target.value = '';
         },
 
         async removeAvatar() {
