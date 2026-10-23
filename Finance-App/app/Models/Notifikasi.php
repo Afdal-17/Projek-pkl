@@ -32,6 +32,48 @@ class Notifikasi extends Model
         ];
     }
 
+    private static array $columnsCache = [];
+
+    protected static function booted(): void
+    {
+        static::saving(function (Notifikasi $notifikasi): void {
+            if (! $notifikasi->tableHasColumn('jumlah')) {
+                unset($notifikasi->attributes['jumlah']);
+            }
+            if (! $notifikasi->tableHasColumn('pesan_template')) {
+                unset($notifikasi->attributes['pesan_template']);
+            }
+        });
+    }
+
+    public function tableHasColumn(string $column): bool
+    {
+        $table = $this->getTable();
+        if (! isset(self::$columnsCache[$table])) {
+            self::$columnsCache[$table] = \Illuminate\Support\Facades\Schema::hasTable($table)
+                ? \Illuminate\Support\Facades\Schema::getColumnListing($table)
+                : [];
+        }
+
+        return in_array($column, self::$columnsCache[$table], true);
+    }
+
+    public static function hasColumn(string $column, string $table = 'notifikasi'): bool
+    {
+        if (! isset(self::$columnsCache[$table])) {
+            self::$columnsCache[$table] = \Illuminate\Support\Facades\Schema::hasTable($table)
+                ? \Illuminate\Support\Facades\Schema::getColumnListing($table)
+                : [];
+        }
+
+        return in_array($column, self::$columnsCache[$table], true);
+    }
+
+    public static function flushColumnCache(): void
+    {
+        self::$columnsCache = [];
+    }
+
     /**
      * Pesan yang ditampilkan ke pemilik notifikasi.
      *
@@ -43,10 +85,11 @@ class Notifikasi extends Model
     public function pesanTampil(): string
     {
         if ($this->pesan_template === null || $this->jumlah === null) {
-            return $this->pesan;
+            return self::formatMessage($this->pesan ?? '');
         }
 
-        return str_replace('{jumlah}', finance_money((string) $this->jumlah), $this->pesan_template);
+        $rendered = str_replace('{jumlah}', finance_money((string) $this->jumlah), $this->pesan_template);
+        return self::formatMessage($rendered);
     }
 
     public function user(): BelongsTo
@@ -60,49 +103,49 @@ class Notifikasi extends Model
             $pesan = $pesan->pesan ?? (string) $pesan;
         }
 
-        $pesan = (string) ($pesan ?? '');
+        $pesan = trim((string) ($pesan ?? ''));
 
         if ($pesan === '') {
             return '';
         }
 
         // Expense recorded: Pengeluaran "..." sebesar ... berhasil dicatat.
-        if (preg_match('/^Pengeluaran "([^"]+)" sebesar (.+?) berhasil dicatat\.$/u', $pesan, $m)) {
+        if (preg_match('/^Pengeluaran "([^"]+)" sebesar (.+?) berhasil dicatat\.?$/u', $pesan, $m)) {
             return "Expense \"{$m[1]}\" of {$m[2]} was successfully recorded.";
         }
 
         // Income recorded: Pemasukan "..." sebesar ... berhasil dicatat.
-        if (preg_match('/^Pemasukan "([^"]+)" sebesar (.+?) berhasil dicatat\.$/u', $pesan, $m)) {
+        if (preg_match('/^Pemasukan "([^"]+)" sebesar (.+?) berhasil dicatat\.?$/u', $pesan, $m)) {
             return "Income \"{$m[1]}\" of {$m[2]} was successfully recorded.";
         }
 
         // Transaction updated: Transaksi "..." telah diperbarui.
-        if (preg_match('/^Transaksi "([^"]+)" telah diperbarui\.$/u', $pesan, $m)) {
+        if (preg_match('/^Transaksi "([^"]+)" telah diperbarui\.?$/u', $pesan, $m)) {
             return "Transaction \"{$m[1]}\" has been updated.";
         }
 
         // Transaction deleted: Transaksi "..." sebesar ... telah dihapus.
-        if (preg_match('/^Transaksi "([^"]+)" sebesar (.+?) telah dihapus\.$/u', $pesan, $m)) {
+        if (preg_match('/^Transaksi "([^"]+)" sebesar (.+?) telah dihapus\.?$/u', $pesan, $m)) {
             return "Transaction \"{$m[1]}\" of {$m[2]} has been deleted.";
         }
 
         // Transfer between own wallets: Transfer ... dari ... ke ... berhasil.
-        if (preg_match('/^Transfer (.+?) dari (.+?) ke (.+?) berhasil\.$/u', $pesan, $m)) {
+        if (preg_match('/^Transfer (.+?) dari (.+?) ke (.+?) berhasil\.?$/u', $pesan, $m)) {
             return "Transfer of {$m[1]} from {$m[2]} to {$m[3]} was successful.";
         }
 
         // Transfer to recipient: Transfer berhasil ke ... dari ... sebesar ...
-        if (preg_match('/^Transfer berhasil ke (.+?) dari (.+?) sebesar (.+?)\.$/u', $pesan, $m)) {
+        if (preg_match('/^Transfer berhasil ke (.+?) dari (.+?) sebesar (.+?)\.?$/u', $pesan, $m)) {
             return "Transfer to {$m[1]} from {$m[2]} of {$m[3]} was successful.";
         }
 
         // Transfer received: Anda di transfer oleh ... sebesar ...
-        if (preg_match('/^Anda di transfer oleh (.+?) sebesar (.+?)\.$/u', $pesan, $m)) {
+        if (preg_match('/^Anda di transfer oleh (.+?) sebesar (.+?)\.?$/u', $pesan, $m)) {
             return "You received a transfer of {$m[2]} from {$m[1]}.";
         }
 
         // Target reached: Target ... telah tercapai.
-        if (preg_match('/^Target (.+?) telah tercapai\.$/u', $pesan, $m)) {
+        if (preg_match('/^Target (.+?) telah tercapai\.?$/u', $pesan, $m)) {
             return "Target {$m[1]} has been reached.";
         }
 

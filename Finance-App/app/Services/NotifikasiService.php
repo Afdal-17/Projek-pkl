@@ -134,15 +134,16 @@ class NotifikasiService
     public function targetTercapai(TargetTabungan $target): void
     {
         $target->loadMissing('dompet');
+        $message = __('notifications.target_reached', ['name' => $target->nama_target]);
         Notifikasi::create([
             'id_user' => $target->id_user,
             'tipe' => 'target',
-            'pesan' => 'Target '.$target->nama_target.' telah tercapai.',
+            'pesan' => $message,
             'sudah_dibaca' => false,
             'tanggal' => now(),
         ]);
 
-        session()->flash('notif_popup', 'Target '.$target->nama_target.' telah tercapai.');
+        session()->flash('notif_popup', $message);
     }
 
     public function targetBaruTercapai(TargetTabungan $target, string $saldoSebelumnya): void

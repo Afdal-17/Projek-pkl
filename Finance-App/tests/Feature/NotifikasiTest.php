@@ -112,6 +112,7 @@ class NotifikasiTest extends TestCase
         $this->assertDatabaseHas('notifikasi', [
             'id_user' => $user->id_user,
             'tipe' => 'target',
+            'pesan' => 'Savings goal Dana Darurat has been reached.',
             'sudah_dibaca' => false,
         ]);
         $this->assertTrue($target->load('dompet')->tercapai);
@@ -193,9 +194,9 @@ class NotifikasiTest extends TestCase
             'nama_dompet' => $walletName,
             'saldo_awal' => $balance,
             'saldo' => $balance,
+            'terima_transfer' => true,
         ]);
 
         return [$user, $wallet];
     }
 }
-

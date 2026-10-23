@@ -10,7 +10,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('notifikasi', function (Blueprint $table): void {
-            $table->decimal('jumlah', 20, 2)->nullable()->change();
+            $table->decimal('jumlah', 26, 2)->nullable()->change();
         });
     }
 

@@ -84,7 +84,7 @@ class NotifikasiController extends Controller
                     'id' => $notification->id_notifikasi,
                     'type' => $type,
                     'title' => $title,
-                    'text' => $notification->pesanTampil(),
+                    'text' => $notification->formatted_pesan,
                     'scope' => $notification->tanggal->diffForHumans(),
                     'read' => $notification->sudah_dibaca,
                     'goal' => $goal,
