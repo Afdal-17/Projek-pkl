@@ -139,11 +139,9 @@ class AdminTest extends TestCase
             ->assertOk()
             ->assertJsonPath('status', 'verified');
 
-        $this->assertDatabaseHas('user', [
-            'id_user' => $user->id_user,
-            'email_verified_at' => now()->toDateTimeString(),
-            'status' => true,
-        ]);
+        $verifiedUser = $user->fresh();
+        $this->assertNotNull($verifiedUser->email_verified_at);
+        $this->assertTrue($verifiedUser->status);
 
         // Setelah diverifikasi, user bisa login ke dashboard
         auth()->logout();
@@ -152,7 +150,7 @@ class AdminTest extends TestCase
             'email' => 'pending@example.com',
             'password' => 'password',
         ])->assertRedirect(route('user.dashboard'));
-        $this->assertAuthenticatedAs($user->fresh());
+        $this->assertAuthenticatedAs($verifiedUser);
     }
 
     public function test_banned_user_auto_unbanned_after_30_days(): void

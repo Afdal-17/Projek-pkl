@@ -20,4 +20,8 @@ return [
     'no_history' => 'No transactions for this wallet yet.',
     'description' => 'Description',
     'no_description' => 'No description.',
+    'balance_limit' => 'The balance must be a non-negative number and must not exceed the supported maximum.',
+    'transfer_history_delete_blocked' => 'This wallet cannot be deleted because it has transfer history.',
+    'other_users_transfer_delete_blocked' => "This wallet cannot be force-deleted because its transfer history involves another user's wallet.",
+    'deleted' => 'Wallet has been deleted.',
 ];

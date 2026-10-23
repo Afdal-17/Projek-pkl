@@ -174,6 +174,7 @@ class DuplicateSubmissionGuardTest extends TestCase
             'nama_dompet' => 'Dompet '.$email,
             'saldo_awal' => $saldo,
             'saldo' => $saldo,
+            'terima_transfer' => true,
         ]);
 
         return [$user, $dompet];

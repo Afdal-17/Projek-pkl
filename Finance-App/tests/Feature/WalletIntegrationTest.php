@@ -84,6 +84,186 @@ class WalletIntegrationTest extends TestCase
         ]);
         $this->assertSame(66.67, $target->fresh()->load('dompet')->progress);
     }
+
+    public function test_wallet_edit_accepts_hex_for_its_existing_preset_color(): void
+    {
+        $user = User::create([
+            'nama' => 'Wallet Color User',
+            'email' => 'wallet-color@example.com',
+            'password' => 'password',
+            'role' => 'user',
+            'status' => true,
+            'email_verified_at' => now(),
+        ]);
+        $wallet = Dompet::create([
+            'id_user' => $user->id_user,
+            'nama_dompet' => 'Main wallet',
+            'jenis' => 'digital',
+            'warna' => 'brand',
+            'saldo_awal' => '100.00',
+            'saldo' => '100.00',
+        ]);
+
+        $this->actingAs($user)
+            ->patchJson(route('dompet.manage', $wallet), [
+                'nama_dompet' => 'Main wallet',
+                'jenis' => 'digital',
+                'warna' => '#4F46E5',
+                'saldo' => '100.00',
+            ])
+            ->assertOk()
+            ->assertJson(['status' => 'wallet-updated']);
+
+        $this->assertDatabaseHas('dompet', [
+            'id_dompet' => $wallet->id_dompet,
+            'warna' => '#4f46e5',
+        ]);
+    }
+
+    public function test_wallet_color_edit_does_not_revalidate_or_resubmit_an_existing_large_balance(): void
+    {
+        $user = User::create([
+            'nama' => 'Legacy Balance User',
+            'email' => 'legacy-balance@example.com',
+            'password' => 'password',
+            'role' => 'user',
+            'status' => true,
+            'email_verified_at' => now(),
+        ]);
+        $wallet = Dompet::create([
+            'id_user' => $user->id_user,
+            'nama_dompet' => 'Warisan',
+            'jenis' => 'digital',
+            'warna' => 'brand',
+            'saldo_awal' => '10000000000000000000.00',
+            'saldo' => '10000000000000000000.00',
+        ]);
+
+        $this->actingAs($user)
+            ->patchJson(route('dompet.manage', $wallet), [
+                'nama_dompet' => 'Warisan',
+                'deskripsi' => null,
+                'jenis' => 'digital',
+                'warna' => 'income',
+            ])
+            ->assertOk()
+            ->assertJson(['status' => 'wallet-updated']);
+
+        $this->assertSame('10000000000000000000.00', (string) $wallet->fresh()->saldo);
+        $this->assertDatabaseHas('dompet', [
+            'id_dompet' => $wallet->id_dompet,
+            'warna' => 'income',
+            'saldo' => '10000000000000000000.00',
+        ]);
+        $this->assertDatabaseMissing('transaksi', [
+            'id_dompet' => $wallet->id_dompet,
+            'nama_transaksi' => 'Penyesuaian saldo wallet',
+        ]);
+    }
+
+    public function test_wallet_metadata_edit_preserves_zero_balance(): void
+    {
+        $user = User::create([
+            'nama' => 'Zero Balance Edit User',
+            'email' => 'zero-balance-edit@example.com',
+            'password' => 'password',
+            'role' => 'user',
+            'status' => true,
+            'email_verified_at' => now(),
+        ]);
+        $wallet = Dompet::create([
+            'id_user' => $user->id_user,
+            'nama_dompet' => 'Empty wallet',
+            'jenis' => 'digital',
+            'warna' => 'brand',
+            'saldo_awal' => '0.00',
+            'saldo' => '0.00',
+        ]);
+
+        $this->actingAs($user)
+            ->patchJson(route('dompet.manage', $wallet), [
+                'nama_dompet' => 'Empty wallet renamed',
+                'deskripsi' => null,
+                'jenis' => 'digital',
+                'warna' => 'income',
+            ])
+            ->assertOk()
+            ->assertJson(['status' => 'wallet-updated']);
+
+        $this->assertSame('0.00', (string) $wallet->fresh()->saldo);
+    }
+
+    public function test_wallet_balance_can_be_set_to_zero(): void
+    {
+        $user = User::create([
+            'nama' => 'Set Zero Balance User',
+            'email' => 'set-zero-balance@example.com',
+            'password' => 'password',
+            'role' => 'user',
+            'status' => true,
+            'email_verified_at' => now(),
+        ]);
+        $wallet = Dompet::create([
+            'id_user' => $user->id_user,
+            'nama_dompet' => 'Wallet with balance',
+            'jenis' => 'digital',
+            'warna' => 'brand',
+            'saldo_awal' => '10.00',
+            'saldo' => '10.00',
+        ]);
+
+        $this->actingAs($user)
+            ->patchJson(route('dompet.manage', $wallet), [
+                'nama_dompet' => 'Wallet with balance',
+                'deskripsi' => null,
+                'jenis' => 'digital',
+                'warna' => 'brand',
+                'saldo' => '0.00',
+            ])
+            ->assertOk()
+            ->assertJson(['status' => 'wallet-updated']);
+
+        $this->assertSame('0.00', (string) $wallet->fresh()->saldo);
+        $this->assertDatabaseHas('transaksi', [
+            'id_dompet' => $wallet->id_dompet,
+            'jumlah' => '10.00',
+            'jenis' => 'pengeluaran',
+            'nama_transaksi' => 'Penyesuaian saldo wallet',
+        ]);
+    }
+
+    public function test_wallet_balance_limit_error_is_english_and_consistent(): void
+    {
+        $user = User::create([
+            'nama' => 'Wallet Validation User',
+            'email' => 'wallet-validation@example.com',
+            'password' => 'password',
+            'role' => 'user',
+            'status' => true,
+            'email_verified_at' => now(),
+        ]);
+        $wallet = Dompet::create([
+            'id_user' => $user->id_user,
+            'nama_dompet' => 'Main wallet',
+            'jenis' => 'digital',
+            'warna' => 'brand',
+            'saldo_awal' => '100.00',
+            'saldo' => '100.00',
+        ]);
+
+        $this->actingAs($user)
+            ->patchJson(route('dompet.manage', $wallet), [
+                'nama_dompet' => 'Main wallet',
+                'jenis' => 'digital',
+                'warna' => 'brand',
+                'saldo' => '1000000000000000000.00',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath(
+                'errors.saldo.0',
+                'The balance must be a non-negative number and must not exceed the supported maximum.'
+            );
+    }
     
     public function test_wallet_creation_rejects_initial_balance_above_database_limit(): void
     {
@@ -96,18 +276,30 @@ class WalletIntegrationTest extends TestCase
             'email_verified_at' => now(),
         ]);
 
-        $this->actingAs($user)->post(route('dompet.store'), [
+        $data = [
             'nama_dompet' => 'Dompet Saldo Terlalu Besar',
             'deskripsi' => 'Tes batas saldo',
             'jenis' => 'bank',
             'warna' => 'warn',
             'saldo_awal' => '10000000000000000000000000000',
-        ])->assertSessionHasErrors('saldo_awal');
+        ];
+
+        $this->actingAs($user)
+            ->post(route('dompet.store'), $data)
+            ->assertSessionHasErrors('saldo_awal');
 
         $this->assertDatabaseMissing('dompet', [
             'id_user' => $user->id_user,
             'nama_dompet' => 'Dompet Saldo Terlalu Besar',
         ]);
+
+        $this->actingAs($user)
+            ->postJson(route('dompet.store'), $data)
+            ->assertUnprocessable()
+            ->assertJsonPath(
+                'errors.saldo_awal.0',
+                'The balance must be a non-negative number and must not exceed the supported maximum.'
+            );
     }
 
     
@@ -179,6 +371,58 @@ class WalletIntegrationTest extends TestCase
             'jumlah' => 2500,
             'jenis' => 'pemasukan',
         ]);
+    }
+
+    public function test_wallet_creation_allows_color_already_used_by_another_wallet(): void
+    {
+        $user = User::create([
+            'nama' => 'Shared Wallet Color User',
+            'email' => 'shared-wallet-color@example.com',
+            'password' => 'password',
+            'role' => 'user',
+            'status' => true,
+            'email_verified_at' => now(),
+        ]);
+        Dompet::create([
+            'id_user' => $user->id_user,
+            'nama_dompet' => 'Existing wallet',
+            'jenis' => 'digital',
+            'warna' => 'brand',
+            'saldo_awal' => '0.00',
+            'saldo' => '0.00',
+        ]);
+
+        $this->actingAs($user)->post(route('dompet.store'), [
+            'nama_dompet' => 'Another wallet',
+            'jenis' => 'digital',
+            'warna' => 'brand',
+            'saldo_awal' => '0',
+        ])->assertRedirect(route('dompet.index'));
+
+        $this->assertSame(
+            2,
+            Dompet::where('id_user', $user->id_user)->where('warna', 'brand')->count()
+        );
+    }
+
+    public function test_wallet_creation_still_rejects_invalid_color_format(): void
+    {
+        $user = User::create([
+            'nama' => 'Invalid Wallet Color User',
+            'email' => 'invalid-wallet-color@example.com',
+            'password' => 'password',
+            'role' => 'user',
+            'status' => true,
+            'email_verified_at' => now(),
+        ]);
+
+        $this->actingAs($user)->postJson(route('dompet.store'), [
+            'nama_dompet' => 'Invalid color wallet',
+            'jenis' => 'digital',
+            'warna' => '#12xz89',
+            'saldo_awal' => '0',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('warna');
     }
 
     public function test_wallet_creation_with_optional_empty_initial_balance_defaults_to_zero_without_transaction(): void

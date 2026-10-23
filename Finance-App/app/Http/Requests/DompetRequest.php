@@ -24,14 +24,14 @@ class DompetRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'nama_dompet.required' => 'Nama dompet wajib diisi.',
-            'nama_dompet.max' => 'Nama dompet maksimal 100 karakter.',
-            'saldo.numeric' => 'Current balance harus berupa angka.',
-            'saldo.min' => 'Current balance tidak boleh negatif.',
-            'saldo.prohibits' => 'Hanya boleh mengisi salah satu antara Current Balance atau Saldo Awal.',
-            'saldo_awal.numeric' => 'Saldo awal harus berupa angka.',
-            'saldo_awal.min' => 'Saldo awal tidak boleh negatif.',
-            'saldo_awal.prohibits' => 'Hanya boleh mengisi salah satu antara Current Balance atau Saldo Awal.',
+            'nama_dompet.required' => 'The wallet name is required.',
+            'nama_dompet.max' => 'The wallet name may not be greater than 100 characters.',
+            'saldo.numeric' => 'Current balance must be a number.',
+            'saldo.min' => 'Current balance cannot be negative.',
+            'saldo.prohibits' => 'You can only fill either Current Balance or Initial Balance.',
+            'saldo_awal.numeric' => 'Initial balance must be a number.',
+            'saldo_awal.min' => 'Initial balance cannot be negative.',
+            'saldo_awal.prohibits' => 'You can only fill either Current Balance or Initial Balance.',
         ];
     }
 }

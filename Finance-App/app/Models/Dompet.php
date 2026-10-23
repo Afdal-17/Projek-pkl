@@ -35,17 +35,6 @@ class Dompet extends Model
         ];
     }
 
-    protected static function booted(): void
-    {
-        /* Dompet pertama milik user otomatis jadi penerima transfer aktif,
-         * baik dibuat lewat controller maupun langsung via model. */
-        static::creating(function (Dompet $dompet): void {
-            if (! Dompet::where('id_user', $dompet->id_user)->exists()) {
-                $dompet->terima_transfer = true;
-            }
-        });
-    }
-
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'id_user', 'id_user');
@@ -77,10 +66,12 @@ class Dompet extends Model
      */
     public function setSebagaiPenerimaTransfer(): void
     {
-        Dompet::where('id_user', $this->id_user)
-            ->where('id_dompet', '!=', $this->id_dompet)
-            ->update(['terima_transfer' => false]);
+        \Illuminate\Support\Facades\DB::transaction(function (): void {
+            Dompet::where('id_user', $this->id_user)
+                ->where('id_dompet', '!=', $this->id_dompet)
+                ->update(['terima_transfer' => false]);
 
-        $this->update(['terima_transfer' => true]);
+            $this->update(['terima_transfer' => true]);
+        });
     }
 }

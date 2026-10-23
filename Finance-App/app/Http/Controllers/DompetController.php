@@ -96,8 +96,8 @@ class DompetController extends Controller
         $this->validateSaldoBase($saldoAwal, 'saldo_awal');
         $this->validateSaldoBase($saldo, 'saldo');
 
-        // Warna tidak dikirim form (create.blade.php); pilih warna pertama yang
-        // belum dipakai agar dompet tetap mudah dibedakan.
+        // Warna tidak dikirim form (create.blade.php); pilih warna awal yang
+        // belum dipakai bila tersedia, tetapi warna tetap boleh digunakan ulang.
         if (empty($data['warna'])) {
             $warnaDipakai = Dompet::where('id_user', Auth::id())->pluck('warna')->all();
             $data['warna'] = collect(['brand', 'income', 'warn', 'expense', 'dark'])
@@ -161,35 +161,24 @@ class DompetController extends Controller
             'jenis' => ['required', 'string', 'in:physical,digital,bank'],
             'warna' => ['required', 'string', 'regex:/^(brand|income|warn|expense|dark|#[0-9a-fA-F]{6})$/'],
             'saldo' => [
+                'sometimes',
                 'required',
                 'regex:/^\d+(?:\.\d{1,2})?$/',
+                'numeric',
+                'min:0',
             ],
         ]);
 
         $data['warna'] = strtolower($data['warna']);
 
-	        $this->validateSaldoBase($data['saldo'], 'saldo');
-
-        $warnaDipakai = Dompet::where('id_user', Auth::id())
-            ->where('warna', $data['warna'])
-            ->where('id_dompet', '!=', $dompet->id_dompet)
-            ->exists();
-
-        if ($warnaDipakai) {
-            throw ValidationException::withMessages([
-                'warna' => 'Wallet tidak bisa diedit karena warna penentu sama.',
-            ]);
+        $newBalance = null;
+        if (array_key_exists('saldo', $data)) {
+            $currency = CurrencyService::normalize(
+                Auth::user()->mata_uang ?? CurrencyService::BASE
+            );
+            $newBalance = CurrencyService::toBaseExact($data['saldo'], $currency);
+            $this->validateSaldoBase($newBalance, 'saldo');
         }
-
-        $currency = CurrencyService::normalize(
-            Auth::user()->mata_uang ?? CurrencyService::BASE
-        );
-
-        $newBalance = CurrencyService::toBaseExact(
-            $data['saldo'],
-            $currency
-        );
-        $this->validateSaldoBase($newBalance, 'saldo');
 
         DB::transaction(function () use ($data, $dompet, $notifikasiService, $newBalance): void {
             $wallet = Dompet::where('id_user', Auth::id())
@@ -198,15 +187,20 @@ class DompetController extends Controller
                 ->firstOrFail();
 
             $oldBalance = (string) $wallet->saldo;
-            $delta = bcsub($newBalance, $oldBalance, 2);
+            $delta = $newBalance === null
+                ? '0.00'
+                : bcsub($newBalance, $oldBalance, 2);
 
-            $wallet->update([
+            $updates = [
                 'nama_dompet' => $data['nama_dompet'],
                 'deskripsi' => $data['deskripsi'] ?? null,
                 'jenis' => $data['jenis'],
                 'warna' => $data['warna'],
-                'saldo' => $newBalance,
-            ]);
+            ];
+            if ($newBalance !== null) {
+                $updates['saldo'] = $newBalance;
+            }
+            $wallet->update($updates);
 
             if (bccomp($delta, '0.00', 2) !== 0) {
                 Transaksi::create([
@@ -232,15 +226,42 @@ class DompetController extends Controller
         return response()->json(['status' => 'wallet-updated']);
     }
 
-	    public function toggleTransfer(Request $request, Dompet $dompet): JsonResponse
+    public function toggleTransfer(Request $request, Dompet $dompet): JsonResponse
     {
         abort_unless($dompet->id_user === (int) Auth::id(), 404);
 
-        if (! $dompet->terima_transfer) {
-            $dompet->setSebagaiPenerimaTransfer();
-        } else {
-            $dompet->update(['terima_transfer' => false]);
+        if ($request->has('set_primary')) {
+            $request->validate([
+                'set_primary' => ['required', 'boolean'],
+            ]);
         }
+
+        DB::transaction(function () use ($request, $dompet): void {
+            $wallets = Dompet::where('id_user', (int) $dompet->id_user)
+                ->orderBy('id_dompet')
+                ->lockForUpdate()
+                ->get();
+            $lockedWallet = $wallets->first(
+                fn (Dompet $wallet): bool => (int) $wallet->id_dompet === (int) $dompet->id_dompet
+            );
+
+            abort_unless($lockedWallet !== null, 404);
+
+            if ($request->has('set_primary')) {
+                $setPrimary = $request->boolean('set_primary');
+                if ($setPrimary) {
+                    $lockedWallet->setSebagaiPenerimaTransfer();
+                } else {
+                    $lockedWallet->update(['terima_transfer' => false]);
+                }
+            } else {
+                if (! $lockedWallet->terima_transfer) {
+                    $lockedWallet->setSebagaiPenerimaTransfer();
+                } else {
+                    $lockedWallet->update(['terima_transfer' => false]);
+                }
+            }
+        });
 
         return response()->json([
             'status' => 'ok',
@@ -261,12 +282,12 @@ class DompetController extends Controller
         if ($transfers->isNotEmpty() && ! $request->boolean('force')) {
             if ($request->expectsJson()) {
                 return response()->json([
-                    'message' => 'Wallet tidak dapat dihapus karena masih memiliki riwayat transfer.',
+                    'message' => __('dompet.transfer_history_delete_blocked'),
                     'transfer_count' => $transfers->count(),
                 ], 422);
             }
 
-            return redirect()->back()->with('error', 'Wallet tidak dapat dihapus karena masih memiliki riwayat transfer.');
+            return redirect()->back()->with('error', __('dompet.transfer_history_delete_blocked'));
         }
 
         // Force delete hanya aman bila SEMUA riwayat transfer melibatkan dompet
@@ -284,7 +305,7 @@ class DompetController extends Controller
             ->exists();
 
         if ($melibatkanUserLain) {
-            $message = 'Wallet tidak dapat dihapus paksa karena riwayat transfernya melibatkan dompet pengguna lain.';
+            $message = __('dompet.other_users_transfer_delete_blocked');
 
             if ($request->expectsJson()) {
                 return response()->json(['message' => $message], 422);
@@ -325,7 +346,7 @@ class DompetController extends Controller
             return response()->json(['status' => 'wallet-deleted']);
         }
 
-        return redirect()->back()->with('status', 'Wallet telah dihapus.');
+        return redirect()->back()->with('status', __('dompet.deleted'));
     }
     private const MAX_SALDO = CurrencyService::MAX_BASE_AMOUNT;
 
@@ -338,7 +359,7 @@ class DompetController extends Controller
             || bccomp($amount, self::MAX_SALDO, 2) > 0
         ) {
             throw ValidationException::withMessages([
-                $field => 'Saldo harus berupa angka positif dan tidak melebihi batas maksimum yang didukung.',
+                $field => __('dompet.balance_limit'),
             ]);
         }
     }

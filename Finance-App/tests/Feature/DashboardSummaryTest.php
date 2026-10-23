@@ -136,7 +136,7 @@ class DashboardSummaryTest extends TestCase
         $this->actingAs($user)->get(route('user.dashboard'))
             ->assertOk()
             ->assertSee('Rp 1.500.000.000')
-            ->assertSee('text-xl sm:text-2xl lg:text-3xl', false);
+            ->assertSee('text-3xl sm:text-4xl lg:text-5xl', false);
     }
 
     public function test_dashboard_displays_exact_large_balance_accurately(): void
@@ -161,18 +161,30 @@ class DashboardSummaryTest extends TestCase
         ];
 
         foreach ($wallets as [$name, $saldo]) {
-            Dompet::create([
+            $wallet = Dompet::create([
                 'id_user' => $user->id_user,
                 'nama_dompet' => $name,
                 'jenis' => 'bank',
                 'saldo_awal' => $saldo,
                 'saldo' => $saldo,
             ]);
+
+            if (in_array($name, ['Warisan', 'Hutang Indonesia'], true)) {
+                TargetTabungan::create([
+                    'id_user' => $user->id_user,
+                    'id_dompet' => $wallet->id_dompet,
+                    'nama_target' => $name.' savings',
+                    'nominal_target' => $saldo,
+                    'nominal_terkumpul' => $saldo,
+                    'saldo_awal_dompet' => $saldo,
+                ]);
+            }
         }
 
         $this->actingAs($user)->get(route('user.dashboard'))
             ->assertOk()
             ->assertSee('Rp 20.000.001.000.025.380.000')
-            ->assertDontSee('Rp 20.000.001.000.025.378.816');
+            ->assertDontSee('Rp 20.000.001.000.025.378.816')
+            ->assertSee('Rp 20.000.000.000.000.000.000');
     }
 }

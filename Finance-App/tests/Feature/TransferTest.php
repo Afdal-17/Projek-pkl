@@ -103,6 +103,10 @@ class TransferTest extends TestCase
         $this->assertCount(1, $response->json());
         $this->assertSame('Alpha User', $response->json()[0]['nama']);
         $this->assertSame('Dompet Alpha', $response->json()[0]['wallets'][0]['name']);
+        $this->assertArrayNotHasKey('saldo', $response->json()[0]['wallets'][0]);
+        $this->assertArrayNotHasKey('balance', $response->json()[0]['wallets'][0]);
+        $this->assertArrayNotHasKey('saldo', $response->json()[0]);
+        $this->assertArrayNotHasKey('balance', $response->json()[0]);
 
         // Pencarian email
         $response = $this->actingAs($pengirim)->get(route('transfer.recipients.search', ['query' => 'beta@example.com']));
@@ -351,6 +355,7 @@ class TransferTest extends TestCase
             'nama_dompet' => $walletName,
             'saldo_awal' => $balance,
             'saldo' => $balance,
+            'terima_transfer' => true,
         ]);
 
         return [$user, $wallet];

@@ -54,7 +54,7 @@ class TransactionHistoryDisplayTest extends TestCase
         // Notifikasi penerima memakai nama user pengirim (bukan dompetnya)
         $this->actingAs($penerima)->get(route('notifications.index'))
             ->assertOk()
-            ->assertSee('Anda di transfer oleh Budi Santoso', false)
+            ->assertSee('from Budi Santoso', false)
             ->assertDontSee('Dompet DANA Kirim', false);
 
         // Sisi pengirim sekarang simetris: nama penerima, bukan dompetnya
@@ -160,6 +160,7 @@ class TransactionHistoryDisplayTest extends TestCase
             'nama_dompet' => $walletName,
             'saldo_awal' => $balance,
             'saldo' => $balance,
+            'terima_transfer' => true,
         ]);
 
         return [$user, $wallet];

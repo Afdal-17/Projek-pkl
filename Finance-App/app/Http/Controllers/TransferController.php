@@ -58,7 +58,10 @@ class TransferController extends Controller
                     ->orWhere('id_user', ctype_digit($query) ? (int) $query : 0);
             })
             ->whereHas('dompet', fn ($wallets) => $wallets->where('terima_transfer', true))
-            ->with(['dompet' => fn ($wallets) => $wallets->where('terima_transfer', true)->orderBy('nama_dompet')])
+            ->with(['dompet' => fn ($wallets) => $wallets
+                ->select('id_dompet', 'id_user', 'nama_dompet', 'terima_transfer')
+                ->where('terima_transfer', true)
+                ->orderBy('nama_dompet')])
             ->first();
 
         abort_if($recipient === null, 404, 'User not found or has no active wallet.');
@@ -93,7 +96,9 @@ class TransferController extends Controller
                     ->orWhere('email', 'like', '%'.$query.'%')
                     ->orWhere('id_user', ctype_digit($query) ? (int) $query : 0);
             })
-            ->with(['dompet' => fn ($wallets) => $wallets->orderBy('nama_dompet')])
+            ->with(['dompet' => fn ($wallets) => $wallets
+                ->select('id_dompet', 'id_user', 'nama_dompet', 'terima_transfer')
+                ->orderBy('nama_dompet')])
             ->limit(8)
             ->get();
 
