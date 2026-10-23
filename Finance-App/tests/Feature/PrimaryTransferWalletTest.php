@@ -96,7 +96,7 @@ class PrimaryTransferWalletTest extends TestCase
         $this->assertTrue((bool) $wallet->fresh()->terima_transfer);
     }
 
-    public function test_transfer_receiving_wallet_can_be_selected_from_account_or_dashboard(): void
+    public function test_primary_transfer_wallet_is_managed_from_dashboard_not_account_preferences(): void
     {
         $user = User::create([
             'nama' => 'Transfer Preferences User',
@@ -120,9 +120,9 @@ class PrimaryTransferWalletTest extends TestCase
         $this->actingAs($user)
             ->get(route('account'))
             ->assertOk()
-            ->assertSee('Transfer receiving wallet')
-            ->assertSee('type="radio"', false)
-            ->assertSee('name="transfer_receiving_wallet"', false);
+            ->assertDontSee('transfer_receiving_wallet')
+            ->assertDontSee('Transfer receiving wallet')
+            ->assertDontSee('name="transfer_receiving_wallet"', false);
 
         $this->get(route('user.dashboard'))
             ->assertOk()

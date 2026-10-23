@@ -23,8 +23,5 @@ return [
     'update_password' => 'Update password',
     'language' => 'Language',
     'default_currency' => 'Default currency',
-    'transfer_receiving_wallet' => 'Transfer receiving wallet',
-    'transfer_receiving_wallet_help' => 'Choose the single wallet that other users can select when sending you a transfer.',
-    'transfer_receiving_wallet_empty' => 'Create a wallet before enabling incoming transfers.',
     'success_popup' => 'Profile successfully updated!',
 ];

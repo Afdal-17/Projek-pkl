@@ -9,9 +9,6 @@
         active: 'profile',
         saved: false,
         saving: false,
-        settingTransferWallet: false,
-        transferWallets: @js($transferWallets),
-        primaryTransferWalletId: @js((string) ($transferWallets->firstWhere('is_primary', true)['id'] ?? '')),
         form: {
             name: @js($user->nama),
             email: @js($user->email),
@@ -26,52 +23,6 @@
         ],
         avatarUrl: @js($avatarUrl),
         csrfToken: @js(csrf_token()),
-
-        async chooseTransferWallet(walletId) {
-            if (this.settingTransferWallet || String(walletId) === this.primaryTransferWalletId) return;
-
-            this.settingTransferWallet = true;
-            try {
-                const response = await fetch(@js(route('dompet.toggleTransfer', '__ID__')).replace('__ID__', walletId), {
-                    method: 'PATCH',
-                    headers: {
-                        'X-CSRF-TOKEN': this.csrfToken,
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ set_primary: true }),
-                });
-                const result = await response.json().catch(() => ({}));
-
-                if (!response.ok) {
-                    window.financeAlert({
-                        title: 'Update Failed',
-                        message: Object.keys(result.errors ?? {}).length
-                            ? 'The selected receiving wallet is invalid. Reload the page and try again.'
-                            : 'The transfer receiving wallet could not be updated.',
-                        variant: 'danger',
-                    });
-                    return;
-                }
-
-                this.primaryTransferWalletId = String(walletId);
-                this.transferWallets.forEach(wallet => {
-                    wallet.is_primary = String(wallet.id) === this.primaryTransferWalletId;
-                });
-                window.financeToast({
-                    message: 'The transfer receiving wallet was updated successfully.',
-                    variant: 'income',
-                });
-            } catch (error) {
-                window.financeAlert({
-                    title: 'Connection Error',
-                    message: 'The transfer receiving wallet could not be updated. Please try again.',
-                    variant: 'danger',
-                });
-            } finally {
-                this.settingTransferWallet = false;
-            }
-        },
 
         async save() {
             if (this.saving) return;
@@ -445,39 +396,6 @@
                                             <option :value="item.value" x-text="item.label"></option>
                                         </template>
                                     </select>
-                                </div>
-                            </div>
-
-                            <div class="rounded-xl border border-line/70 bg-page/40 p-3.5">
-                                <div class="text-sm font-semibold text-ink">{{ __('account.transfer_receiving_wallet') }}</div>
-                                <p class="mt-1 text-xs text-muted">{{ __('account.transfer_receiving_wallet_help') }}</p>
-
-                                <div class="mt-3 space-y-2">
-                                    <template x-for="wallet in transferWallets" :key="wallet.id">
-                                        <label
-                                            class="flex cursor-pointer items-center gap-3 rounded-lg border border-line bg-white px-3 py-2.5 transition"
-                                            :class="String(primaryTransferWalletId) === String(wallet.id) ? 'border-brand bg-brand-soft/40' : 'hover:border-brand/40'"
-                                        >
-                                            <input
-                                                type="radio"
-                                                name="transfer_receiving_wallet"
-                                                :value="String(wallet.id)"
-                                                :checked="String(primaryTransferWalletId) === String(wallet.id)"
-                                                :disabled="settingTransferWallet"
-                                                @change="chooseTransferWallet(wallet.id)"
-                                                class="h-4 w-4 accent-brand"
-                                            >
-                                            <span class="min-w-0 flex-1 truncate text-sm font-medium text-ink" x-text="wallet.name"></span>
-                                            <x-icon
-                                                x-show="String(primaryTransferWalletId) === String(wallet.id)"
-                                                name="check"
-                                                size="h-4 w-4"
-                                                class="shrink-0 text-brand"
-                                            />
-                                        </label>
-                                    </template>
-
-                                    <p x-show="transferWallets.length === 0" class="text-xs text-muted">{{ __('account.transfer_receiving_wallet_empty') }}</p>
                                 </div>
                             </div>
 
