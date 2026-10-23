@@ -169,13 +169,15 @@
                         x-cloak
                         x-show="avatarUrl"
                         :src="avatarUrl"
+                        x-on:error="avatarUrl = null"
                         alt="Profile photo"
                         class="h-20 w-20 rounded-full bg-brand-soft object-cover"
                     >
 
                     <span
                         x-show="!avatarUrl"
-                        class="h-20 w-20 rounded-full bg-brand-soft"
+                        class="flex h-20 w-20 items-center justify-center rounded-full bg-brand-soft text-2xl font-bold text-brand select-none"
+                        x-text="form.name ? form.name.trim().split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() : '?'"
                     ></span>
 
                     <div class="min-w-0">
@@ -339,12 +341,9 @@
                                                 x-text="currencies.find(c => c.value === form.currency)?.label ?? 'IDR (Rp)'"
                                             ></span>
                                         </div>
-                                        <x-icon
-                                            name="chevron-down"
-                                            size="h-4 w-4"
-                                            class="text-muted shrink-0 transition-transform duration-200"
-                                            x-bind:class="open ? 'rotate-180' : ''"
-                                        />
+                                        <span class="text-muted shrink-0 transition-transform duration-200" :class="open ? 'rotate-180' : ''">
+                                            <x-icon name="chevron-down" size="h-4 w-4" />
+                                        </span>
                                     </button>
 
                                     <div

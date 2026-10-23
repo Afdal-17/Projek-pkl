@@ -56,6 +56,7 @@
                 default => 'smartphone',
             },
             'color' => $wallet->warna ?: $colors[$index % count($colors)],
+            'terima_transfer' => (bool) $wallet->terima_transfer,
         ];
     })->all();
 
@@ -76,42 +77,57 @@
     $total = $summary['total_saldo'];
 
     $totalSaved = collect($summary['target_tabungan'])
-        ->sum(fn ($target) => min(
-            (float) $target['jumlah_terkumpul'],
-            (float) $target['nominal_target']
-        ));
+        ->reduce(function (string $total, array $target): string {
+            $saved = (string) $target['jumlah_terkumpul'];
+            $goal = (string) $target['nominal_target'];
+            $cappedSaved = bccomp($saved, $goal, 2) > 0 ? $goal : $saved;
+
+            return bcadd($total, $cappedSaved, 2);
+        }, '0.00');
 
     $largest = collect($wallets)
         ->sort(fn ($a, $b) => bccomp((string) $b['balance'], (string) $a['balance'], 2))
         ->first();
 
-    // Skalasi Ukuran Font Dinamis berbasis panjang karakter nominal (Solusi A No. 2)
+    // Skalasi Ukuran Font Dinamis berbasis panjang karakter nominal (Responsive Balance Typography)
     $getMainBalanceClass = function (string $formatted): string {
         $len = mb_strlen(trim($formatted));
-        if ($len <= 11) {
-            return 'text-3xl sm:text-4xl lg:text-[2.5rem]';
+        if ($len <= 12) {
+            return 'text-4xl sm:text-5xl lg:text-[3.25rem]';
         }
-        if ($len <= 15) {
+        if ($len <= 17) {
+            return 'text-3xl sm:text-4xl lg:text-5xl';
+        }
+        if ($len <= 22) {
             return 'text-2xl sm:text-3xl lg:text-4xl';
         }
-        if ($len <= 18) {
+        if ($len <= 27) {
             return 'text-xl sm:text-2xl lg:text-3xl';
         }
-        return 'text-lg sm:text-xl lg:text-2xl';
+        if ($len <= 33) {
+            return 'text-lg sm:text-xl lg:text-2xl';
+        }
+        return 'text-base sm:text-lg lg:text-xl';
     };
 
     $getCardBalanceClass = function (string $formatted): string {
         $len = mb_strlen(trim($formatted));
-        if ($len <= 11) {
-            return 'text-2xl';
+        if ($len <= 12) {
+            return 'text-2xl sm:text-3xl';
         }
-        if ($len <= 15) {
+        if ($len <= 17) {
             return 'text-xl sm:text-2xl';
         }
-        if ($len <= 18) {
+        if ($len <= 22) {
             return 'text-lg sm:text-xl';
         }
-        return 'text-base sm:text-lg';
+        if ($len <= 28) {
+            return 'text-base sm:text-lg';
+        }
+        if ($len <= 34) {
+            return 'text-sm sm:text-base';
+        }
+        return 'text-xs sm:text-sm';
     };
 
     $getListAmountClass = function (string $formatted): string {
@@ -132,8 +148,186 @@
             open: false,
             mode: 'edit',
             csrfToken: @js(csrf_token()),
+            wallets: @js($wallets),
+            togglingWallet: null,
             isSubmitting: false,
             isDeleting: false,
+
+            async setPrimaryTransfer(walletId) {
+                if (this.togglingWallet) return;
+                this.togglingWallet = walletId;
+                try {
+                    const response = await fetch(@js(route('dompet.toggleTransfer', '__ID__')).replace('__ID__', walletId), {
+                        method: 'PATCH',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': this.csrfToken,
+                        },
+                        body: JSON.stringify({ set_primary: true })
+                    });
+
+                    if (!response.ok) {
+                        const errData = await response.json().catch(() => ({}));
+                        window.financeAlert({
+                            title: 'Action Failed',
+                            message: errData.message || 'Failed to update transfer wallet settings.',
+                            variant: 'danger',
+                            icon: 'alert-circle',
+                        });
+                        return;
+                    }
+
+                    const result = await response.json();
+
+                    if (result.terima_transfer) {
+                        this.wallets.forEach(w => {
+                            w.terima_transfer = (String(w.id) === String(walletId));
+                        });
+                    }
+
+                    window.financeToast?.({
+                        message: 'Primary transfer wallet updated successfully.',
+                        variant: 'income',
+                    });
+                } catch (e) {
+                    window.financeAlert({
+                        title: 'Network Error',
+                        message: 'Connection issue — please try again.',
+                        variant: 'danger',
+                        icon: 'alert-circle',
+                    });
+                } finally {
+                    this.togglingWallet = null;
+                }
+            },
+
+            normalizeColor(color) {
+                if (!color) return '';
+                const c = String(color).trim().toLowerCase();
+                const presets = {
+                    'brand': '#4f46e5',
+                    'income': '#10b981',
+                    'warn': '#f59e0b',
+                    'expense': '#ef4444',
+                    'dark': '#1f2937',
+                };
+                return presets[c] || c;
+            },
+
+            colorPicker: {
+                hue: 240,
+                saturation: 100,
+                value: 90,
+                hexInput: '#4F46E5',
+                isDraggingSpectrum: false,
+            },
+
+            hsvToHex(h, s, v) {
+                s = s / 100;
+                v = v / 100;
+                const c = v * s;
+                const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+                const m = v - c;
+                let r = 0, g = 0, b = 0;
+                if (h >= 0 && h < 60) { r = c; g = x; b = 0; }
+                else if (h >= 60 && h < 120) { r = x; g = c; b = 0; }
+                else if (h >= 120 && h < 180) { r = 0; g = c; b = x; }
+                else if (h >= 180 && h < 240) { r = 0; g = x; b = c; }
+                else if (h >= 240 && h < 300) { r = x; g = 0; b = c; }
+                else { r = c; g = 0; b = x; }
+                const toHex = (n) => {
+                    const hex = Math.max(0, Math.min(255, Math.round((n + m) * 255))).toString(16);
+                    return hex.length === 1 ? '0' + hex : hex;
+                };
+                return ('#' + toHex(r) + toHex(g) + toHex(b)).toLowerCase();
+            },
+
+            hexToHsv(hex) {
+                if (!hex) return { h: 240, s: 100, v: 90 };
+                let c = String(hex).trim().replace(/^#/, '');
+                if (c.length === 3) {
+                    c = c.split('').map(x => x + x).join('');
+                }
+                if (c.length !== 6 || !/^[0-9a-fA-F]{6}$/.test(c)) {
+                    return { h: 240, s: 100, v: 90 };
+                }
+                const r = parseInt(c.substring(0, 2), 16) / 255;
+                const g = parseInt(c.substring(2, 4), 16) / 255;
+                const b = parseInt(c.substring(4, 6), 16) / 255;
+                const max = Math.max(r, g, b);
+                const min = Math.min(r, g, b);
+                const delta = max - min;
+                let h = 0;
+                if (delta !== 0) {
+                    if (max === r) {
+                        h = ((g - b) / delta) % 6;
+                    } else if (max === g) {
+                        h = (b - r) / delta + 2;
+                    } else {
+                        h = (r - g) / delta + 4;
+                    }
+                    h = Math.round(h * 60);
+                    if (h < 0) h += 360;
+                }
+                const s = max === 0 ? 0 : Math.round((delta / max) * 100);
+                const v = Math.round(max * 100);
+                return { h, s, v };
+            },
+
+            initColorPicker(colorValue) {
+                const normalized = this.normalizeColor(colorValue || 'brand');
+                const hsv = this.hexToHsv(normalized);
+                this.colorPicker.hue = hsv.h;
+                this.colorPicker.saturation = hsv.s;
+                this.colorPicker.value = hsv.v;
+                this.colorPicker.hexInput = (normalized.startsWith('#') ? normalized : ('#' + normalized)).toUpperCase();
+            },
+
+            syncFromHsv() {
+                const hex = this.hsvToHex(this.colorPicker.hue, this.colorPicker.saturation, this.colorPicker.value);
+                this.editing.color = hex;
+                this.colorPicker.hexInput = hex.toUpperCase();
+            },
+
+            onSpectrumMouseDown(e) {
+                this.colorPicker.isDraggingSpectrum = true;
+                this.updateSpectrumPos(e);
+            },
+
+            updateSpectrumPos(e) {
+                if (!this.$refs.spectrumArea) return;
+                const rect = this.$refs.spectrumArea.getBoundingClientRect();
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                const x = Math.max(0, Math.min(rect.width, clientX - rect.left));
+                const y = Math.max(0, Math.min(rect.height, clientY - rect.top));
+                this.colorPicker.saturation = Math.round((x / rect.width) * 100);
+                this.colorPicker.value = Math.round((1 - (y / rect.height)) * 100);
+                this.syncFromHsv();
+            },
+
+            onHexInput(value) {
+                let raw = String(value || '').trim();
+                if (!raw.startsWith('#') && raw.length > 0) {
+                    raw = '#' + raw;
+                }
+                this.colorPicker.hexInput = raw.toUpperCase();
+                if (/^#[0-9a-fA-F]{6}$/.test(raw)) {
+                    const hex = raw.toLowerCase();
+                    this.editing.color = hex;
+                    const hsv = this.hexToHsv(hex);
+                    this.colorPicker.hue = hsv.h;
+                    this.colorPicker.saturation = hsv.s;
+                    this.colorPicker.value = hsv.v;
+                }
+            },
+
+            selectPresetColor(presetCode) {
+                const hex = this.normalizeColor(presetCode);
+                this.editing.color = presetCode;
+                this.initColorPicker(hex);
+            },
 
             confirmDialog: {
                 open: false,
@@ -279,7 +473,7 @@
                     if (saldoAwalShown !== '') {
                         data.set('saldo_awal', window.financeMoney.parseFormatted(saldoAwalShown));
                     }
-                } else {
+                } else if (this.editing.balanceChanged) {
                     data.set('saldo', window.financeMoney.parseFormatted(this.editing.balanceDisplay ?? this.editing.balance));
                 }
 
@@ -488,6 +682,8 @@
             class="w-full shrink-0 sm:w-auto"
             x-on:click="
                 mode = 'add';
+                const allColors = ['brand', 'income', 'warn', 'expense', 'dark', '#8b5cf6', '#ec4899', '#14b8a6', '#06b6d4'];
+                const firstFree = allColors[wallets.length % allColors.length];
                 editing = {
                     id: null,
                     name: '',
@@ -497,8 +693,10 @@
                     balanceDisplay: '',
                     saldo_awal: '',
                     saldoAwalDisplay: '',
-                    color: 'brand'
+                    color: firstFree,
+                    savedColor: null
                 };
+                initColorPicker(firstFree);
                 open = true;
             "
         >
@@ -576,31 +774,31 @@
             {{-- Income & Expense --}}
             <div class="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-5">
 
-                <div class="flex min-w-0 items-center gap-2 text-xs text-income">
+                <div class="flex min-w-0 items-center gap-2 text-income">
 
                     <x-icon
                         name="arrow-up"
-                        size="h-3.5 w-3.5 shrink-0"
+                        size="h-4 w-4 shrink-0"
                     />
 
                     <span class="min-w-0 truncate tabular-nums">
-                        <span class="font-semibold whitespace-nowrap">{{ $formatMoney($summary['total_pemasukan_bulan_ini']) }}</span>
-                        <span class="text-muted ml-1 whitespace-nowrap">this month</span>
+                        <span class="font-bold text-sm sm:text-base whitespace-nowrap">{{ $formatMoney($summary['total_pemasukan_bulan_ini']) }}</span>
+                        <span class="text-xs text-muted ml-1 whitespace-nowrap">this month</span>
                     </span>
 
                 </div>
 
 
-                <div class="flex min-w-0 items-center gap-2 text-xs text-expense">
+                <div class="flex min-w-0 items-center gap-2 text-expense">
 
                     <x-icon
                         name="arrow-down"
-                        size="h-3.5 w-3.5 shrink-0"
+                        size="h-4 w-4 shrink-0"
                     />
 
                     <span class="min-w-0 truncate tabular-nums">
-                        <span class="font-semibold whitespace-nowrap">{{ $formatMoney($summary['total_pengeluaran_bulan_ini']) }}</span>
-                        <span class="text-muted ml-1 whitespace-nowrap">this month</span>
+                        <span class="font-bold text-sm sm:text-base whitespace-nowrap">{{ $formatMoney($summary['total_pengeluaran_bulan_ini']) }}</span>
+                        <span class="text-xs text-muted ml-1 whitespace-nowrap">this month</span>
                     </span>
 
                 </div>
@@ -805,21 +1003,58 @@
                     </span>
 
 
-                    <button
-                        type="button"
-                        x-on:click="
-                            mode = 'edit';
-                            editing = @js($w);
-                            editing.balance = window.financeMoney.fromBase(editing.balance);
-                            editing.balanceDisplay = window.financeMoney.formatNumber(editing.balance, { minDecimals: 0, maxDecimals: 2 });
-                            editing.saldo_awal = '';
-                            editing.saldoAwalDisplay = '';
-                            open = true;
-                        "
-                        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-line hover:bg-page"
-                    >
-                        <x-icon name="more" size="h-4 w-4" />
-                    </button>
+                    <div class="flex items-center gap-2">
+                        <div
+                            x-data="{ currentWallet() { return wallets.find(w => String(w.id) === String({{ $w['id'] }})) || @js($w); } }"
+                            class="flex items-center"
+                        >
+                            <template x-if="currentWallet().terima_transfer">
+                                <span
+                                    class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-brand-soft text-brand border border-brand/20 shadow-xs"
+                                    title="Primary transfer wallet"
+                                >
+                                    <x-icon name="check" size="h-3 w-3 stroke-[2.5]" />
+                                    <span>Transfer wallet</span>
+                                </span>
+                            </template>
+
+                            <template x-if="!currentWallet().terima_transfer">
+                                <button
+                                    type="button"
+                                    x-on:click="setPrimaryTransfer({{ $w['id'] }})"
+                                    x-bind:disabled="togglingWallet === {{ $w['id'] }}"
+                                    class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600 hover:text-ink bg-page hover:bg-slate-200/70 border border-line transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    title="Set this wallet as your primary transfer wallet"
+                                >
+                                    <span x-show="togglingWallet !== {{ $w['id'] }}">Set as transfer wallet</span>
+                                    <span x-show="togglingWallet === {{ $w['id'] }}" class="inline-flex items-center gap-1" x-cloak>
+                                        <svg class="h-3 w-3 animate-spin text-muted" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+                                        <span>Updating...</span>
+                                    </span>
+                                </button>
+                            </template>
+                        </div>
+
+                        <button
+                            type="button"
+                            x-on:click="
+                                mode = 'edit';
+                                editing = Object.assign({}, wallets.find(w => String(w.id) === String({{ $w['id'] }})) || @js($w));
+                                editing.savedColor = editing.color;
+                                editing.balance = window.financeMoney.fromBase(editing.balance);
+                                editing.balanceDisplay = window.financeMoney.formatNumber(editing.balance, { minDecimals: 0, maxDecimals: 2 });
+                                editing.balanceChanged = false;
+                                editing.saldo_awal = '';
+                                editing.saldoAwalDisplay = '';
+                                initColorPicker(editing.color);
+                                open = true;
+                            "
+                            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-line hover:bg-page"
+                            aria-label="Edit wallet"
+                        >
+                            <x-icon name="more" size="h-4 w-4" />
+                        </button>
+                    </div>
                 </div>
 
 
@@ -902,8 +1137,11 @@
         @php
             $walletCount = count($wallets);
             $distributionBalances = collect($wallets)
-                ->map(fn ($wallet) => max(0, (float) $wallet['balance']));
-            $totalDistributionBalance = $distributionBalances->sum();
+                ->map(fn ($wallet): string => bccomp((string) $wallet['balance'], '0.00', 2) > 0
+                    ? (string) $wallet['balance']
+                    : '0.00');
+            $totalDistributionBalance = $distributionBalances
+                ->reduce(fn (string $total, string $balance): string => bcadd($total, $balance, 2), '0.00');
 
             // Memastikan seluruh segmen warna wallet terlihat tanpa mendistorsi proporsi saldo
             $minShare = $walletCount > 0 ? min(2.5, 25 / $walletCount) : 0;
@@ -915,12 +1153,13 @@
 
             @forelse ($wallets as $index => $w)
                 @php
-                    $balance = $distributionBalances[$index] ?? 0;
+                    $balance = $distributionBalances[$index] ?? '0.00';
                     $isCustom = str_starts_with($w['color'], '#');
                     $solidClass = ! $isCustom ? ($tones[$w['color']]['solid'] ?? 'bg-brand') : '';
 
-                    if ($totalDistributionBalance > 0) {
-                        $rawRatio = $balance / $totalDistributionBalance;
+                    if (bccomp($totalDistributionBalance, '0.00', 2) > 0) {
+                        // Floating point is used only to size the visual chart segment.
+                        $rawRatio = (float) bcdiv($balance, $totalDistributionBalance, 8);
                         $share = $minShare + ($rawRatio * $remainingPool);
                     } else {
                         $share = 100 / max($walletCount, 1);
@@ -977,6 +1216,8 @@
         x-transition.opacity
         x-on:keydown.escape.window="if (!confirmDialog.open && !alertDialog.open && !isSubmitting && !isDeleting) open = false"
         x-on:click.self="if (!confirmDialog.open && !alertDialog.open && !isSubmitting && !isDeleting) open = false"
+        x-on:mousemove.window="if (colorPicker.isDraggingSpectrum) updateSpectrumPos($event)"
+        x-on:mouseup.window="colorPicker.isDraggingSpectrum = false"
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
     >
 
@@ -1052,42 +1293,81 @@
                 />
 
 
-                <div>
-
+                <div
+                    x-data="{
+                        typeOpen: false,
+                        typeMenuStyle: '',
+                        toggleTypeMenu() {
+                            this.typeOpen = !this.typeOpen;
+                            if (this.typeOpen) this.$nextTick(() => this.positionTypeMenu());
+                        },
+                        positionTypeMenu() {
+                            if (!this.typeOpen || !this.$refs.typeTrigger || !this.$refs.typeMenu) return;
+                            const trigger = this.$refs.typeTrigger.getBoundingClientRect();
+                            const menu = this.$refs.typeMenu;
+                            const height = Math.min(menu.scrollHeight || 3 * 42 + 8, 3 * 42 + 8);
+                            const spaceBelow = window.innerHeight - trigger.bottom - 8;
+                            const spaceAbove = trigger.top - 8;
+                            const openAbove = spaceBelow < height && spaceAbove > spaceBelow;
+                            const maxHeight = Math.max(0, openAbove ? spaceAbove : spaceBelow);
+                            const top = openAbove
+                                ? Math.max(8, trigger.top - Math.min(height, maxHeight) - 6)
+                                : Math.min(trigger.bottom + 6, window.innerHeight - Math.min(height, maxHeight) - 8);
+                            this.typeMenuStyle = `position: fixed; left: ${trigger.left}px; top: ${top}px; width: ${trigger.width}px; max-height: ${maxHeight}px; z-index: 100;`;
+                        }
+                    }"
+                    class="relative"
+                    x-on:click.outside="typeOpen = false"
+                    x-on:resize.window="positionTypeMenu()"
+                    x-on:scroll.window.capture="positionTypeMenu()"
+                >
                     <label class="mb-1.5 block text-sm font-medium">
                         Wallet type
                     </label>
 
-                    <select
-                        x-model="editing.type"
-                        class="
-                            w-full
-                            rounded-lg
-                            border
-                            border-line
-                            bg-white
-                            px-3
-                            py-2.5
-                            text-sm
-                            focus:border-brand
-                            focus:outline-none
-                            focus:ring-2
-                            focus:ring-brand/20
-                        "
+                    <button
+                        type="button"
+                        x-ref="typeTrigger"
+                        x-on:click="toggleTypeMenu()"
+                        class="flex w-full items-center justify-between rounded-lg border border-line bg-white px-3 py-2.5 text-sm text-ink transition hover:border-brand/40 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+                        :class="typeOpen ? 'border-brand ring-2 ring-brand/20' : ''"
                     >
-                        <option>
-                            Physical wallet
-                        </option>
+                        <span x-text="editing.type || 'Digital wallet'" class="font-medium"></span>
+                        <span class="text-muted shrink-0 transition-transform duration-200" :class="typeOpen ? 'rotate-180' : ''">
+                            <x-icon name="chevron-down" size="h-4 w-4" />
+                        </span>
+                    </button>
 
-                        <option>
-                            Digital wallet
-                        </option>
-
-                        <option>
-                            Bank account
-                        </option>
-                    </select>
-
+                    <div
+                        x-show="typeOpen"
+                        x-cloak
+                        x-transition:enter="transition ease-out duration-100"
+                        x-transition:enter-start="opacity-0 scale-95"
+                        x-transition:enter-end="opacity-100 scale-100"
+                        x-transition:leave="transition ease-in duration-75"
+                        x-transition:leave-start="opacity-100 scale-100"
+                        x-transition:leave-end="opacity-0 scale-95"
+                        x-ref="typeMenu"
+                        x-on:click.stop
+                        x-on:scroll="positionTypeMenu()"
+                        x-teleport="body"
+                        :style="typeMenuStyle"
+                        class="overflow-y-auto rounded-xl border border-line bg-white p-1 shadow-lg ring-1 ring-black/5"
+                    >
+                        <template x-for="t in ['Physical wallet', 'Digital wallet', 'Bank account']" :key="t">
+                            <button
+                                type="button"
+                                x-on:click="editing.type = t; typeOpen = false"
+                                class="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm transition text-left cursor-pointer"
+                                :class="editing.type === t ? 'bg-brand-soft text-brand font-semibold' : 'text-ink hover:bg-page font-medium'"
+                            >
+                                <span x-text="t"></span>
+                                <span x-show="editing.type === t" class="text-brand shrink-0">
+                                    <x-icon name="check" size="h-4 w-4" />
+                                </span>
+                            </button>
+                        </template>
+                    </div>
                 </div>
 
                 <x-input
@@ -1097,7 +1377,7 @@
                     type="text"
                     placeholder="0"
                     x-model="editing.balanceDisplay"
-                    x-on:input="formatBalance($event.target.value)"
+                    x-on:input="editing.balanceChanged = mode === 'edit'; formatBalance($event.target.value)"
                 />
 
                 <div x-show="mode === 'add'">
@@ -1122,72 +1402,127 @@
 
 
                 {{-- Wallet color --}}
-                <div>
-
-                    <label class="mb-2 block text-sm font-medium">
+                <div class="mt-4">
+                    <label class="mb-2 block text-sm font-medium text-ink">
                         Wallet color
                     </label>
 
-                    <div class="flex flex-wrap items-center gap-3">
+                    {{-- Spectrum Saturation/Value Area --}}
+                    <div
+                        x-ref="spectrumArea"
+                        @mousedown="onSpectrumMouseDown($event)"
+                        @touchstart.passive="onSpectrumMouseDown($event)"
+                        @touchmove.prevent="if (colorPicker.isDraggingSpectrum) updateSpectrumPos($event)"
+                        @touchend="colorPicker.isDraggingSpectrum = false"
+                        class="relative h-28 w-full cursor-crosshair rounded-xl overflow-hidden select-none border border-line shadow-inner"
+                        :style="`background-color: hsl(${colorPicker.hue}, 100%, 50%);`"
+                    >
+                        {{-- White horizontal gradient (saturation) --}}
+                        <div class="absolute inset-0 pointer-events-none" style="background: linear-gradient(to right, #ffffff, transparent);"></div>
+                        {{-- Black vertical gradient (value) --}}
+                        <div class="absolute inset-0 pointer-events-none" style="background: linear-gradient(to top, #000000, transparent);"></div>
 
-                        @foreach (['brand', 'income', 'warn', 'expense', 'dark'] as $c)
-
-                            <button
-                                type="button"
-                                x-on:click="editing.color = '{{ $c }}'"
-                                class="
-                                    flex
-                                    h-8
-                                    w-8
-                                    items-center
-                                    justify-center
-                                    rounded-full
-                                    text-white
-                                    {{ $tones[$c]['solid'] }}
-                                "
-                            >
-                                <x-icon
-                                    name="check"
-                                    size="h-4 w-4"
-                                    x-show="editing.color === '{{ $c }}'"
-                                />
-                            </button>
-
-                        @endforeach
-
-
-                        <div class="flex items-center gap-1.5">
-
-                            <input
-                                type="color"
-                                x-model="editing.color"
-                                class="
-                                    h-8
-                                    w-8
-                                    cursor-pointer
-                                    rounded-full
-                                    border
-                                    border-line
-                                    p-0
-                                "
-                                title="Custom color"
-                            />
-
-                            <span
-                                x-cloak
-                                x-show="editing.color.startsWith('#')"
-                                class="text-xs text-muted"
-                                x-text="editing.color"
-                            ></span>
-
-                        </div>
-
+                        {{-- Draggable selector thumb --}}
+                        <div
+                            class="pointer-events-none absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-md ring-1 ring-black/25"
+                            :style="`left: ${colorPicker.saturation}%; top: ${100 - colorPicker.value}%; background-color: ${normalizeColor(editing.color)};`"
+                        ></div>
                     </div>
 
-                    <p class="mt-1.5 text-xs leading-5 text-muted">
-                        Pick a preset, or click the color swatch for a custom color.
-                    </p>
+                    {{-- Hue Slider --}}
+                    <div class="mt-3">
+                        <input
+                            type="range"
+                            min="0"
+                            max="360"
+                            x-model.number="colorPicker.hue"
+                            @input="syncFromHsv()"
+                            class="h-3 w-full cursor-pointer appearance-none rounded-full focus:outline-none shadow-inner"
+                            style="background: linear-gradient(to right, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%);"
+                        />
+                    </div>
 
+                    {{-- Preview & Hex Code Input --}}
+                    <div class="mt-3 flex items-center gap-3">
+                        {{-- Color Preview Swatch --}}
+                        <div
+                            class="h-10 w-10 shrink-0 rounded-xl border border-line shadow-xs flex items-center justify-center transition-colors"
+                            :style="`background-color: ${normalizeColor(editing.color)};`"
+                            :title="`Current: ${colorPicker.hexInput}`"
+                        >
+                            <x-icon name="check" size="h-4 w-4 drop-shadow-sm text-white" />
+                        </div>
+
+                        {{-- HEX Input with '#' prefix --}}
+                        <div class="relative flex-1">
+                            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-muted font-mono text-sm">
+                                #
+                            </div>
+                            <input
+                                type="text"
+                                maxlength="7"
+                                :value="colorPicker.hexInput.replace(/^#/, '')"
+                                @input="onHexInput($event.target.value)"
+                                placeholder="3B82F6"
+                                class="w-full rounded-lg border border-line bg-white pl-7 pr-3 py-2 text-sm font-mono font-medium text-ink placeholder:text-muted uppercase focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+                            />
+                        </div>
+                    </div>
+
+                    {{-- Quick Swatches --}}
+                    <div class="mt-3.5">
+                        <p class="mb-2 text-xs font-medium text-muted">Quick swatches</p>
+                        <div class="flex flex-wrap items-center gap-2">
+                            @foreach (['brand', 'income', 'warn', 'expense', 'dark'] as $c)
+                                <button
+                                    type="button"
+                                    x-on:click="selectPresetColor('{{ $c }}')"
+                                    :class="{
+                                        'ring-2 ring-offset-2 ring-brand scale-105 shadow-sm': normalizeColor(editing.color) === normalizeColor('{{ $c }}'),
+                                        'hover:scale-110 active:scale-95': true
+                                    }"
+                                    title="Select color"
+                                    class="relative flex h-7 w-7 items-center justify-center rounded-full text-white transition-all duration-150 {{ $tones[$c]['solid'] }}"
+                                >
+                                    <x-icon
+                                        name="check"
+                                        size="h-3.5 w-3.5 drop-shadow-sm"
+                                        x-show="normalizeColor(editing.color) === normalizeColor('{{ $c }}')"
+                                    />
+                                </button>
+                            @endforeach
+
+                            @foreach ([
+                                ['name' => 'Purple', 'hex' => '#8b5cf6'],
+                                ['name' => 'Pink', 'hex' => '#ec4899'],
+                                ['name' => 'Teal', 'hex' => '#14b8a6'],
+                                ['name' => 'Cyan', 'hex' => '#06b6d4'],
+                            ] as $extra)
+                                <button
+                                    type="button"
+                                    x-on:click="selectPresetColor('{{ $extra['hex'] }}')"
+                                    :class="{
+                                        'ring-2 ring-offset-2 ring-brand scale-105 shadow-sm': normalizeColor(editing.color) === '{{ $extra['hex'] }}',
+                                        'hover:scale-110 active:scale-95': true
+                                    }"
+                                    style="background-color: {{ $extra['hex'] }};"
+                                    title="{{ $extra['name'] }}"
+                                    class="relative flex h-7 w-7 items-center justify-center rounded-full text-white transition-all duration-150"
+                                >
+                                    <x-icon
+                                        name="check"
+                                        size="h-3.5 w-3.5 drop-shadow-sm"
+                                        x-show="normalizeColor(editing.color) === '{{ $extra['hex'] }}'"
+                                    />
+                                </button>
+                            @endforeach
+                        </div>
+                    </div>
+
+                    {{-- Validation error message --}}
+                    <p class="mt-1.5 text-xs leading-5 text-muted">
+                        Pick any custom color via spectrum, slider, or HEX code. Colors can be reused across wallets.
+                    </p>
                 </div>
 
             </div>

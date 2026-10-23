@@ -30,6 +30,7 @@
                         confirmText: opts.confirmText || 'Confirm',
                         cancelText: opts.cancelText || 'Cancel',
                         variant: opts.variant || 'brand',
+                        icon: opts.icon || (opts.variant === 'danger' ? 'trash' : 'alert-circle'),
                         isAlert: false,
                         loading: false,
                         resolve: resolve,
@@ -48,6 +49,7 @@
                         confirmText: opts.confirmText || 'OK',
                         cancelText: '',
                         variant: opts.variant || 'brand',
+                        icon: opts.icon || (opts.variant === 'income' ? 'check' : (opts.variant === 'warn' ? 'ban' : 'alert-circle')),
                         isAlert: true,
                         loading: false,
                         resolve: resolve,
@@ -119,16 +121,19 @@
                         'bg-brand-soft text-brand': dialog.variant === 'brand' || !dialog.variant
                     }"
                 >
-                    <template x-if="dialog.variant === 'danger'">
+                    <template x-if="dialog.icon === 'trash'">
                         <x-icon name="trash" size="h-5 w-5" />
                     </template>
-                    <template x-if="dialog.variant === 'income'">
+                    <template x-if="dialog.icon === 'transfer'">
+                        <x-icon name="transfer" size="h-5 w-5" />
+                    </template>
+                    <template x-if="dialog.icon === 'check'">
                         <x-icon name="check" size="h-5 w-5" />
                     </template>
-                    <template x-if="dialog.variant === 'warn'">
+                    <template x-if="dialog.icon === 'ban'">
                         <x-icon name="ban" size="h-5 w-5" />
                     </template>
-                    <template x-if="dialog.variant === 'brand' || !dialog.variant">
+                    <template x-if="!['trash', 'transfer', 'check', 'ban'].includes(dialog.icon)">
                         <x-icon name="alert-circle" size="h-5 w-5" />
                     </template>
                 </div>

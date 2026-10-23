@@ -676,7 +676,7 @@
             <div class="mt-6 flex justify-end gap-3">
                 <x-button href="/transactions" variant="outline">Cancel</x-button>
                 <x-button x-on:click="saveTransfer()" x-bind:disabled="saving">
-                    <span x-text="saving ? 'Memproses...' : 'Transfer'"></span>
+                    <span x-text="saving ? 'Processing...' : 'Transfer'"></span>
                 </x-button>
             </div>
 

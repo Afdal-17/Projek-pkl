@@ -64,6 +64,10 @@
             return window.financeMoney.formatNative(amount);
         },
 
+        formatWalletBalance(balance) {
+            return window.financeMoney.format(window.financeMoney.fromBase(balance));
+        },
+
         async saveTarget() {
             if (this.saving) return;
 
@@ -219,12 +223,15 @@
                         id="target_wallet"
                         type="button"
                         @click="toggle($el)"
-                        class="flex w-full items-center justify-between rounded-lg border border-line bg-white py-3 pl-9 pr-3 text-sm text-left shadow-sm transition hover:border-brand/40 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 cursor-pointer"
+                        class="flex w-full items-center justify-between gap-3 rounded-lg border border-line bg-white py-3 pl-9 pr-3 text-sm text-left shadow-sm transition hover:border-brand/40 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 cursor-pointer"
                         :class="open ? 'border-brand ring-2 ring-brand/20' : ''"
                     >
                         <x-icon name="wallet" size="h-4 w-4"
                             class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-                        <span class="truncate font-medium text-ink" x-text="wallets.find(w => String(w.id) === String(wallet))?.name ?? 'Select wallet'"></span>
+                        <div class="min-w-0 flex-1 truncate">
+                            <span class="font-medium text-ink" x-text="selectedWallet?.name ?? 'Select wallet'"></span>
+                            <span class="ml-1.5 text-xs text-muted" x-show="selectedWallet?.name" x-text="'(' + formatWalletBalance(selectedWallet.balance) + ')'"></span>
+                        </div>
                         <x-icon name="chevron-down" size="h-4 w-4" class="text-muted shrink-0 transition-transform duration-200" x-bind:class="open ? 'rotate-180' : ''" />
                     </button>
 
@@ -241,25 +248,25 @@
                         :class="dropUp ? 'bottom-full mb-2 origin-bottom' : 'top-full mt-2 origin-top'"
                     >
                         <div class="space-y-0.5">
-                            <template x-for="item in wallets" :key="item.name">
+                            <template x-for="item in wallets" :key="item.id">
                                 <button
                                     type="button"
                                     @click="wallet = String(item.id); open = false"
-                                    class="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-sm transition text-left cursor-pointer"
+                                    class="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm transition text-left cursor-pointer"
                                     :class="String(wallet) === String(item.id) ? 'bg-brand-soft text-brand font-semibold' : 'text-ink hover:bg-page font-medium'"
                                 >
-                                    <span x-text="item.name" class="truncate font-medium"></span>
-                                    <div class="flex items-center gap-1.5 shrink-0">
-                                        <span class="text-xs text-muted" x-text="rp(item.balance)"></span>
-                                        <x-icon x-show="String(wallet) === String(item.id)" name="check" size="h-4 w-4" class="text-brand" />
+                                    <div class="min-w-0 flex-1">
+                                        <p class="truncate font-medium" x-text="item.name"></p>
+                                        <p class="truncate text-xs text-muted tabular-nums" x-text="'Balance: ' + formatWalletBalance(item.balance)"></p>
                                     </div>
+                                    <x-icon x-show="String(wallet) === String(item.id)" name="check" size="h-4 w-4" class="text-brand shrink-0" />
                                 </button>
                             </template>
                         </div>
                     </div>
 
                     <select id="target_wallet_native" x-model="wallet" class="sr-only" tabindex="-1" aria-hidden="true">
-                        <template x-for="item in wallets" :key="item.name">
+                        <template x-for="item in wallets" :key="item.id">
                             <option :value="String(item.id)" :selected="String(item.id) === wallet" x-text="item.name"></option>
                         </template>
                     </select>

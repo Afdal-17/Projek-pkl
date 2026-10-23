@@ -7,7 +7,11 @@
         : null;
 
     $headerInitials = $currentUser && $currentUser->nama
-        ? strtoupper(substr(trim($currentUser->nama), 0, 1))
+        ? collect(explode(' ', trim($currentUser->nama)))
+            ->filter()
+            ->map(fn ($w) => strtoupper(substr($w, 0, 1)))
+            ->take(2)
+            ->implode('')
         : '?';
 
     // Notification dari backend
@@ -367,8 +371,12 @@
                             <img
                                 src="{{ $headerAvatarUrl }}"
                                 alt="{{ $currentUser->nama }}"
+                                onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';"
                                 class="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-line"
                             >
+                            <span class="hidden h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-soft text-sm font-semibold text-brand">
+                                {{ $headerInitials }}
+                            </span>
 
                         @else
 
@@ -480,14 +488,14 @@
 
             {{-- Side Menu --}}
             <aside
-                class="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-white p-4 shadow-xl"
+                class="absolute inset-y-0 right-0 flex w-72 max-w-[85vw] flex-col bg-white p-4 shadow-xl"
                 x-show="nav"
                 x-transition:enter="transition ease-out duration-200"
-                x-transition:enter-start="-translate-x-full"
+                x-transition:enter-start="translate-x-full"
                 x-transition:enter-end="translate-x-0"
                 x-transition:leave="transition ease-in duration-150"
                 x-transition:leave-start="translate-x-0"
-                x-transition:leave-end="-translate-x-full"
+                x-transition:leave-end="translate-x-full"
             >
 
                 {{-- Mobile Header --}}
@@ -553,8 +561,12 @@
                             <img
                                 src="{{ $headerAvatarUrl }}"
                                 alt="{{ $currentUser->nama }}"
+                                onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';"
                                 class="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-line"
                             >
+                            <span class="hidden h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-soft text-sm font-semibold text-brand">
+                                {{ $headerInitials }}
+                            </span>
 
                         @else
 
