@@ -171,7 +171,7 @@ class TargetTabunganTest extends TestCase
             ->withSession(['notif_popup' => 'Target Dana Darurat telah tercapai.'])
             ->get(route('saving.index'))
             ->assertOk()
-            ->assertSee('Target Dana Darurat telah tercapai.');
+            ->assertSee('Target Dana Darurat has been reached.');
     }
 
     public function test_saving_target_can_be_deleted_from_the_frontend_route(): void

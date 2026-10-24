@@ -2,14 +2,14 @@
     <div class="mb-5 sm:mb-6">
         <a href="{{ route('login') }}" class="inline-flex items-center gap-2 text-sm font-medium text-muted hover:text-ink transition py-1.5 px-2 -ml-2 rounded-lg hover:bg-page active:bg-gray-100 group focus:outline-none focus:ring-2 focus:ring-brand/20">
             <x-icon name="arrow-left" size="h-4 w-4" class="transition-transform group-hover:-translate-x-0.5" />
-            <span>Kembali ke Login</span>
+            <span>{{ __('Back to login') }}</span>
         </a>
     </div>
 
     <div class="mb-6 text-center">
-        <h2 class="text-2xl font-bold tracking-tight text-gray-900">Reset Password</h2>
+        <h2 class="text-2xl font-bold tracking-tight text-gray-900">{{ __('Reset Password') }}</h2>
         <p class="text-sm text-gray-500 mt-1.5">
-            Masukkan password baru untuk akun Anda.
+            {{ __('Enter a new password for your account.') }}
         </p>
     </div>
 
@@ -45,7 +45,7 @@
               handleSubmit(e) {
                   if (this.password !== this.password_confirmation) {
                       e.preventDefault();
-                      this.touchedConfirm = true;
+                       this.touchedConfirm = true;
                       return false;
                   }
               }
@@ -58,9 +58,9 @@
 
         <!-- Email Address -->
         <div class="space-y-1.5">
-            <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
+            <label for="email" class="block text-sm font-medium text-gray-700">{{ __('Email') }}</label>
             <input id="email"
-                   class="block w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50/70 focus:border-brand focus:ring-1 focus:ring-brand text-sm shadow-sm transition placeholder:text-gray-400"
+                   class="block w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50/70 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 text-sm shadow-sm transition placeholder:text-gray-400"
                    type="email"
                    name="email"
                    value="{{ old('email', $request->email) }}"
@@ -82,17 +82,17 @@
 
         <!-- Password -->
         <div class="mt-4 space-y-1.5">
-            <label for="password" class="block text-sm font-medium text-gray-700">Password Baru</label>
+            <label for="password" class="block text-sm font-medium text-gray-700">{{ __('New Password') }}</label>
             <div class="relative">
                 <input id="password"
-                       class="block w-full px-4 py-3 pr-12 rounded-xl border border-gray-200 focus:border-brand focus:ring-1 focus:ring-brand text-sm shadow-sm transition placeholder:text-gray-400"
+                       class="block w-full px-4 py-3 pr-12 rounded-xl border border-gray-200 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 text-sm shadow-sm transition placeholder:text-gray-400"
                        :type="showPassword ? 'text' : 'password'"
                        type="password"
                        name="password"
                        x-model="password"
                        required
                        autocomplete="new-password"
-                       placeholder="Minimal 8 karakter"
+                       placeholder="{{ __('Minimum 8 characters') }}"
                        @input="serverErrors.password = ''; touchedPassword = true" />
                 <button type="button"
                         @click="showPassword = !showPassword"
@@ -119,35 +119,32 @@
                     <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                     </svg>
-                    <span>Password minimal harus 8 karakter.</span>
+                    <span>{{ __('Password must be at least 8 characters.') }}</span>
                 </p>
             </div>
+
+            <p class="mt-1 text-xs text-muted">{{ __('Minimum 8 characters, containing letters and numbers.') }}</p>
 
             @if ($errors->has('password'))
                 <noscript>
                     <x-input-error :messages="$errors->get('password')" class="mt-1" />
                 </noscript>
             @endif
-        <div class="mt-4">
-            <x-input-label for="password" :value="__('Password')" />
-            <x-text-input id="password" class="block mt-1 w-full" type="password" name="password" required autocomplete="new-password" />
-            <p class="mt-1 text-xs text-gray-500">Minimal 8 karakter, mengandung huruf dan angka.</p>
-            <x-input-error :messages="$errors->get('password')" class="mt-2" />
         </div>
 
         <!-- Confirm Password -->
         <div class="mt-4 space-y-1.5">
-            <label for="password_confirmation" class="block text-sm font-medium text-gray-700">Konfirmasi Password Baru</label>
+            <label for="password_confirmation" class="block text-sm font-medium text-gray-700">{{ __('Confirm Password') }}</label>
             <div class="relative">
                 <input id="password_confirmation"
-                       class="block w-full px-4 py-3 pr-12 rounded-xl border border-gray-200 focus:border-brand focus:ring-1 focus:ring-brand text-sm shadow-sm transition placeholder:text-gray-400"
+                       class="block w-full px-4 py-3 pr-12 rounded-xl border border-gray-200 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 text-sm shadow-sm transition placeholder:text-gray-400"
                        :type="showConfirm ? 'text' : 'password'"
                        type="password"
                        name="password_confirmation"
                        x-model="password_confirmation"
                        required
                        autocomplete="new-password"
-                       placeholder="Ulangi password baru"
+                       placeholder="{{ __('Repeat new password') }}"
                        @input="serverErrors.password_confirmation = ''; touchedConfirm = true" />
                 <button type="button"
                         @click="showConfirm = !showConfirm"
@@ -174,7 +171,7 @@
                     <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                     </svg>
-                    <span>Konfirmasi password tidak cocok dengan password baru.</span>
+                    <span>{{ __('Password confirmation does not match the new password.') }}</span>
                 </p>
             </div>
 
@@ -184,7 +181,7 @@
                     <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                     </svg>
-                    <span>Password cocok.</span>
+                    <span>{{ __('Passwords match.') }}</span>
                 </p>
             </div>
 
@@ -198,14 +195,14 @@
         <div class="mt-6">
             <button type="submit"
                     class="w-full py-3 sm:py-3.5 px-4 bg-dark hover:bg-black active:bg-gray-900 text-white font-medium rounded-xl shadow-md transition duration-200 text-sm flex items-center justify-center gap-2 active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-dark">
-                <span>Reset Password</span>
+                <span>{{ __('Reset Password') }}</span>
             </button>
         </div>
 
         <div class="text-center mt-6">
             <p class="text-sm text-gray-500">
-                Sudah ingat password Anda?
-                <a href="{{ route('login') }}" class="font-semibold text-dark hover:underline">Masuk</a>
+                {{ __('Remember your password?') }}
+                <a href="{{ route('login') }}" class="font-semibold text-dark hover:underline">{{ __('Sign in') }}</a>
             </p>
         </div>
     </form>

@@ -12,7 +12,7 @@ return [
     'targets' => 'targets',
     'to_complete' => 'to complete',
     'all_completed' => 'All targets completed!',
-    'target_name' => 'Name Target',
+    'target_name' => 'Target Name',
     'progress' => 'Progress',
     'amount' => 'Amount',
     'action' => 'Action',

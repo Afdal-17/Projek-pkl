@@ -96,16 +96,14 @@ class TargetTabunganController extends Controller
 
         if (! $duplicateGuard->reserve($dupKey, self::DUPLICATE_GUARD_SECONDS)) {
             throw ValidationException::withMessages([
-                'nama_target' => 'Target tabungan ini baru saja dicatat — hanya satu yang tersimpan. '
-                    .'Jika memang ingin membuat target serupa, ubah sedikit nama atau nominalnya, '
-                    .'atau tunggu '.self::DUPLICATE_GUARD_SECONDS.' detik.',
+                'nama_target' => 'This saving target was recently recorded. Please wait '.self::DUPLICATE_GUARD_SECONDS.' seconds before submitting again or change the name.',
             ]);
         }
 
         try {
             $wallet = Dompet::where('id_user', Auth::id())->findOrFail($data['id_dompet']);
             $nominalTarget = CurrencyService::toBaseExact((string) $data['nominal_target']);
-            $initialSavings = isset($data['initial_savings'])
+            $initialSavings = (isset($data['initial_savings']) && $data['initial_savings'] !== '')
                 ? CurrencyService::toBaseExact((string) $data['initial_savings'])
                 : (string) $wallet->saldo;
 
@@ -114,13 +112,13 @@ class TargetTabunganController extends Controller
                 || ! CurrencyService::baseAmountWithinStorageLimit($initialSavings)
             ) {
                 throw ValidationException::withMessages([
-                    'nominal_target' => 'Nominal setelah konversi melebihi batas nominal yang didukung.',
+                    'nominal_target' => 'The amount after currency conversion exceeds the supported limit.',
                 ]);
             }
 
             if (bccomp($initialSavings, $nominalTarget, 2) > 0 || bccomp($initialSavings, (string) $wallet->saldo, 2) > 0) {
                 throw ValidationException::withMessages([
-                    'initial_savings' => 'Initial savings tidak boleh melebihi saldo wallet atau target.',
+                    'initial_savings' => 'Initial savings cannot exceed the wallet balance or the target amount.',
                 ]);
             }
 

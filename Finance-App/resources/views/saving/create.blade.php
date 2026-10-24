@@ -11,25 +11,17 @@
         wallet: @js((string) ($wallets->first()['id'] ?? '')),
         target: '',
         targetDisplay: '',
-        initial: '0',
+        initial: '',
         initialDisplay: '',
-        initialManual: false,
         saving: false,
         wallets: @js($wallets),
         csrfToken: @js(csrf_token()),
-
-        init() {
-            this.setInitial(this.walletBalanceDisplay);
-            this.$watch('wallet', () => this.syncInitial());
-            this.$watch('target', () => this.syncInitial());
-        },
 
         get selectedWallet() {
             return this.wallets.find(item => String(item.id) === String(this.wallet)) ?? { balance: 0 };
         },
 
         get walletBalanceDisplay() {
-            // Saldo wallet tersimpan dalam IDR base; konversi ke mata uang aktif
             return window.financeMoney.fromBase(this.selectedWallet.balance);
         },
 
@@ -41,27 +33,12 @@
 
         formatInitial(value) {
             const result = window.financeMoney.formatTyped(value);
-            this.initial = result.value;
+            this.initial = result.value === '0' && result.display === '' ? '' : result.value;
             this.initialDisplay = result.display;
-            this.initialManual = true;
-        },
-
-        setInitial(value) {
-            this.initial = String(value ?? '0');
-            this.initialDisplay = window.financeMoney.formatNumber(this.initial);
-        },
-
-        syncInitial() {
-            if (!this.initialManual) {
-                this.setInitial(this.target
-                    ? window.financeMoney.min(this.walletBalanceDisplay, this.target)
-                    : this.walletBalanceDisplay);
-            }
         },
 
         rp(amount) {
-            // Nilai input user dalam mata uang aktif
-            return window.financeMoney.formatNative(amount);
+            return window.financeMoney.formatNative(amount || 0);
         },
 
         formatWalletBalance(balance) {
@@ -92,22 +69,24 @@
                 return;
             }
 
-            if (window.financeMoney.compare(initial, '0') < 0 || window.financeMoney.compare(initial, target) > 0) {
-                window.financeAlert({
-                    title: 'Invalid Initial Savings',
-                    message: 'Initial deposit cannot exceed the target amount.',
-                    variant: 'danger',
-                });
-                return;
-            }
+            if (this.initial && window.financeMoney.compare(initial, '0') > 0) {
+                if (window.financeMoney.compare(initial, target) > 0) {
+                    window.financeAlert({
+                        title: 'Invalid Initial Savings',
+                        message: 'Initial deposit cannot exceed the target amount.',
+                        variant: 'danger',
+                    });
+                    return;
+                }
 
-            if (window.financeMoney.compare(initial, this.walletBalanceDisplay) > 0) {
-                window.financeAlert({
-                    title: 'Insufficient Balance',
-                    message: 'Initial deposit cannot exceed the selected wallet balance.',
-                    variant: 'danger',
-                });
-                return;
+                if (window.financeMoney.compare(initial, this.walletBalanceDisplay) > 0) {
+                    window.financeAlert({
+                        title: 'Insufficient Balance',
+                        message: 'Initial deposit cannot exceed the selected wallet balance.',
+                        variant: 'danger',
+                    });
+                    return;
+                }
             }
 
             const payload = new URLSearchParams({
@@ -116,52 +95,49 @@
                 nama_target: this.name.trim(),
                 deskripsi: this.note.trim(),
                 nominal_target: target,
-                initial_savings: this.initial === '' ? '' : initial,
+                initial_savings: this.initial === '' ? '0' : initial,
             });
 
             this.saving = true;
 
-    try {
-        const response = await fetch(@js(route('saving.store')), {
-            method: 'POST',
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: payload,
-        });
-
-        if (!response.ok) {
-            let result = {};
-
             try {
-                result = await response.json();
+                const response = await fetch(@js(route('saving.store')), {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: payload,
+                });
+
+                if (!response.ok) {
+                    let result = {};
+                    try {
+                        result = await response.json();
+                    } catch (e) {}
+
+                    window.financeAlert({
+                        title: 'Saving Failed',
+                        message: Object.values(result.errors ?? {}).flat()[0]
+                            ?? 'Saving target could not be saved.',
+                        variant: 'danger',
+                    });
+                    return;
+                }
+
+                window.location.href = '/saving';
             } catch (e) {
-                // Respons server bukan JSON.
+                window.financeAlert({
+                    title: 'Connection Error',
+                    message: 'Connection problem. Your data was not sent. Please try again.',
+                    variant: 'danger',
+                });
+            } finally {
+                this.saving = false;
             }
-
-            window.financeAlert({
-                title: 'Saving Failed',
-                message: Object.values(result.errors ?? {}).flat()[0]
-                    ?? 'Saving target could not be saved.',
-                variant: 'danger',
-            });
-
-            return;
-        }
-
-        window.location.href = '/saving';
-    } catch (e) {
-        window.financeAlert({
-            title: 'Connection Error',
-            message: 'Connection problem. Your data was not sent. Please try again.',
-            variant: 'danger',
-        });
-    } finally {
-        this.saving = false;
-    }
-    },
+        },
     }"
+    class="min-w-0"
 >
 
     {{-- Header --}}
@@ -170,41 +146,41 @@
         <p class="mt-1 text-sm text-muted">{{ __('saving.subtitle') }}</p>
     </div>
 
-    <div class="mt-8 grid gap-6 lg:grid-cols-[2fr_1.2fr]">
+    <div class="mt-8 grid gap-6 lg:grid-cols-[2fr_1.2fr] min-w-0">
 
         {{-- FORM --}}
-        <x-card class="p-8">
+        <x-card class="p-5 sm:p-8 min-w-0">
 
             {{-- Name --}}
             <div>
-                <label for="target_name" class="mb-2 block text-sm font-medium">{{ __('saving.target_name') }}</label>
+                <label for="target_name" class="mb-2 block text-sm font-medium text-ink">{{ __('saving.target_name') }}</label>
                 <input
                     id="target_name"
                     type="text"
                     x-model="name"
                     placeholder="e.g. New Laptop"
-                    class="w-full rounded-lg border border-line bg-white px-3 py-3 text-sm placeholder:text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+                    class="w-full min-w-0 rounded-xl border border-line bg-white px-3.5 py-2.5 text-sm placeholder:text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 transition"
                 >
             </div>
 
             {{-- Description --}}
             <div class="mt-6">
-                <label for="target_note" class="mb-2 block text-sm font-medium">{{ __('saving.description') }}</label>
+                <label for="target_note" class="mb-2 block text-sm font-medium text-ink">{{ __('saving.description') }}</label>
                 <textarea
                     id="target_note"
                     rows="4"
                     x-model="note"
                     placeholder="e.g. Work equipment"
-                    class="w-full rounded-lg border border-line bg-white px-3 py-3 text-sm placeholder:text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+                    class="w-full min-w-0 rounded-xl border border-line bg-white px-3.5 py-2.5 text-sm placeholder:text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 transition resize-y"
                 ></textarea>
             </div>
 
             {{-- Wallet --}}
             <div class="mt-6">
-                <label for="target_wallet" class="mb-2 block text-sm font-medium">{{ __('saving.wallet') }}</label>
+                <label for="target_wallet" class="mb-2 block text-sm font-medium text-ink">{{ __('saving.wallet') }}</label>
 
                 <div
-                    class="relative"
+                    class="relative min-w-0"
                     x-data="{
                         open: false,
                         dropUp: false,
@@ -223,7 +199,7 @@
                         id="target_wallet"
                         type="button"
                         @click="toggle($el)"
-                        class="flex w-full items-center justify-between gap-3 rounded-lg border border-line bg-white py-3 pl-9 pr-3 text-sm text-left shadow-sm transition hover:border-brand/40 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 cursor-pointer"
+                        class="flex w-full min-w-0 items-center justify-between gap-3 rounded-xl border border-line bg-white py-2.5 pl-9 pr-3 text-sm text-left shadow-sm transition hover:border-brand/40 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 cursor-pointer"
                         :class="open ? 'border-brand ring-2 ring-brand/20' : ''"
                     >
                         <x-icon name="wallet" size="h-4 w-4"
@@ -255,7 +231,7 @@
                                     class="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm transition text-left cursor-pointer"
                                     :class="String(wallet) === String(item.id) ? 'bg-brand-soft text-brand font-semibold' : 'text-ink hover:bg-page font-medium'"
                                 >
-                                    <div class="min-w-0 flex-1">
+                                    <div class="min-w-0 flex-1 truncate">
                                         <p class="truncate font-medium" x-text="item.name"></p>
                                         <p class="truncate text-xs text-muted tabular-nums" x-text="'Balance: ' + formatWalletBalance(item.balance)"></p>
                                     </div>
@@ -275,79 +251,90 @@
 
             {{-- Saving target --}}
             <div class="mt-6">
-                <label for="target_amount" class="mb-2 block text-sm font-medium">{{ __('saving.saving_target') }}</label>
+                <label for="target_amount" class="mb-2 block text-sm font-medium text-ink">{{ __('saving.saving_target') }}</label>
 
-                <div class="relative">
-                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-semibold text-muted" x-text="window.financeMoney.symbol"></span>
+                <div class="relative min-w-0">
+                    <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
+                        <span class="text-sm font-semibold text-muted" x-text="window.financeMoney.symbol"></span>
+                    </div>
                     <input
                         id="target_amount"
                         type="text"
                         inputmode="decimal"
                         x-model="targetDisplay"
                         x-on:input="formatTarget($event.target.value)"
+                        x-on:focus="$event.target.select()"
                         placeholder="0"
-                        class="w-full rounded-lg border border-line bg-white py-3 pl-12 pr-4 text-2xl font-semibold placeholder:text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+                        class="w-full min-w-0 rounded-xl border border-line bg-white py-2.5 pl-11 pr-3.5 text-sm sm:text-base font-medium text-ink placeholder:text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 transition"
                     >
                 </div>
             </div>
 
             {{-- Initial savings --}}
             <div class="mt-6">
-                <label for="initial_amount" class="mb-2 block text-sm font-medium">{{ __('saving.initial_savings') }}</label>
+                <div class="mb-2 flex items-center justify-between">
+                    <label for="initial_amount" class="block text-sm font-medium text-ink">{{ __('saving.initial_savings') }}</label>
+                    <span class="text-xs text-muted">
+                        Wallet balance: <span class="font-medium text-ink" x-text="formatWalletBalance(selectedWallet.balance)"></span>
+                    </span>
+                </div>
 
-                <div class="relative">
-                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-semibold text-muted" x-text="window.financeMoney.symbol"></span>
+                <div class="relative min-w-0">
+                    <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
+                        <span class="text-sm font-semibold text-muted" x-text="window.financeMoney.symbol"></span>
+                    </div>
                     <input
                         id="initial_amount"
                         type="text"
                         inputmode="decimal"
                         x-model="initialDisplay"
                         x-on:input="formatInitial($event.target.value)"
+                        x-on:focus="$event.target.select()"
                         placeholder="0"
-                        class="w-full rounded-lg border border-line bg-white py-3 pl-12 pr-4 text-2xl font-semibold placeholder:text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+                        class="w-full min-w-0 rounded-xl border border-line bg-white py-2.5 pl-11 pr-3.5 text-sm sm:text-base font-medium text-ink placeholder:text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 transition"
                     >
                 </div>
             </div>
 
-            {{-- Tombol --}}
-            <div class="mt-6 flex justify-end gap-3">
+            {{-- Buttons --}}
+            <div class="mt-8 flex justify-end gap-3">
                 <x-button href="/saving" variant="outline">{{ __('saving.cancel') }}</x-button>
                 <x-button x-on:click="saveTarget()" x-bind:disabled="saving">
-        <span x-text="saving ? 'Saving...' : @js(__('saving.add_button'))"></span>
-    </x-button>
+                    <span x-text="saving ? 'Saving...' : @js(__('saving.add_button'))"></span>
+                </x-button>
             </div>
 
         </x-card>
 
 
         {{-- SUMMARY --}}
-        <div>
-            <x-card class="p-6">
+        <div class="min-w-0">
+            <x-card class="p-6 min-w-0">
 
                 <h2 class="text-lg font-semibold">{{ __('saving.summary') }}</h2>
 
                 <div class="mt-5 space-y-4 text-sm">
 
-                    <div class="flex items-center justify-between">
-                        <span class="text-muted">{{ __('saving.target_name') }}</span>
-                        <span class="rounded-full bg-expense-soft px-3 py-1 text-xs font-medium"
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="text-muted shrink-0">{{ __('saving.target_name') }}</span>
+                        <span class="truncate rounded-full bg-expense-soft px-3 py-1 text-xs font-medium text-right max-w-[60%]"
                               x-text="name || '-'"></span>
                     </div>
 
-                    <div class="flex items-center justify-between">
-                        <span class="text-muted">{{ __('saving.wallet') }}</span>
-                        <span class="rounded-full bg-expense-soft px-3 py-1 text-xs font-medium"
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="text-muted shrink-0">{{ __('saving.wallet') }}</span>
+                        <span class="truncate rounded-full bg-expense-soft px-3 py-1 text-xs font-medium text-right max-w-[60%]"
                               x-text="wallets.find(item => String(item.id) === wallet)?.name ?? '-' "></span>
                     </div>
 
-                    <div class="flex items-center justify-between">
-                        <span class="text-muted">{{ __('saving.saving_target') }}</span>
-                        <span class="text-base font-bold" x-text="rp(target)"></span>
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="text-muted shrink-0">{{ __('saving.saving_target') }}</span>
+                        <span class="text-base font-bold truncate text-right tabular-nums" x-text="rp(target)"></span>
                     </div>
 
-                    <div class="flex items-center justify-between">
-                        <span class="text-muted">{{ __('saving.initial_savings') }}</span>
-                        <span class="text-base font-bold" x-text="rp(initial)"></span>
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="text-muted shrink-0">{{ __('saving.initial_savings') }}</span>
+                        <span class="text-base font-bold truncate text-right tabular-nums" x-text="rp(initial)"></span>
                     </div>
 
                 </div>

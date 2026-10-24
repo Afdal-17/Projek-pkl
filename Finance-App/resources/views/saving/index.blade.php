@@ -99,9 +99,9 @@
 
                 this.deleteError = Object.values(result.errors ?? {}).flat()[0]
                     ?? result.message
-                    ?? 'Target tabungan gagal dihapus. Silakan coba lagi.';
+                    ?? 'Failed to delete saving target. Please try again.';
             } catch (err) {
-                this.deleteError = 'Koneksi gagal. Target tabungan belum dihapus; silakan coba lagi.';
+                this.deleteError = 'Connection failed. Saving target was not deleted; please try again.';
             } finally {
                 this.isDeleting = false;
             }
