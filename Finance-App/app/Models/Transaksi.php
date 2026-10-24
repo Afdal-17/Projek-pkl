@@ -92,12 +92,24 @@ class Transaksi extends Model
         $userLawan = $this->lawanUser();
 
         if ($userLawan === null || $this->transfer === null) {
+            if (str_starts_with($this->nama_transaksi, 'Transfer ke ')) {
+                return 'Transfer to ' . substr($this->nama_transaksi, 12);
+            }
+            if (str_starts_with($this->nama_transaksi, 'Transfer dari ')) {
+                return 'Transfer from ' . substr($this->nama_transaksi, 14);
+            }
+            if ($this->nama_transaksi === 'Saldo awal') {
+                return 'Initial balance';
+            }
+            if ($this->nama_transaksi === 'Penyesuaian saldo wallet') {
+                return 'Wallet balance adjustment';
+            }
             return $this->nama_transaksi;
         }
 
         $keLuar = (int) $this->transfer->id_dompet_asal === (int) $this->id_dompet;
 
-        return ($keLuar ? 'Transfer ke ' : 'Transfer dari ').$userLawan->nama;
+        return ($keLuar ? 'Transfer to ' : 'Transfer from ').$userLawan->nama;
     }
 
     /**

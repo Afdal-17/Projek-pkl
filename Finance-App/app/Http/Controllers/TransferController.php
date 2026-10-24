@@ -303,14 +303,14 @@ class TransferController extends Controller
                 $transfer->transaksi()->createMany([
                     [
                         'id_dompet' => $source->id_dompet,
-                        'nama_transaksi' => 'Transfer ke '.$target->nama_dompet,
+                        'nama_transaksi' => 'Transfer to '.$target->nama_dompet,
                         'jumlah' => $amount,
                         'jenis' => 'pengeluaran',
                         'tanggal' => $data['tanggal_transfer'],
                     ],
                     [
                         'id_dompet' => $target->id_dompet,
-                        'nama_transaksi' => 'Transfer dari '.$source->nama_dompet,
+                        'nama_transaksi' => 'Transfer from '.$source->nama_dompet,
                         'jumlah' => $amount,
                         'jenis' => 'pemasukan',
                         'tanggal' => $data['tanggal_transfer'],

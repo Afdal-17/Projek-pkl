@@ -44,7 +44,7 @@ class TransaksiController extends Controller
                     : ($transaction->jenis === 'pemasukan' ? 'income' : 'expense'),
                 'category' => $transaction->id_transfer !== null
                     ? 'Transfer'
-                    : ($transaction->kategori?->nama_kategori ?? ($transaction->nama_transaksi === 'Saldo awal' ? 'Saldo awal' : 'Without category')),
+                    : ($transaction->kategori?->nama_kategori ?? (($transaction->nama_transaksi === 'Saldo awal' || $transaction->nama_transaksi === 'Initial balance') ? 'Initial balance' : 'Without category')),
                 'wallet' => $transaction->dompet->nama_dompet,
                 'to' => $transaction->id_transfer !== null
                     ? $transaction->displayLawan()
@@ -121,9 +121,9 @@ class TransaksiController extends Controller
 
         if (! $duplicateGuard->reserve($dupKey, self::DUPLICATE_GUARD_SECONDS)) {
             throw ValidationException::withMessages([
-                'nama_transaksi' => 'Transaksi ini baru saja dicatat — hanya satu yang tersimpan. '
-                    .'Jika memang ingin membuat transaksi serupa, ubah sedikit nama atau jumlahnya, '
-                    .'atau tunggu '.self::DUPLICATE_GUARD_SECONDS.' detik.',
+                'nama_transaksi' => 'This transaction was just recorded — only one was saved. '
+                    .'If you want to record a similar transaction, change its name or amount slightly, '
+                    .'or wait '.self::DUPLICATE_GUARD_SECONDS.' seconds.',
             ]);
         }
 
@@ -132,7 +132,7 @@ class TransaksiController extends Controller
 
             if (! CurrencyService::baseAmountWithinStorageLimit($data['jumlah'])) {
                 throw ValidationException::withMessages([
-                    'jumlah' => 'Jumlah setelah konversi melebihi batas nominal yang didukung.',
+                    'jumlah' => 'The amount after conversion exceeds the supported limit.',
                 ]);
             }
 
@@ -184,7 +184,7 @@ class TransaksiController extends Controller
 
         if (! CurrencyService::baseAmountWithinStorageLimit($data['jumlah'])) {
             throw ValidationException::withMessages([
-                'jumlah' => 'Jumlah setelah konversi melebihi batas nominal yang didukung.',
+                'jumlah' => 'The amount after conversion exceeds the supported limit.',
             ]);
         }
 
@@ -265,7 +265,7 @@ class TransaksiController extends Controller
 
         if (bccomp($newBalance, '0.00', 2) < 0) {
             throw ValidationException::withMessages([
-                'jumlah' => 'Saldo dompet tidak mencukupi untuk transaksi ini.',
+                'jumlah' => 'Wallet balance is not enough for this transaction.',
             ]);
         }
 

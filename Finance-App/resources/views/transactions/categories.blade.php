@@ -116,8 +116,8 @@
                 if (!response.ok) {
                     const result = await response.json().catch(() => ({}));
                     window.financeAlert({
-                        title: 'Gagal Menghapus Kategori',
-                        message: result.message || 'Kategori tidak dapat dihapus.',
+                        title: 'Delete Category Failed',
+                        message: result.message || 'Category could not be deleted.',
                         variant: 'danger',
                     });
                     return;
@@ -127,8 +127,8 @@
                 window.location.reload();
             } catch {
                 window.financeAlert({
-                    title: 'Gagal Menghapus Kategori',
-                    message: 'Koneksi bermasalah. Kategori belum dapat dihapus. Silakan coba lagi.',
+                    title: 'Delete Category Failed',
+                    message: 'Connection failed. Category could not be deleted. Please try again.',
                     variant: 'danger',
                 });
             } finally {
@@ -261,7 +261,7 @@
 
                         <button type="button" x-on:click="openDelete(c)"
                                 class="flex items-center gap-1.5 rounded-md bg-expense-soft px-3 py-1.5 text-xs font-semibold text-expense hover:opacity-80">
-                            <x-icon name="trash" size="h-3.5 w-3.5" /> Hapus
+                            <x-icon name="trash" size="h-3.5 w-3.5" /> Delete
                         </button>
                     </div>
 
@@ -439,7 +439,7 @@
 
                 <div class="min-w-0 flex-1 leading-tight">
                     <p class="truncate text-sm font-bold" x-text="pendingDelete.name"></p>
-                    <p class="text-xs text-muted" x-text="pendingDelete.count + ' transaksi'"></p>
+                    <p class="text-xs text-muted" x-text="pendingDelete.count + ' transactions'"></p>
                 </div>
 
                 <span class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
@@ -448,16 +448,16 @@
             </div>
 
                 <span class="mt-4 block text-xs leading-5 text-muted" x-show="pendingDelete.count === 0">
-                    Kategori ini belum memiliki transaksi. Hapus permanen?
+                    This category has no transactions. Delete permanently?
                 </span>
                 <span class="mt-4 block text-xs leading-5 text-amber-600" x-show="pendingDelete.count > 0" x-cloak>
-                    Kategori ini masih digunakan oleh <strong x-text="pendingDelete.count"></strong> transaksi dan tidak bisa dihapus. Silakan ubah atau hapus transaksi tersebut terlebih dahulu.
+                    This category is still used by <strong x-text="pendingDelete.count"></strong> transactions and cannot be deleted. Please update or delete those transactions first.
                 </span>
 
             <div class="mt-6 flex flex-col-reverse justify-end gap-3 border-t border-line pt-5 sm:flex-row">
-                <x-button variant="outline" x-on:click="close()" class="w-full justify-center sm:w-auto">Batal</x-button>
+                <x-button variant="outline" x-on:click="close()" class="w-full justify-center sm:w-auto">{{ __('transactions.cancel') }}</x-button>
                 <x-button variant="danger" x-on:click="confirmDelete()" x-bind:disabled="isDeleting || pendingDelete.count > 0" class="w-full justify-center sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed">
-                    <span x-text="isDeleting ? 'Menghapus...' : 'Hapus'"></span>
+                    <span x-text="isDeleting ? 'Deleting...' : 'Delete'"></span>
                 </x-button>
             </div>
 

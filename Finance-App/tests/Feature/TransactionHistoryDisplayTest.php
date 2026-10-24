@@ -33,7 +33,7 @@ class TransactionHistoryDisplayTest extends TestCase
             ->where('id_dompet', $dompetTujuan->id_dompet)
             ->firstOrFail();
 
-        $this->assertSame('Transfer dari Budi Santoso', $barisMasuk->displayNama());
+        $this->assertSame('Transfer from Budi Santoso', $barisMasuk->displayNama());
 
         // Sesi pengirim (toast flash) tidak boleh bocor ke sesi penerima —
         // di produksi keduanya sesi terpisah.
@@ -42,13 +42,13 @@ class TransactionHistoryDisplayTest extends TestCase
         // Riwayat transaksi penerima menampilkan nama user, bukan dompet pengirim
         $this->actingAs($penerima)->get(route('transactions.index'))
             ->assertOk()
-            ->assertSee('Transfer dari Budi Santoso', false)
+            ->assertSee('Transfer from Budi Santoso', false)
             ->assertDontSee('Dompet DANA Kirim', false);
 
         // Riwayat dompet penerima juga
         $this->actingAs($penerima)->get(route('dompet.history', $dompetTujuan))
             ->assertOk()
-            ->assertSee('Transfer dari Budi Santoso', false)
+            ->assertSee('Transfer from Budi Santoso', false)
             ->assertDontSee('Dompet DANA Kirim', false);
 
         // Notifikasi penerima memakai nama user pengirim (bukan dompetnya)
@@ -60,7 +60,7 @@ class TransactionHistoryDisplayTest extends TestCase
         // Sisi pengirim sekarang simetris: nama penerima, bukan dompetnya
         $this->actingAs($pengirim)->get(route('transactions.index'))
             ->assertOk()
-            ->assertSee('Transfer ke Siti Aminah', false);
+            ->assertSee('Transfer to Siti Aminah', false);
     }
 
     public function test_own_wallet_transfer_still_shows_wallet_names(): void
@@ -86,11 +86,11 @@ class TransactionHistoryDisplayTest extends TestCase
             ->firstOrFail();
 
         // Antar dompet milik sendiri tetap memakai nama dompet (lebih informatif)
-        $this->assertSame('Transfer dari Dompet Utama', $barisMasuk->displayNama());
+        $this->assertSame('Transfer from Dompet Utama', $barisMasuk->displayNama());
 
         $this->actingAs($user)->get(route('transactions.index'))
             ->assertOk()
-            ->assertSee('Transfer dari Dompet Utama', false);
+            ->assertSee('Transfer from Dompet Utama', false);
     }
 
     public function test_non_transfer_transaction_keeps_its_own_name(): void

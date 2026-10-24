@@ -489,7 +489,7 @@
                     {{-- Wallet --}}
                     <div class="flex items-center justify-between">
                         <span class="text-muted">{{ __('transactions.wallet') }}</span>
-                        <span class="font-semibold" x-text="wallet"></span>
+                        <span class="font-semibold" x-text="selectedWallet.name"></span>
                     </div>
 
                     {{-- New Balance --}}
