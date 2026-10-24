@@ -242,13 +242,6 @@
                 <span>{{ __('saving.action') }}</span>
             </div>
 
-            {{-- Kepala tabel --}}
-            <div class="grid grid-cols-[1.4fr_3fr_1.4fr_1fr] gap-6 border-b border-line px-6 py-4 text-[11px] font-semibold uppercase tracking-wide text-muted">
-                <span>{{ __('saving.target_name') }}</span>
-                <span>{{ __('saving.progress') }}</span>
-                <span>{{ __('saving.amount') }}</span>
-                <span>{{ __('saving.action') }}</span>
-            </div>
 
             {{-- Baris --}}
             <template x-for="t in targets" :key="t.id">
