@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
@@ -17,6 +18,25 @@ class AuthenticatedSessionController extends Controller
     public function create(): View
     {
         return view('auth.login');
+    }
+
+    /**
+     * Handle an incoming API authentication request.
+     */
+    public function apiStore(LoginRequest $request): JsonResponse
+    {
+        $request->authenticate();
+
+        $user = Auth::user();
+
+        // Buat Sanctum token untuk autentikasi API frontend Vue
+        $token = $user->createToken('vue-frontend-token')->plainTextToken;
+
+        return response()->json([
+            'message' => 'Login berhasil',
+            'token' => $token,
+            'user' => $user
+        ]);
     }
 
     /**
@@ -54,7 +74,6 @@ class AuthenticatedSessionController extends Controller
 
         // Akun yang diblokir (banned) oleh admin
         if ($user?->isBanned()) {
-            // Auto-unban jika sudah lebih dari 30 hari
             if ($user->banned_at && $user->banned_at->addDays(30)->isPast()) {
                 $user->update([
                     'status' => true,
@@ -73,22 +92,8 @@ class AuthenticatedSessionController extends Controller
                     ->with('banned_modal', [
                         'reason' => $banReason,
                         'days_remaining' => $daysRemaining,
-                    ])
-                    ->with('error', "Akun Anda telah diblokir selama 30 hari karena {$banReason}. Sisa {$daysRemaining} hari lagi.")
-                    ->with('show_contact_admin', true);
+                    ]);
             }
-        }
-
-        $isActive = $user?->status_aktif ?? $user?->status ?? true;
-
-        if (!$isActive) {
-            Auth::guard('web')->logout();
-            $request->session()->invalidate();
-            $request->session()->regenerateToken();
-
-            return redirect()->route('login')->withErrors([
-                'email' => 'Akun Anda sedang tidak aktif. Silakan hubungi admin.',
-            ]);
         }
 
         if ($user?->role === 'admin') {
@@ -108,6 +113,8 @@ class AuthenticatedSessionController extends Controller
         $request->session()->invalidate();
 
         $request->session()->regenerateToken();
+
+        $request->user()?->tokens()->delete();
 
         return redirect('/');
     }

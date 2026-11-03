@@ -2,6 +2,7 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\DompetController;
 use App\Http\Controllers\TransferController;
 use App\Http\Controllers\TargetTabunganController;
@@ -18,11 +19,14 @@ use App\Http\Controllers\TransaksiController;
 |
 */
 
+// Public API Login (untuk frontend Vue.js)
+Route::post('/login', [AuthenticatedSessionController::class, 'apiStore']);
+
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
 
-// Endpoint untuk Vue Frontend User
+// Endpoint untuk Vue Frontend User yang memerlukan autentikasi
 Route::middleware(['auth:sanctum'])->group(function () {
     // Dompet & Toggle Transfer
     Route::get('/dompet', [DompetController::class, 'index']);
