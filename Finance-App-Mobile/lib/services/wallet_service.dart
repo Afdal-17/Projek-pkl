@@ -22,14 +22,18 @@ class WalletService {
     required double initialBalance,
     String? currency,
   }) async {
+    final body = <String, dynamic>{
+      'nama': name,
+      'kategori': category,
+      'saldo': initialBalance,
+    };
+    if (currency != null) {
+      body['mata_uang'] = currency;
+    }
+
     return await ApiService.post(
       ApiConfig.dompetEndpoint,
-      body: {
-        'nama': name,
-        'kategori': category,
-        'saldo': initialBalance,
-        if (currency != null) 'mata_uang': currency,
-      },
+      body: body,
     );
   }
 
@@ -40,13 +44,20 @@ class WalletService {
     String? category,
     double? balance,
   }) async {
+    final body = <String, dynamic>{};
+    if (name != null) {
+      body['nama'] = name;
+    }
+    if (category != null) {
+      body['kategori'] = category;
+    }
+    if (balance != null) {
+      body['saldo'] = balance;
+    }
+
     return await ApiService.patch(
       ApiConfig.manageDompetEndpoint(walletId),
-      body: {
-        if (name != null) 'nama': name,
-        if (category != null) 'kategori': category,
-        if (balance != null) 'saldo': balance,
-      },
+      body: body,
     );
   }
 }
