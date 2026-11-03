@@ -1,15 +1,21 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'api_config.dart';
+import 'api_service.dart';
 
-/// Service untuk autentikasi. Sesuai dengan alur Laravel Auth di projek PKL.
+/// Service untuk autentikasi. Terintegrasi dengan Backend Laravel API Sanctum & Google Auth.
 class AuthService {
   static const _storage = FlutterSecureStorage();
   static const _tokenKey = 'auth_token';
   static const _userKey = 'user_email';
+  static const _userNameKey = 'user_name';
   static const _phoneKey = 'user_phone';
   static const _roleKey = 'user_role';
 
-  /// Dummy token untuk testing mobile. Backend akan mengirim token asli.
+  /// URL Base API Backend
+  static const String baseUrl = ApiConfig.baseUrl;
+
+  /// Dummy token untuk fallback testing offline
   static const _dummyToken = 'dummy_token_12345678';
 
   // Client ID Web dari 'Finance App Local' (akhiran .apps.googleusercontent.com)
@@ -37,6 +43,9 @@ class AuthService {
 
       await _storage.write(key: _tokenKey, value: token);
       await _storage.write(key: _userKey, value: email);
+      if (account.displayName != null) {
+        await _storage.write(key: _userNameKey, value: account.displayName);
+      }
 
       final cleanId = email.trim().toLowerCase();
       if (cleanId == 'admin@finance.test' || cleanId == 'admin@finance.app') {
@@ -58,7 +67,7 @@ class AuthService {
   }
 
   /// Login dengan email atau nomor telepon dan password.
-  /// Sesuai LoginRequest di Laravel.
+  /// Memanggil RESTful API backend /api/login Laravel Sanctum, dengan fallback offline.
   static Future<bool> login(
     String identifier,
     String password, {
@@ -67,8 +76,45 @@ class AuthService {
     if (identifier.isEmpty || password.isEmpty) return false;
     if (password.length < 6) return false;
 
-    await _storage.write(key: _tokenKey, value: _dummyToken);
     final cleanId = identifier.trim().toLowerCase();
+
+    // 1. Coba request ke Backend Laravel API jika bukan nomor HP
+    if (!isPhone) {
+      try {
+        final res = await ApiService.post(
+          ApiConfig.loginEndpoint,
+          body: {
+            'email': identifier.trim(),
+            'password': password,
+          },
+          requiresAuth: false,
+        );
+
+        if (res.success && res.data is Map) {
+          final dataMap = res.data as Map;
+          final token = dataMap['token']?.toString();
+          final user = dataMap['user'];
+
+          if (token != null && token.isNotEmpty) {
+            await _storage.write(key: _tokenKey, value: token);
+            await _storage.write(key: _userKey, value: (user is Map ? user['email']?.toString() : null) ?? identifier);
+            if (user is Map && user['name'] != null) {
+              await _storage.write(key: _userNameKey, value: user['name'].toString());
+            }
+
+            final role = (user is Map ? user['role']?.toString() : null) ??
+                ((cleanId == 'admin@finance.test' || cleanId == 'admin@finance.app') ? 'admin' : 'user');
+            await _storage.write(key: _roleKey, value: role);
+            return true;
+          }
+        }
+      } catch (_) {
+        // Fallback untuk local preview jika koneksi ngrok belum tersambung
+      }
+    }
+
+    // 2. Fallback local / phone auth
+    await _storage.write(key: _tokenKey, value: _dummyToken);
 
     if (isPhone) {
       await _storage.write(key: _phoneKey, value: identifier);
@@ -83,6 +129,15 @@ class AuthService {
       }
     }
     return true;
+  }
+
+  /// Ambil data profil user dari Laravel Sanctum API (/api/user)
+  static Future<Map<String, dynamic>?> fetchCurrentUser() async {
+    final res = await ApiService.get(ApiConfig.userEndpoint);
+    if (res.success && res.data is Map) {
+      return Map<String, dynamic>.from(res.data as Map);
+    }
+    return null;
   }
 
   /// Kirim kode OTP ke nomor telepon (WhatsApp) atau email.
@@ -144,6 +199,7 @@ class AuthService {
 
     await _storage.write(key: _tokenKey, value: _dummyToken);
     await _storage.write(key: _userKey, value: email);
+    await _storage.write(key: _userNameKey, value: name);
     await _storage.write(key: _roleKey, value: 'user');
     return true;
   }
@@ -158,6 +214,7 @@ class AuthService {
 
     await _storage.delete(key: _tokenKey);
     await _storage.delete(key: _userKey);
+    await _storage.delete(key: _userNameKey);
     await _storage.delete(key: _phoneKey);
     await _storage.delete(key: _roleKey);
   }
@@ -190,6 +247,11 @@ class AuthService {
   /// Ambil email user yang login.
   static Future<String?> getUserEmail() async {
     return await _storage.read(key: _userKey);
+  }
+
+  /// Ambil nama user yang login.
+  static Future<String?> getUserName() async {
+    return await _storage.read(key: _userNameKey);
   }
 
   /// Ambil nomor telepon user yang login.

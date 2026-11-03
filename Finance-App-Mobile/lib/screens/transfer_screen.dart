@@ -78,14 +78,16 @@ class _TransferScreenState extends State<TransferScreen> {
     );
   }
 
-  void _searchUsers(String query) {
-    setState(() {
-      if (query.trim().isEmpty) {
-        _searchResults = [];
-      } else {
-        _searchResults = TransferService.searchUsers(query.trim());
-      }
-    });
+  Future<void> _searchUsers(String query) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) {
+      setState(() => _searchResults = []);
+      return;
+    }
+    final results = await TransferService.searchUsersFromApi(trimmed);
+    if (mounted) {
+      setState(() => _searchResults = results);
+    }
   }
 
   void _selectUser(TransferUser user) {

@@ -13,6 +13,8 @@ import '../utils/currency.dart';
 /// Ganti semuanya dengan data dan kurs dari API Laravel.
 /// ==========================================================
 class DummyData {
+  /// URL Endpoint RESTful API Backend Laravel
+  static String get apiBaseUrl => 'https://sinuous-fame-jazz.ngrok-free.dev/api';
   DummyData._();
 
   static String userName = "Muhammad Rofi'i Alawi";

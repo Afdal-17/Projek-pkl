@@ -4,6 +4,8 @@ import '../models/admin_user.dart';
 /// Data dummy untuk Admin Dashboard, Verify Users, Manage Users & Admin Profile,
 /// disesuaikan persis dengan backend Laravel (AdminController & AdminProfileController).
 class AdminDummyData {
+  /// URL Endpoint RESTful API Backend Laravel
+  static String get apiBaseUrl => 'https://sinuous-fame-jazz.ngrok-free.dev/api';
   AdminDummyData._();
 
   static int totalUsers = 14;
