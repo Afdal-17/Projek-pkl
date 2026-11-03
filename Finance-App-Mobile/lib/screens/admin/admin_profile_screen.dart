@@ -39,6 +39,11 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   File? _avatarFile;
   final _picker = ImagePicker();
 
+  bool _isSaving = false;
+  bool _isSaved = false;
+  bool _isUpdatingPassword = false;
+  bool _isPasswordUpdated = false;
+
   @override
   void initState() {
     super.initState();
@@ -174,16 +179,31 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
     });
   }
 
-  void _saveProfile() {
+  Future<void> _saveProfile() async {
     setState(() {
+      _isSaving = true;
       AdminDummyData.adminName = _nameCtrl.text.trim().isEmpty ? 'Admin' : _nameCtrl.text.trim();
       AdminDummyData.adminEmail = _emailCtrl.text.trim().isEmpty ? 'admin@finance.app' : _emailCtrl.text.trim();
       AdminDummyData.adminPhone = _phoneCtrl.text.trim();
       AdminDummyData.adminLocation = _locationCtrl.text.trim();
+      AdminDummyData.adminAvatarFile = _avatarFile;
     });
+
+    await Future.delayed(const Duration(milliseconds: 300));
+    if (mounted) {
+      setState(() {
+        _isSaving = false;
+        _isSaved = true;
+      });
+
+      await Future.delayed(const Duration(milliseconds: 1500));
+      if (mounted) {
+        setState(() => _isSaved = false);
+      }
+    }
   }
 
-  void _updatePassword() {
+  Future<void> _updatePassword() async {
     final cur = _currentPassCtrl.text;
     final np = _newPassCtrl.text;
     final cp = _confirmPassCtrl.text;
@@ -192,9 +212,23 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
       return;
     }
 
-    _currentPassCtrl.clear();
-    _newPassCtrl.clear();
-    _confirmPassCtrl.clear();
+    setState(() => _isUpdatingPassword = true);
+    await Future.delayed(const Duration(milliseconds: 300));
+
+    if (mounted) {
+      setState(() {
+        _isUpdatingPassword = false;
+        _isPasswordUpdated = true;
+        _currentPassCtrl.clear();
+        _newPassCtrl.clear();
+        _confirmPassCtrl.clear();
+      });
+
+      await Future.delayed(const Duration(milliseconds: 1500));
+      if (mounted) {
+        setState(() => _isPasswordUpdated = false);
+      }
+    }
   }
 
   void _confirmLogout() {
@@ -582,22 +616,37 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
             width: double.infinity,
             height: 48,
             child: ElevatedButton(
-              onPressed: _saveProfile,
+              onPressed: _isSaving ? null : _saveProfile,
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.dark,
+                backgroundColor: _isSaved ? const Color(0xFF10B981) : AppColors.dark,
                 foregroundColor: Colors.white,
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: const Text(
-                'Save changes',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+              child: _isSaving
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (_isSaved) ...[
+                          const Icon(Icons.check_circle_rounded, size: 18, color: Colors.white),
+                          const SizedBox(width: 8),
+                        ],
+                        Text(
+                          _isSaved ? 'Saved successfully' : 'Save changes',
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
             ),
           ),
         ],
@@ -689,29 +738,41 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
           SizedBox(
             width: double.infinity,
             height: 46,
-            child: ElevatedButton.icon(
-              onPressed: _updatePassword,
-              icon: const Icon(
-                Icons.lock_outline_rounded,
-                size: 16,
-                color: Colors.white,
-              ),
-              label: const Text(
-                'Update Password',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
-              ),
+            child: ElevatedButton(
+              onPressed: _isUpdatingPassword ? null : _updatePassword,
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.dark,
+                backgroundColor: _isPasswordUpdated ? const Color(0xFF10B981) : AppColors.dark,
                 foregroundColor: Colors.white,
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
+              child: _isUpdatingPassword
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          _isPasswordUpdated ? Icons.check_circle_rounded : Icons.lock_outline_rounded,
+                          size: 16,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          _isPasswordUpdated ? 'Password updated!' : 'Update Password',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
             ),
           ),
         ],

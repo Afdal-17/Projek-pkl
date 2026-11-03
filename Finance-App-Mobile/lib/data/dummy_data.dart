@@ -20,6 +20,7 @@ class DummyData {
   static String userEmail = 'gaktaubanh68@gmail.com';
   static String userPhone = '087812822400';
   static String userLocation = 'Cianjur';
+  static dynamic userAvatarFile; // File? jika dipilih dari device
 
   static const _dummyRateFromIdr = <String, double>{
     'IDR': 1.0,

@@ -31,6 +31,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   File? _profileImage;
   final _picker = ImagePicker();
 
+  bool _isSaving = false;
+  bool _isSaved = false;
+
   @override
   void initState() {
     super.initState();
@@ -39,6 +42,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _phoneCtrl = TextEditingController(text: DummyData.userPhone);
     _locationCtrl = TextEditingController(text: DummyData.userLocation);
     _selectedCurrency = preferredCurrency.value;
+    if (DummyData.userAvatarFile is File) {
+      _profileImage = DummyData.userAvatarFile as File;
+    }
   }
 
   @override
@@ -58,8 +64,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _emailCtrl.text = DummyData.userEmail;
         _phoneCtrl.text = DummyData.userPhone;
         _locationCtrl.text = DummyData.userLocation;
+        if (DummyData.userAvatarFile is File) {
+          _profileImage = DummyData.userAvatarFile as File;
+        }
       });
     }
+  }
+
+  void _removePhoto() {
+    setState(() {
+      _profileImage = null;
+      DummyData.userAvatarFile = null;
+    });
   }
 
   Future<void> _pickPhoto() async {
@@ -130,7 +146,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 contentPadding: EdgeInsets.zero,
                 onTap: () {
                   Navigator.of(ctx).pop();
-                  setState(() => _profileImage = null);
+                  _removePhoto();
                 },
               ),
             ],
@@ -147,17 +163,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
       imageQuality: 85,
     );
     if (picked != null && mounted) {
-      setState(() => _profileImage = File(picked.path));
+      setState(() {
+        _profileImage = File(picked.path);
+        DummyData.userAvatarFile = _profileImage;
+      });
     }
   }
 
-  void _saveProfile() {
+  Future<void> _saveProfile() async {
     setState(() {
+      _isSaving = true;
       DummyData.userName = _nameCtrl.text.trim().isEmpty ? DummyData.userName : _nameCtrl.text.trim();
       DummyData.userEmail = _emailCtrl.text.trim().isEmpty ? DummyData.userEmail : _emailCtrl.text.trim();
       DummyData.userPhone = _phoneCtrl.text.trim();
       DummyData.userLocation = _locationCtrl.text.trim();
+      DummyData.userAvatarFile = _profileImage;
     });
+
+    await Future.delayed(const Duration(milliseconds: 300));
+    if (mounted) {
+      setState(() {
+        _isSaving = false;
+        _isSaved = true;
+      });
+
+      await Future.delayed(const Duration(milliseconds: 1500));
+      if (mounted) {
+        setState(() => _isSaved = false);
+      }
+    }
   }
 
   void _savePreferences() {
@@ -538,24 +572,68 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     color: AppColors.ink,
                   ),
                 ),
-                const SizedBox(height: 4),
-                GestureDetector(
-                  onTap: _pickPhoto,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEEF2FF),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: const Text(
-                      'Change photo',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.brand,
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GestureDetector(
+                      onTap: _pickPhoto,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEEF2FF),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _profileImage != null ? Icons.edit_outlined : Icons.add_a_photo_outlined,
+                              size: 14,
+                              color: AppColors.brand,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              _profileImage != null ? 'Change photo' : 'Add photo',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.brand,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
+                    if (_profileImage != null) ...[
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: _removePhoto,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEE2E2),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.delete_outline_rounded, size: 14, color: AppColors.expense),
+                              SizedBox(width: 4),
+                              Text(
+                                'Remove',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.expense,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
                 const SizedBox(height: 6),
                 const Text(
@@ -593,22 +671,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
             width: double.infinity,
             height: 48,
             child: ElevatedButton(
-              onPressed: _saveProfile,
+              onPressed: _isSaving ? null : _saveProfile,
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.dark,
+                backgroundColor: _isSaved ? const Color(0xFF10B981) : AppColors.dark,
                 foregroundColor: Colors.white,
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: const Text(
-                'Save changes',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+              child: _isSaving
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (_isSaved) ...[
+                          const Icon(Icons.check_circle_rounded, size: 18, color: Colors.white),
+                          const SizedBox(width: 8),
+                        ],
+                        Text(
+                          _isSaved ? 'Saved successfully' : 'Save changes',
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
             ),
           ),
         ],
