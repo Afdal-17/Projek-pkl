@@ -2,11 +2,8 @@
 class ApiConfig {
   ApiConfig._();
 
-  /// URL Base API Backend Ngrok
+  /// URL Tunggal API Backend Ngrok
   static const String baseUrl = 'https://sinuous-fame-jazz.ngrok-free.dev/api';
-
-  /// URL Root Server Backend
-  static const String serverUrl = 'https://sinuous-fame-jazz.ngrok-free.dev';
 
   /// Header khusus untuk bypass halaman konfirmasi ngrok free tier
   static const String ngrokHeaderKey = 'ngrok-skip-browser-warning';
