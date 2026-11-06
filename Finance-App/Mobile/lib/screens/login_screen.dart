@@ -485,6 +485,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     return Scaffold(
       backgroundColor: AppColors.page,
       appBar: AppBar(
+        backgroundColor: AppColors.page,
+        elevation: 0,
+        scrolledUnderElevation: 0,
         leadingWidth: 84,
         leading: InkWell(
           onTap: () => Navigator.of(context).pop(),
@@ -501,7 +504,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             ],
           ),
         ),
-        title: const Text('Reset Password'),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -768,6 +770,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Scaffold(
       backgroundColor: AppColors.page,
       appBar: AppBar(
+        backgroundColor: AppColors.page,
+        elevation: 0,
+        scrolledUnderElevation: 0,
         leadingWidth: 84,
         leading: InkWell(
           onTap: () => Navigator.of(context).pop(),
@@ -784,7 +789,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ],
           ),
         ),
-        title: const Text('Create Account'),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
