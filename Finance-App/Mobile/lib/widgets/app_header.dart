@@ -1,0 +1,94 @@
+import 'package:flutter/material.dart';
+import '../theme/app_colors.dart';
+import 'app_logo.dart';
+import 'notification_bell.dart';
+
+/// Top Header dengan efek bayangan dan border bawah (seperti versi web di logo.blade.php & navbar web).
+/// Menggunakan latar putih (#FFFFFF) dengan drop shadow lembut di atas latar abu (#F5F5F5) halaman,
+/// sehingga header terpisah jelas dan tidak kelihatan menyatu dengan halaman.
+class AppHeader extends StatelessWidget implements PreferredSizeWidget {
+  final Widget? leading;
+  final Widget? title;
+  final Widget? action;
+  final bool showBackButton;
+
+  const AppHeader({
+    super.key,
+    this.leading,
+    this.title,
+    this.action,
+    this.showBackButton = false,
+  });
+
+  @override
+  Size get preferredSize => const Size.fromHeight(60);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: const Border(
+          bottom: BorderSide(
+            color: Color(0xFFE5E7EB), // border-b line
+            width: 1,
+          ),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: SizedBox(
+          height: 60,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                if (showBackButton) ...[
+                  InkWell(
+                    onTap: () => Navigator.of(context).pop(),
+                    borderRadius: BorderRadius.circular(8),
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.arrow_back_rounded, color: AppColors.ink, size: 20),
+                          SizedBox(width: 4),
+                          Text(
+                            'Back',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.ink,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                ] else if (leading != null) ...[
+                  leading!,
+                  const SizedBox(width: 12),
+                ],
+                Flexible(
+                  child: title ?? const AppBrandHeader(logoSize: 34, fontSize: 16),
+                ),
+                const Spacer(),
+                action ?? const NotificationBellButton(),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
