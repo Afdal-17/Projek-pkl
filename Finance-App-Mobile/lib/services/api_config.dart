@@ -13,6 +13,7 @@ class ApiConfig {
   // Autentikasi
   static const String loginEndpoint = '$baseUrl/login';
   static const String userEndpoint = '$baseUrl/user';
+  static const String googleAuthEndpoint = '$baseUrl/auth/google';
 
   // Dompet
   static const String dompetEndpoint = '$baseUrl/dompet';

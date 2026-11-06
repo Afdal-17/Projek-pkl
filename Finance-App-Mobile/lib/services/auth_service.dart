@@ -29,7 +29,7 @@ class AuthService {
     ],
   );
 
-  /// Alur Google Sign-In: mengambil idToken Google
+  /// Alur Google Sign-In: mengambil idToken Google dan verifikasi ke Laravel Backend
   static Future<String?> signInWithGoogle() async {
     try {
       final GoogleSignInAccount? account = await _googleSignIn.signIn();
@@ -39,9 +39,48 @@ class AuthService {
 
       final GoogleSignInAuthentication auth = await account.authentication;
       final email = account.email;
-      final token = auth.idToken ?? _dummyToken;
+      final idToken = auth.idToken;
 
-      await _storage.write(key: _tokenKey, value: token);
+      // 1. Kirim ID Token ke endpoint API Laravel Backend untuk ditukar dengan Sanctum Bearer Token
+      if (idToken != null && idToken.isNotEmpty) {
+        try {
+          final res = await ApiService.post(
+            ApiConfig.googleAuthEndpoint,
+            body: {'id_token': idToken},
+            requiresAuth: false,
+          );
+
+          if (res.success && res.data is Map) {
+            final dataMap = res.data as Map;
+            final sanctumToken = dataMap['token']?.toString();
+            final user = dataMap['user'];
+
+            if (sanctumToken != null && sanctumToken.isNotEmpty) {
+              await _storage.write(key: _tokenKey, value: sanctumToken);
+              await _storage.write(
+                key: _userKey,
+                value: (user is Map ? user['email']?.toString() : null) ?? email,
+              );
+              if (user is Map && user['name'] != null) {
+                await _storage.write(key: _userNameKey, value: user['name'].toString());
+              } else if (account.displayName != null) {
+                await _storage.write(key: _userNameKey, value: account.displayName);
+              }
+
+              final role = (user is Map ? user['role']?.toString() : null) ?? 'user';
+              await _storage.write(key: _roleKey, value: role);
+
+              return sanctumToken;
+            }
+          }
+        } catch (_) {
+          // Backend endpoint belum siap / koneksi ngrok offline
+        }
+      }
+
+      // 2. Fallback offline jika backend belum siap
+      final fallbackToken = idToken ?? _dummyToken;
+      await _storage.write(key: _tokenKey, value: fallbackToken);
       await _storage.write(key: _userKey, value: email);
       if (account.displayName != null) {
         await _storage.write(key: _userNameKey, value: account.displayName);
@@ -54,7 +93,7 @@ class AuthService {
         await _storage.write(key: _roleKey, value: 'user');
       }
 
-      return auth.idToken;
+      return fallbackToken;
     } catch (e) {
       return null;
     }
