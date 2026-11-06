@@ -18,8 +18,8 @@ class AuthService {
   /// Dummy token untuk fallback testing offline
   static const _dummyToken = 'dummy_token_12345678';
 
-  // Client ID Web dari 'Finance App Local' (akhiran .apps.googleusercontent.com)
-  static const String _webClientId = '757572462289-h597c8r3iku5574pllb5lha5t8a5362q.apps.googleusercontent.com';
+  // Client ID Web dari Google OAuth Backend (Google Cloud Console project teman)
+  static const String _webClientId = '247859906027-4bcrj4ec74evugic0ccb6brl775s56ft.apps.googleusercontent.com';
 
   static final GoogleSignIn _googleSignIn = GoogleSignIn(
     serverClientId: _webClientId,
