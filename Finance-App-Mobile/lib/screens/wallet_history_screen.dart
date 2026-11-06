@@ -35,8 +35,12 @@ class WalletHistoryScreen extends StatelessWidget {
                         size: 18, color: AppColors.muted),
                     SizedBox(width: 8),
                     Text(
-                      'Back to wallets',
-                      style: TextStyle(fontSize: 14, color: AppColors.muted),
+                      'Back',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.muted,
+                      ),
                     ),
                   ],
                 ),

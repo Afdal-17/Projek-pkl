@@ -485,9 +485,21 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     return Scaffold(
       backgroundColor: AppColors.page,
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () => Navigator.of(context).pop(),
+        leadingWidth: 84,
+        leading: InkWell(
+          onTap: () => Navigator.of(context).pop(),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(width: 14),
+              Icon(Icons.arrow_back_rounded, size: 20),
+              SizedBox(width: 4),
+              Text(
+                'Back',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
         ),
         title: const Text('Reset Password'),
       ),
@@ -547,20 +559,21 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       background: AppColors.dark,
                     ),
                     const SizedBox(height: 12),
-                    OutlinedButton(
+                    OutlinedButton.icon(
                       onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.arrow_back_rounded, size: 16, color: AppColors.ink),
+                      label: const Text(
+                        'Back',
+                        style: TextStyle(
+                          color: AppColors.ink,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                       style: OutlinedButton.styleFrom(
                         minimumSize: const Size.fromHeight(48),
                         side: const BorderSide(color: AppColors.line),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: const Text(
-                        'Back to login',
-                        style: TextStyle(
-                          color: AppColors.ink,
-                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
@@ -755,9 +768,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Scaffold(
       backgroundColor: AppColors.page,
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () => Navigator.of(context).pop(),
+        leadingWidth: 84,
+        leading: InkWell(
+          onTap: () => Navigator.of(context).pop(),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(width: 14),
+              Icon(Icons.arrow_back_rounded, size: 20),
+              SizedBox(width: 4),
+              Text(
+                'Back',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
         ),
         title: const Text('Create Account'),
       ),

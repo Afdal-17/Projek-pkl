@@ -7,7 +7,7 @@ import '../theme/app_colors.dart';
 import '../utils/amount_format.dart';
 import '../utils/currency.dart';
 import '../widgets/app_card.dart';
-import '../widgets/notification_bell.dart';
+import '../widgets/app_header.dart';
 
 class AddSavingTargetScreen extends StatefulWidget {
   const AddSavingTargetScreen({super.key});
@@ -103,25 +103,7 @@ class _AddSavingTargetScreenState extends State<AddSavingTargetScreen> {
 
         return Scaffold(
           backgroundColor: AppColors.page,
-          appBar: AppBar(
-            backgroundColor: AppColors.page,
-            elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back_rounded, color: AppColors.ink),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-            title: const Text(
-              'Finance App',
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w800,
-                color: AppColors.ink,
-              ),
-            ),
-            actions: const [
-              NotificationBellButton(),
-            ],
-          ),
+          appBar: const AppHeader(showBackButton: true),
           body: SingleChildScrollView(
             controller: _scrollCtrl,
             physics: const ClampingScrollPhysics(),

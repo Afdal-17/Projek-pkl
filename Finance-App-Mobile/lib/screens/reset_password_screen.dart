@@ -164,7 +164,8 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
         ),
         const SizedBox(height: 28),
         AppButton(
-          label: 'Back to Sign In',
+          label: 'Back',
+          icon: Icons.arrow_back_rounded,
           onPressed: () => Navigator.of(context).pop(),
           background: AppColors.dark,
         ),
@@ -195,7 +196,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    'Back to login',
+                    'Back',
                     style: _inter(13, FontWeight.w500, AppColors.muted),
                   ),
                 ],

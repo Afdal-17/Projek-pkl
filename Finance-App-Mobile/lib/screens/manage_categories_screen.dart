@@ -4,8 +4,8 @@ import '../models/category_item.dart';
 import '../theme/app_colors.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
+import '../widgets/app_header.dart';
 import '../widgets/category_form_sheet.dart';
-import '../widgets/notification_bell.dart';
 
 const _sortNameAz = 'Name A-Z';
 const _sortRecent = 'Recently Added';
@@ -286,25 +286,7 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.page,
-      appBar: AppBar(
-        backgroundColor: AppColors.page,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: AppColors.ink),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: const Text(
-          'Finance App',
-          style: TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w800,
-            color: AppColors.ink,
-          ),
-        ),
-        actions: const [
-          NotificationBellButton(),
-        ],
-      ),
+      appBar: const AppHeader(showBackButton: true),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
         children: [

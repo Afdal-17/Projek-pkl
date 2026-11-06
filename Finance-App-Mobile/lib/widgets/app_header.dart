@@ -52,18 +52,36 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
             child: Row(
               children: [
                 if (showBackButton) ...[
-                  IconButton(
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    icon: const Icon(Icons.arrow_back_rounded, color: AppColors.ink),
-                    onPressed: () => Navigator.of(context).pop(),
+                  InkWell(
+                    onTap: () => Navigator.of(context).pop(),
+                    borderRadius: BorderRadius.circular(8),
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.arrow_back_rounded, color: AppColors.ink, size: 20),
+                          SizedBox(width: 4),
+                          Text(
+                            'Back',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.ink,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                   const SizedBox(width: 12),
                 ] else if (leading != null) ...[
                   leading!,
                   const SizedBox(width: 12),
                 ],
-                title ?? const AppBrandHeader(),
+                Flexible(
+                  child: title ?? const AppBrandHeader(logoSize: 34, fontSize: 16),
+                ),
                 const Spacer(),
                 action ?? const NotificationBellButton(),
               ],
