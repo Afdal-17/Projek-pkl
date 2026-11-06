@@ -3,9 +3,12 @@ import '../data/dummy_data.dart';
 import '../models/saving_goal.dart';
 import '../models/wallet.dart';
 import '../services/notification_service.dart';
+import '../services/saving_service.dart';
+import '../services/wallet_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/amount_format.dart';
 import '../utils/currency.dart';
+import '../utils/feedback.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_header.dart';
 
@@ -23,18 +26,68 @@ class _AddSavingTargetScreenState extends State<AddSavingTargetScreen> {
   final _initialCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
 
+  List<Wallet> _wallets = [];
+  bool _isLoadingWallets = true;
+  bool _isSubmitting = false;
+
   double _targetAmount = 0;
   double _initialAmount = 0;
   bool _isWalletDropdownOpen = false;
-  late Wallet _selectedWallet;
+  Wallet? _selectedWallet;
 
   @override
   void initState() {
     super.initState();
-    final wallets = DummyData.wallets;
-    _selectedWallet = wallets.isNotEmpty
-        ? wallets.firstWhere((w) => w.name == 'Cash', orElse: () => wallets.first)
-        : const Wallet(
+    _loadWallets();
+  }
+
+  Future<void> _loadWallets() async {
+    try {
+      final res = await WalletService.fetchWallets();
+      List<Wallet> loaded = [];
+      if (res.success && res.data != null) {
+        dynamic rawW;
+        if (res.data is Map && res.data['data'] != null) {
+          rawW = res.data['data'];
+        } else if (res.data is List) {
+          rawW = res.data;
+        }
+        if (rawW is List) {
+          loaded = rawW.map((item) {
+            final map = Map<String, dynamic>.from(item as Map);
+            final id = map['id_dompet'] ?? map['id'];
+            final name = map['nama_dompet'] ?? map['nama'] ?? map['name'] ?? 'Wallet';
+            final type = map['kategori'] ?? map['type'] ?? 'Physical wallet';
+            final saldoRaw = map['saldo'] ?? map['balance'] ?? 0;
+            final saldo = (saldoRaw is num)
+                ? saldoRaw.toDouble()
+                : (double.tryParse(saldoRaw.toString()) ?? 0.0);
+            final isPrimary = map['is_primary'] == true || map['is_primary'] == 1;
+
+            IconData icon = Icons.payments_outlined;
+            Color color = AppColors.income;
+            if (type.toString().toLowerCase().contains('bank')) {
+              icon = Icons.account_balance_outlined;
+              color = AppColors.brand;
+            }
+
+            return Wallet(
+              id: id,
+              name: name.toString(),
+              type: type.toString(),
+              balanceIdr: saldo,
+              isPrimary: isPrimary,
+              icon: icon,
+              color: color,
+              background: color.withValues(alpha: 0.12),
+            );
+          }).toList();
+        }
+      }
+
+      if (loaded.isEmpty) {
+        loaded = [
+          const Wallet(
             name: 'Cash',
             type: 'Physical wallet',
             balanceIdr: 0,
@@ -42,7 +95,20 @@ class _AddSavingTargetScreenState extends State<AddSavingTargetScreen> {
             icon: Icons.payments_outlined,
             color: AppColors.income,
             background: AppColors.incomeSoft,
-          );
+          )
+        ];
+      }
+
+      if (mounted) {
+        setState(() {
+          _wallets = loaded;
+          _selectedWallet = _wallets.first;
+          _isLoadingWallets = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingWallets = false);
+    }
   }
 
   @override
@@ -55,11 +121,21 @@ class _AddSavingTargetScreenState extends State<AddSavingTargetScreen> {
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
+    if (_isSubmitting) return;
+
     final name = _nameCtrl.text.trim();
     if (name.isEmpty || _targetAmount <= 0) {
+      showComingSoon(context, 'Please enter a target name and amount.');
       return;
     }
+
+    if (_selectedWallet == null) {
+      showComingSoon(context, 'Please select a wallet.');
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
 
     // Convert display amount back to IDR for storage
     final curr = preferredCurrency.value;
@@ -72,33 +148,56 @@ class _AddSavingTargetScreenState extends State<AddSavingTargetScreen> {
     final targetIdr = rate > 0 ? _targetAmount / rate : _targetAmount;
     final initialIdr = rate > 0 ? _initialAmount / rate : _initialAmount;
 
-    final newGoal = SavingGoal(
+    final res = await SavingService.createSaving(
       name: name,
+      targetAmount: targetIdr,
+      walletName: _selectedWallet!.name,
+      initialAmount: initialIdr.clamp(0, targetIdr),
       description: _descCtrl.text.trim(),
-      walletName: _selectedWallet.name,
-      savedIdr: initialIdr.clamp(0, targetIdr),
-      targetIdr: targetIdr,
     );
 
-    DummyData.savings.add(newGoal);
+    if (!mounted) return;
+    setState(() => _isSubmitting = false);
 
-    NotificationService.notifySavingGoal(
-      context: context,
-      name: name,
-      message: 'Savings goal "$name" has been created.',
-      goal: newGoal,
-    );
+    if (res.success) {
+      final newGoal = SavingGoal(
+        name: name,
+        description: _descCtrl.text.trim(),
+        walletName: _selectedWallet!.name,
+        savedIdr: initialIdr.clamp(0, targetIdr),
+        targetIdr: targetIdr,
+      );
 
-    Navigator.of(context).pop(true);
+      NotificationService.notifySavingGoal(
+        context: context,
+        name: name,
+        message: 'Savings goal "$name" has been created.',
+        goal: newGoal,
+      );
+
+      Navigator.of(context).pop(true);
+    } else {
+      showComingSoon(context, res.message ?? 'Failed to create saving target.');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoadingWallets) {
+      return const Scaffold(
+        backgroundColor: AppColors.page,
+        appBar: AppHeader(showBackButton: true),
+        body: Center(child: CircularProgressIndicator(color: AppColors.brand)),
+      );
+    }
+
     return ValueListenableBuilder<String>(
       valueListenable: preferredCurrency,
       builder: (context, currCode, _) {
         final symbol = currCode == 'USD' ? r'$' : currCode == 'EUR' ? '€' : 'Rp ';
-        final walletBalance = DummyData.money(_selectedWallet.balanceIdr).displayAmount;
+        final walletBalance = _selectedWallet != null
+            ? DummyData.money(_selectedWallet!.balanceIdr).displayAmount
+            : 0.0;
         final walletBalanceStr = formatCurrency(walletBalance, currCode);
 
         return Scaffold(
@@ -212,23 +311,27 @@ class _AddSavingTargetScreenState extends State<AddSavingTargetScreen> {
                             ),
                             child: Row(
                               children: [
-                                Icon(
-                                  _selectedWallet.icon,
-                                  size: 18,
-                                  color: _selectedWallet.color,
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    '${_selectedWallet.name}  ($walletBalanceStr)',
-                                    style: const TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.ink,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
+                                if (_selectedWallet != null) ...[
+                                  Icon(
+                                    _selectedWallet!.icon,
+                                    size: 18,
+                                    color: _selectedWallet!.color,
                                   ),
-                                ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      '${_selectedWallet!.name}  ($walletBalanceStr)',
+                                      style: const TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.ink,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ] else ...[
+                                  const Text('Select wallet', style: TextStyle(color: AppColors.muted)),
+                                ],
                                 const SizedBox(width: 6),
                                 Icon(
                                   _isWalletDropdownOpen
@@ -256,8 +359,8 @@ class _AddSavingTargetScreenState extends State<AddSavingTargetScreen> {
                               ],
                             ),
                             child: Column(
-                              children: DummyData.wallets.map((w) {
-                                final isSelected = _selectedWallet.name == w.name;
+                              children: _wallets.map((w) {
+                                final isSelected = _selectedWallet?.name == w.name;
                                 final bal = DummyData.money(w.balanceIdr).displayAmount;
                                 final balStr = formatCurrency(bal, currCode);
                                 return InkWell(
@@ -287,8 +390,8 @@ class _AddSavingTargetScreenState extends State<AddSavingTargetScreen> {
                                             style: TextStyle(
                                               fontSize: 14,
                                               fontWeight: isSelected
-                                                  ? FontWeight.w700
-                                                  : FontWeight.w500,
+                                                ? FontWeight.w700
+                                                : FontWeight.w500,
                                               color: isSelected
                                                   ? AppColors.brand
                                                   : AppColors.ink,
@@ -413,7 +516,7 @@ class _AddSavingTargetScreenState extends State<AddSavingTargetScreen> {
                               child: SizedBox(
                                 height: 46,
                                 child: ElevatedButton(
-                                  onPressed: _submit,
+                                  onPressed: _isSubmitting ? null : _submit,
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: AppColors.dark,
                                     foregroundColor: Colors.white,
@@ -422,13 +525,22 @@ class _AddSavingTargetScreenState extends State<AddSavingTargetScreen> {
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                   ),
-                                  child: const Text(
-                                    'Add Target',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
+                                  child: _isSubmitting
+                                      ? const SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                      : const Text(
+                                          'Add Target',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
                                 ),
                               ),
                             ),
@@ -496,7 +608,7 @@ class _AddSavingTargetScreenState extends State<AddSavingTargetScreen> {
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: Text(
-                              _selectedWallet.name,
+                              _selectedWallet?.name ?? '—',
                               style: const TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,
@@ -533,7 +645,6 @@ class _AddSavingTargetScreenState extends State<AddSavingTargetScreen> {
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 32),
               ],
             ),

@@ -1,5 +1,6 @@
 class SavingGoal {
   SavingGoal({
+    this.id,
     required this.name,
     required this.description,
     required this.walletName,
@@ -7,6 +8,7 @@ class SavingGoal {
     required this.targetIdr,
   });
 
+  final dynamic id;
   final String name;
   final String description;
   final String walletName;

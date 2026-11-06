@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../data/transaction_samples.dart';
 import '../models/category_item.dart';
+import '../services/category_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
@@ -19,11 +19,19 @@ class ManageCategoriesScreen extends StatefulWidget {
 }
 
 class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
-  final _items = List<CategoryItem>.of(sampleCategories);
+  List<CategoryItem> _items = [];
+  final Map<String, int> _counts = {};
+  bool _isLoading = true;
   final _searchCtrl = TextEditingController();
   String _query = '';
   String _sort = _sortNameAz;
   CategoryType? _type; // null = All
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCategories();
+  }
 
   @override
   void dispose() {
@@ -31,9 +39,66 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
     super.dispose();
   }
 
-  /// Jumlah transaksi yang memakai kategori ini (dari data contoh).
-  int _usedCount(CategoryItem c) =>
-      sampleTransactions.where((t) => t.category == c.name).length;
+  Future<void> _loadCategories() async {
+    try {
+      final res = await CategoryService.fetchCategories();
+      if (!mounted) return;
+
+      List<CategoryItem> loaded = [];
+      if (res.success && res.data != null) {
+        dynamic rawList;
+        if (res.data is Map && res.data['data'] != null) {
+          rawList = res.data['data'];
+        } else if (res.data is List) {
+          rawList = res.data;
+        }
+
+        if (rawList is List && rawList.isNotEmpty) {
+          for (final item in rawList) {
+            final map = Map<String, dynamic>.from(item as Map);
+            final id = (map['id'] ?? map['id_kategori'] ?? '').toString();
+            final name = (map['name'] ?? map['nama_kategori'] ?? map['nama'] ?? '').toString();
+            final typeStr = (map['type'] ?? map['jenis'] ?? '').toString().toLowerCase();
+            final type = typeStr == 'income' ? CategoryType.income : CategoryType.expense;
+            final iconKey = map['icon']?.toString();
+            final emoji = map['emoji']?.toString();
+            final count = map['count'] is num ? (map['count'] as num).toInt() : 0;
+
+            final c = CategoryItem(
+              id: id.isNotEmpty ? id : DateTime.now().microsecondsSinceEpoch.toString(),
+              name: name,
+              type: type,
+              iconKey: iconKey,
+              emoji: emoji,
+            );
+            loaded.add(c);
+            _counts[c.id] = count;
+          }
+        }
+      }
+
+      // If backend has no categories or error, fallback to initial sampleCategories
+      if (loaded.isEmpty) {
+        loaded = List<CategoryItem>.of(sampleCategories);
+      }
+
+      if (mounted) {
+        setState(() {
+          _items = loaded;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          if (_items.isEmpty) _items = List<CategoryItem>.of(sampleCategories);
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  int _usedCount(CategoryItem c) => _counts[c.id] ?? 0;
 
   List<CategoryItem> get _visible {
     final base = _sort == _sortNameAz
@@ -63,14 +128,29 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
 
     if (result == null || !mounted) return;
 
-    setState(() {
-      if (existing == null) {
-        _items.add(result);
-      } else {
-        final i = _items.indexWhere((c) => c.id == existing.id);
-        if (i != -1) _items[i] = result;
+    if (existing == null) {
+      setState(() => _items.add(result));
+      // Call API
+      await CategoryService.createCategory(
+        name: result.name,
+        type: result.isIncome ? 'income' : 'expense',
+        icon: result.iconKey ?? result.emoji,
+      );
+    } else {
+      final i = _items.indexWhere((c) => c.id == existing.id);
+      if (i != -1) {
+        setState(() => _items[i] = result);
       }
-    });
+      // Call API
+      await CategoryService.updateCategory(
+        existing.id,
+        name: result.name,
+        type: result.isIncome ? 'income' : 'expense',
+        icon: result.iconKey ?? result.emoji,
+      );
+    }
+
+    _loadCategories();
   }
 
   Future<void> _pickSort() async {
@@ -121,7 +201,6 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
     );
   }
 
-  /// Konfirmasi hapus. Tombol Delete mati jika kategori masih dipakai transaksi.
   Future<void> _confirmDelete(CategoryItem c) async {
     final used = _usedCount(c);
 
@@ -277,6 +356,8 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
 
     if (ok == true && mounted) {
       setState(() => _items.removeWhere((x) => x.id == c.id));
+      await CategoryService.deleteCategory(c.id);
+      _loadCategories();
     }
   }
 
@@ -287,33 +368,43 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
     return Scaffold(
       backgroundColor: AppColors.page,
       appBar: const AppHeader(showBackButton: true),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-        children: [
-          const Text(
-            'Manage Categories',
-            style: TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.w800,
-              color: AppColors.ink,
-            ),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'Create and manage your transaction categories.',
-            style: TextStyle(fontSize: 14, color: AppColors.muted),
-          ),
-          const SizedBox(height: 16),
-          AppButton(
-            label: 'Add Category',
-            icon: Icons.add_rounded,
-            onPressed: () => _openForm(),
-          ),
-          const SizedBox(height: 16),
-          _filterCard(items.length),
-          const SizedBox(height: 16),
-          ..._cards(items),
-        ],
+      body: RefreshIndicator(
+        color: AppColors.brand,
+        backgroundColor: Colors.white,
+        onRefresh: _loadCategories,
+        child: _isLoading
+            ? const Center(
+                child: CircularProgressIndicator(color: AppColors.brand),
+              )
+            : ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+                children: [
+                  const Text(
+                    'Manage Categories',
+                    style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.ink,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Create and manage your transaction categories.',
+                    style: TextStyle(fontSize: 14, color: AppColors.muted),
+                  ),
+                  const SizedBox(height: 16),
+                  AppButton(
+                    label: 'Add Category',
+                    icon: Icons.add_rounded,
+                    onPressed: () => _openForm(),
+                  ),
+                  const SizedBox(height: 16),
+                  _filterCard(items.length),
+                  const SizedBox(height: 16),
+                  ..._cards(items),
+                ],
+              ),
       ),
     );
   }

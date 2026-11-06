@@ -4,6 +4,7 @@ import '../models/transfer_user.dart';
 import '../models/wallet.dart';
 import '../services/notification_service.dart';
 import '../services/transfer_service.dart';
+import '../services/wallet_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/amount_format.dart';
 import '../utils/currency.dart';
@@ -35,15 +36,85 @@ class _TransferScreenState extends State<TransferScreen> {
   final _searchCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
   List<TransferUser> _searchResults = [];
+  List<Wallet> _wallets = [];
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    if (DummyData.wallets.isNotEmpty) {
-      _fromWallet = DummyData.wallets.first.name;
-      if (DummyData.wallets.length > 1) {
-        _toWallet = DummyData.wallets[1].name;
+    _loadWallets();
+  }
+
+  Future<void> _loadWallets() async {
+    try {
+      final res = await WalletService.fetchWallets();
+      List<Wallet> loaded = [];
+      if (res.success && res.data != null) {
+        dynamic rawW;
+        if (res.data is Map && res.data['data'] != null) {
+          rawW = res.data['data'];
+        } else if (res.data is List) {
+          rawW = res.data;
+        }
+        if (rawW is List) {
+          loaded = rawW.map((item) {
+            final map = Map<String, dynamic>.from(item as Map);
+            final id = map['id_dompet'] ?? map['id'];
+            final name = map['nama_dompet'] ?? map['nama'] ?? map['name'] ?? 'Wallet';
+            final type = map['kategori'] ?? map['type'] ?? 'Physical wallet';
+            final saldoRaw = map['saldo'] ?? map['balance'] ?? 0;
+            final saldo = (saldoRaw is num)
+                ? saldoRaw.toDouble()
+                : (double.tryParse(saldoRaw.toString()) ?? 0.0);
+            final isPrimary = map['is_primary'] == true || map['is_primary'] == 1;
+
+            IconData icon = Icons.payments_outlined;
+            Color color = AppColors.income;
+            if (type.toString().toLowerCase().contains('bank')) {
+              icon = Icons.account_balance_outlined;
+              color = AppColors.brand;
+            }
+
+            return Wallet(
+              id: id,
+              name: name.toString(),
+              type: type.toString(),
+              balanceIdr: saldo,
+              isPrimary: isPrimary,
+              icon: icon,
+              color: color,
+              background: color.withValues(alpha: 0.12),
+            );
+          }).toList();
+        }
+      }
+
+      if (loaded.isEmpty) {
+        loaded = List<Wallet>.of(DummyData.wallets);
+      }
+
+      if (mounted) {
+        setState(() {
+          _wallets = loaded;
+          if (_wallets.isNotEmpty) {
+            _fromWallet = _wallets.first.name;
+            if (_wallets.length > 1) {
+              _toWallet = _wallets[1].name;
+            }
+          }
+        });
+      }
+    } catch (_) {
+      if (mounted && _wallets.isEmpty) {
+        setState(() {
+          _wallets = List<Wallet>.of(DummyData.wallets);
+          if (_wallets.isNotEmpty) {
+            _fromWallet = _wallets.first.name;
+            if (_wallets.length > 1) {
+              _toWallet = _wallets[1].name;
+            }
+          }
+        });
       }
     }
   }
@@ -114,7 +185,7 @@ class _TransferScreenState extends State<TransferScreen> {
   Wallet? _findWallet(String? name) {
     if (name == null) return null;
     try {
-      return DummyData.wallets.firstWhere((w) => w.name == name);
+      return _wallets.firstWhere((w) => w.name == name);
     } catch (_) {
       return null;
     }
@@ -331,7 +402,7 @@ class _TransferScreenState extends State<TransferScreen> {
                       _isToDropdownOpen = false;
                     });
                   },
-                  items: DummyData.wallets,
+                  items: _wallets,
                   onSelect: (val) {
                     setState(() {
                       _fromWallet = val;
@@ -385,7 +456,7 @@ class _TransferScreenState extends State<TransferScreen> {
                         _isFromDropdownOpen = false;
                       });
                     },
-                    items: DummyData.wallets
+                    items: _wallets
                         .where((w) => w.name != _fromWallet)
                         .toList(),
                     onSelect: (val) {

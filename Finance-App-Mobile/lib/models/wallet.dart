@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 class Wallet {
   const Wallet({
+    this.id,
     required this.name,
     required this.type,
     required this.balanceIdr,
@@ -11,6 +12,7 @@ class Wallet {
     required this.background,
   });
 
+  final dynamic id;
   final String name;
   final String type;
   final double balanceIdr;

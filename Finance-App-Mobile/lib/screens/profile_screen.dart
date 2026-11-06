@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../data/dummy_data.dart';
+import '../services/profile_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/currency.dart';
 import '../widgets/app_card.dart';
@@ -45,6 +46,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (DummyData.userAvatarFile is File) {
       _profileImage = DummyData.userAvatarFile as File;
     }
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    try {
+      final res = await ProfileService.fetchProfile();
+      if (!mounted) return;
+      if (res.success && res.data != null && res.data is Map) {
+        final data = res.data as Map;
+        final name = data['nama'] ?? data['name'] ?? '';
+        final email = data['email'] ?? '';
+        final phone = data['phone'] ?? data['no_hp'] ?? '';
+        final location = data['location'] ?? data['alamat'] ?? '';
+        final currency = data['mata_uang'] ?? data['currency'] ?? '';
+
+        setState(() {
+          if (name.toString().isNotEmpty) {
+            _nameCtrl.text = name.toString();
+            DummyData.userName = name.toString();
+          }
+          if (email.toString().isNotEmpty) {
+            _emailCtrl.text = email.toString();
+            DummyData.userEmail = email.toString();
+          }
+          if (phone.toString().isNotEmpty) {
+            _phoneCtrl.text = phone.toString();
+            DummyData.userPhone = phone.toString();
+          }
+          if (location.toString().isNotEmpty) {
+            _locationCtrl.text = location.toString();
+            DummyData.userLocation = location.toString();
+          }
+          if (currency.toString().isNotEmpty) {
+            _selectedCurrency = currency.toString();
+            preferredCurrency.value = currency.toString();
+          }
+        });
+      }
+    } catch (_) {}
   }
 
   @override
@@ -57,18 +97,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _handleRefresh() async {
-    await Future.delayed(const Duration(milliseconds: 600));
-    if (mounted) {
-      setState(() {
-        _nameCtrl.text = DummyData.userName;
-        _emailCtrl.text = DummyData.userEmail;
-        _phoneCtrl.text = DummyData.userPhone;
-        _locationCtrl.text = DummyData.userLocation;
-        if (DummyData.userAvatarFile is File) {
-          _profileImage = DummyData.userAvatarFile as File;
-        }
-      });
-    }
+    await _loadProfile();
   }
 
   void _removePhoto() {
@@ -179,6 +208,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       DummyData.userLocation = _locationCtrl.text.trim();
       DummyData.userAvatarFile = _profileImage;
     });
+
+    try {
+      await ProfileService.updateProfile(
+        name: _nameCtrl.text.trim(),
+        phone: _phoneCtrl.text.trim(),
+        location: _locationCtrl.text.trim(),
+        currency: _selectedCurrency,
+      );
+    } catch (_) {}
 
     await Future.delayed(const Duration(milliseconds: 300));
     if (mounted) {

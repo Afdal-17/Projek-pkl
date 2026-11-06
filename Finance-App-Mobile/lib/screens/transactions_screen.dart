@@ -2,8 +2,11 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import '../data/dummy_data.dart';
-import '../data/transaction_samples.dart';
+import '../models/category_item.dart';
 import '../models/transaction_item.dart';
+import '../services/category_service.dart';
+import '../services/transaction_service.dart';
+import '../services/wallet_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
@@ -18,11 +21,8 @@ const _greyTag = Color(0xFFF1F5F9);
 const _allCategories = 'All categories';
 const _allWallets = 'All wallets';
 
-/// Lebar maksimum menu dropdown, sama dengan ukuran menu di web.
 const _menuMaxWidth = 240.0;
 const _datePanelWidth = 260.0;
-
-/// Jumlah transaksi per halaman, sama seperti di web.
 const _pageSize = 6;
 
 class TransactionsScreen extends StatefulWidget {
@@ -36,6 +36,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   final _searchCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
   final _filterBoundsKey = GlobalKey();
+
+  List<TransactionItem> _transactions = [];
+  List<String> _categories = [];
+  List<String> _walletNames = [];
+  bool _isLoading = true;
+
   String _query = '';
   String? _category;
   String? _wallet;
@@ -43,8 +49,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   DateTime? _to;
   int _page = 0;
 
-  Future<void> _handleRefresh() async {
-    await Future.delayed(const Duration(milliseconds: 700));
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
   }
 
   @override
@@ -54,10 +62,132 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     super.dispose();
   }
 
-  List<String> get _categories =>
-      sampleTransactions.map((t) => t.category).toSet().toList()..sort();
+  Future<void> _loadData() async {
+    try {
+      // 1. Fetch transactions
+      final txRes = await TransactionService.fetchTransactions();
+      List<TransactionItem> loadedTx = [];
+      if (txRes.success && txRes.data != null) {
+        dynamic rawTxList;
+        if (txRes.data is Map && txRes.data['data'] != null) {
+          rawTxList = txRes.data['data'];
+        } else if (txRes.data is List) {
+          rawTxList = txRes.data;
+        }
 
-  List<String> get _walletNames => DummyData.wallets.map((w) => w.name).toList();
+        if (rawTxList is List) {
+          for (final t in rawTxList) {
+            final map = Map<String, dynamic>.from(t as Map);
+            loadedTx.add(_txFromJson(map));
+          }
+        }
+      }
+
+      // 2. Fetch categories for filter
+      final catRes = await CategoryService.fetchCategories();
+      final catSet = <String>{};
+      if (catRes.success && catRes.data != null) {
+        dynamic rawCat;
+        if (catRes.data is Map && catRes.data['data'] != null) {
+          rawCat = catRes.data['data'];
+        } else if (catRes.data is List) {
+          rawCat = catRes.data;
+        }
+        if (rawCat is List) {
+          for (final c in rawCat) {
+            final name = c['name'] ?? c['nama_kategori'] ?? c['nama'];
+            if (name != null && name.toString().isNotEmpty) {
+              catSet.add(name.toString());
+            }
+          }
+        }
+      }
+      for (final t in loadedTx) {
+        catSet.add(t.category);
+      }
+
+      // 3. Fetch wallets for filter
+      final wRes = await WalletService.fetchWallets();
+      final wList = <String>[];
+      if (wRes.success && wRes.data != null) {
+        dynamic rawW;
+        if (wRes.data is Map && wRes.data['data'] != null) {
+          rawW = wRes.data['data'];
+        } else if (wRes.data is List) {
+          rawW = wRes.data;
+        }
+        if (rawW is List) {
+          for (final w in rawW) {
+            final name = w['nama_dompet'] ?? w['nama'] ?? w['name'];
+            if (name != null && name.toString().isNotEmpty) {
+              wList.add(name.toString());
+            }
+          }
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _transactions = loadedTx;
+          _categories = catSet.toList()..sort();
+          _walletNames = wList;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  TransactionItem _txFromJson(Map<String, dynamic> json) {
+    final title = json['name'] ?? json['title'] ?? json['keterangan'] ?? 'Transaction';
+    final category = json['category'] ?? json['kategori'] ?? 'General';
+    final typeStr = (json['type'] ?? json['jenis'] ?? '').toString().toLowerCase();
+    final isIncome = typeStr == 'income';
+    final amtRaw = json['amount'] ?? json['nominal'] ?? 0;
+    final amount = (amtRaw is num)
+        ? amtRaw.toDouble()
+        : (double.tryParse(amtRaw.toString()) ?? 0.0);
+    final walletName = json['wallet'] ?? json['nama_dompet'] ?? json['dompet'];
+    final dateStr = json['date'] ?? json['tanggal'];
+
+    DateTime? d;
+    String dateLabel = 'Today';
+    if (dateStr != null) {
+      try {
+        d = DateTime.parse(dateStr.toString());
+        final monthNames = [
+          'January', 'February', 'March', 'April', 'May', 'June',
+          'July', 'August', 'September', 'October', 'November', 'December'
+        ];
+        dateLabel = '${d.day} ${monthNames[d.month - 1]} ${d.year}';
+      } catch (_) {}
+    }
+
+    IconData icon = isIncome ? Icons.account_balance_rounded : Icons.shopping_bag_outlined;
+    final iconKey = json['icon']?.toString();
+    if (iconKey != null && categoryIcons.containsKey(iconKey)) {
+      icon = categoryIcons[iconKey]!.icon;
+    }
+
+    return TransactionItem(
+      title: title.toString(),
+      category: category.toString(),
+      dateLabel: dateLabel,
+      amount: DummyData.money(amount),
+      type: isIncome ? TransactionType.income : TransactionType.expense,
+      icon: icon,
+      iconColor: isIncome ? AppColors.income : AppColors.expense,
+      iconBackground: isIncome ? AppColors.incomeSoft : AppColors.expenseSoft,
+      walletName: walletName?.toString(),
+      value: isIncome ? amount : -amount,
+      date: d,
+    );
+  }
+
+  Future<void> _handleRefresh() async {
+    await _loadData();
+  }
 
   bool get _hasFilter =>
       _query.isNotEmpty ||
@@ -68,7 +198,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
   List<TransactionItem> get _filtered {
     final q = _query.toLowerCase();
-    return sampleTransactions.where((t) {
+    return _transactions.where((t) {
       if (q.isNotEmpty &&
           !t.title.toLowerCase().contains(q) &&
           !t.category.toLowerCase().contains(q) &&
@@ -97,7 +227,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     });
   }
 
-  /// Pindah halaman dan naik ke atas daftar.
   void _goToPage(int page) {
     setState(() => _page = page);
     if (_scrollCtrl.hasClients) {
@@ -112,8 +241,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   @override
   Widget build(BuildContext context) {
     final items = _filtered;
-
-    // Jika filter mempersempit hasil, halaman dikunci ke yang valid.
     final totalPages = items.isEmpty ? 1 : (items.length / _pageSize).ceil();
     final page = _page.clamp(0, totalPages - 1);
     final start = page * _pageSize;
@@ -128,109 +255,108 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           const AppHeader(),
           Expanded(
             child: RefreshIndicator(
-        color: AppColors.brand,
-        backgroundColor: Colors.white,
-        strokeWidth: 3.2,
-        displacement: 40.0,
-        onRefresh: _handleRefresh,
-        child: ListView(
-          controller: _scrollCtrl,
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-          children: [
-
-          const SizedBox(height: 20),
-          const Text(
-            'Transactions',
-            style: TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.w800,
-              color: AppColors.ink,
-              ),
-            ),
-          const SizedBox(height: 4),
-          const Text(
-            'Review every income and expense in one place.',
-            style: TextStyle(fontSize: 14, color: AppColors.muted),
-            ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: _colorButton(
-                  label: 'Manage Category',
-                  color: _slate,
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const ManageCategoriesScreen(),
-                      ),
+              color: AppColors.brand,
+              backgroundColor: Colors.white,
+              strokeWidth: 3.2,
+              displacement: 40.0,
+              onRefresh: _handleRefresh,
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator(color: AppColors.brand))
+                  : ListView(
+                      controller: _scrollCtrl,
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                      children: [
+                        const SizedBox(height: 20),
+                        const Text(
+                          'Transactions',
+                          style: TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.ink,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Review every income and expense in one place.',
+                          style: TextStyle(fontSize: 14, color: AppColors.muted),
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _colorButton(
+                                label: 'Manage Category',
+                                color: _slate,
+                                onPressed: () => Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => const ManageCategoriesScreen(),
+                                  ),
+                                ).then((_) => _loadData()),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _colorButton(
+                                label: 'Transfer',
+                                color: AppColors.brand,
+                                icon: Icons.arrow_forward_rounded,
+                                onPressed: () => Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => const TransferScreen(),
+                                  ),
+                                ).then((_) => _loadData()),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        AppButton(
+                          label: 'Add Transaction',
+                          icon: Icons.add_rounded,
+                          onPressed: () => Navigator.of(context)
+                              .push(
+                                MaterialPageRoute(
+                                  builder: (_) => const AddTransactionScreen(),
+                                ),
+                              )
+                              .then((_) => _loadData()),
+                        ),
+                        const SizedBox(height: 16),
+                        _filterCard(items.length),
+                        const SizedBox(height: 16),
+                        GestureDetector(
+                          behavior: HitTestBehavior.translucent,
+                          onHorizontalDragEnd: (details) {
+                            final v = details.primaryVelocity ?? 0;
+                            if (v < -300 && page < totalPages - 1) _goToPage(page + 1);
+                            if (v > 300 && page > 0) _goToPage(page - 1);
+                          },
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              ..._results(pageItems),
+                              if (items.isNotEmpty)
+                                PaginationBar(
+                                  page: page,
+                                  totalPages: totalPages,
+                                  shownFrom: start + 1,
+                                  shownTo: end,
+                                  total: items.length,
+                                  onPageChanged: _goToPage,
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _colorButton(
-                  label: 'Transfer',
-                  color: AppColors.brand,
-                  icon: Icons.arrow_forward_rounded,
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const TransferScreen(),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-            ),
-          const SizedBox(height: 10),
-          AppButton(
-            label: 'Add Transaction',
-            icon: Icons.add_rounded,
-            onPressed: () => Navigator.of(context)
-                .push(
-                  MaterialPageRoute(
-                    builder: (_) => const AddTransactionScreen(),
-                    ),
-                )
-                .then((_) => setState(() {})),
-            ),
-          const SizedBox(height: 16),
-          _filterCard(items.length),
-          const SizedBox(height: 16),
-          GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onHorizontalDragEnd: (details) {
-              final v = details.primaryVelocity ?? 0;
-              if (v < -300 && page < totalPages - 1) _goToPage(page + 1);
-              if (v > 300 && page > 0) _goToPage(page - 1);
-            },
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                ..._results(pageItems),
-                if (items.isNotEmpty)
-                  PaginationBar(
-                    page: page,
-                    totalPages: totalPages,
-                    shownFrom: start + 1,
-                    shownTo: end,
-                    total: items.length,
-                    onPageChanged: _goToPage,
-                  ),
-              ],
             ),
           ),
         ],
       ),
-    ),
-  ),
-],
-),
-        );
+    );
   }
 
-
-  /// Tombol berwarna. Teks dikecilkan otomatis, bukan dipotong.
   Widget _colorButton({
     required String label,
     required Color color,
@@ -248,8 +374,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 10),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
-            ),
           ),
+        ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
@@ -266,13 +392,13 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    ),
                   ),
                 ),
               ),
+            ),
           ],
-          ),
         ),
+      ),
     );
   }
 
@@ -295,16 +421,14 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               prefixIcon: const Icon(
                 Icons.search_rounded,
                 color: AppColors.muted,
-                ),
+              ),
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               border: _inputBorder(),
               enabledBorder: _inputBorder(),
               focusedBorder: _inputBorder(color: AppColors.brand, width: 2),
-              ),
             ),
-
-          // Hasil dan Reset ada tepat di bawah search, seperti di web.
+          ),
           if (_hasFilter) ...[
             const SizedBox(height: 10),
             Row(
@@ -312,7 +436,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 Text(
                   '$resultCount results',
                   style: const TextStyle(fontSize: 13, color: AppColors.muted),
-                  ),
+                ),
                 const Spacer(),
                 GestureDetector(
                   onTap: _resetFilters,
@@ -322,13 +446,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                       color: AppColors.brand,
-                      ),
                     ),
                   ),
+                ),
               ],
-              ),
+            ),
           ],
-
           const SizedBox(height: 12),
           Wrap(
             spacing: 8,
@@ -339,7 +462,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 active: !_hasFilter,
                 dark: true,
                 onTap: _resetFilters,
-                ),
+              ),
               _FilterDropdown(
                 label: _category ?? 'Category',
                 active: _category != null,
@@ -351,7 +474,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   _category = v == _allCategories ? null : v;
                   _page = 0;
                 }),
-                ),
+              ),
               _FilterDropdown(
                 label: _wallet ?? 'Wallet',
                 active: _wallet != null,
@@ -363,7 +486,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   _wallet = v == _allWallets ? null : v;
                   _page = 0;
                 }),
-                ),
+              ),
               _DateFilter(
                 from: _from,
                 to: _to,
@@ -373,11 +496,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   _to = to;
                   _page = 0;
                 }),
-                ),
+              ),
             ],
-            ),
+          ),
         ],
-        ),
+      ),
     );
   }
 
@@ -388,7 +511,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     );
   }
 
-  /// Daftar transaksi untuk halaman aktif, dikelompokkan per tanggal.
   List<Widget> _results(List<TransactionItem> items) {
     if (items.isEmpty) {
       return [
@@ -399,10 +521,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               child: Text(
                 'No transactions match your filters.',
                 style: TextStyle(fontSize: 14, color: AppColors.muted),
-                ),
               ),
             ),
           ),
+        ),
       ];
     }
 
@@ -433,27 +555,27 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
                           color: AppColors.ink,
-                          ),
                         ),
                       ),
+                    ),
                     Text(
                       '$totalSign${DummyData.money(total.abs()).text}',
                       style: const TextStyle(
                         fontSize: 14,
                         color: AppColors.muted,
-                        ),
                       ),
+                    ),
                   ],
-                  ),
                 ),
+              ),
               for (int i = 0; i < entry.value.length; i++) ...[
                 _TransactionRow(item: entry.value[i]),
                 if (i < entry.value.length - 1)
                   const Divider(height: 1, color: AppColors.line),
               ],
             ],
-            ),
           ),
+        ),
       );
       widgets.add(const SizedBox(height: 12));
     }
@@ -461,10 +583,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   }
 }
 
-/// Posisi menu agar tetap di dalam area kartu filter.
 class _Placement {
   const _Placement(this.width, this.dx);
-
   final double width;
   final double dx;
 }
@@ -482,7 +602,6 @@ _Placement _placeMenu(GlobalKey chipKey, GlobalKey boundsKey, double maxWidth) {
   return _Placement(width, left - chipLeft);
 }
 
-/// Chip filter. Tampilan sama untuk tombol biasa, dropdown, dan All.
 Widget filterChip({
   Key? key,
   required String label,
@@ -520,7 +639,7 @@ Widget filterChip({
         color: bg,
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: border),
-        ),
+      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -532,20 +651,19 @@ Widget filterChip({
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
                 color: fg,
-                ),
               ),
             ),
+          ),
           if (arrow) ...[
             const SizedBox(width: 4),
             Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: fg),
           ],
         ],
-        ),
+      ),
     ),
   );
 }
 
-/// Menu Style yang sama untuk semua popover filter.
 MenuStyle _popoverStyle(double width) {
   return MenuStyle(
     backgroundColor: const WidgetStatePropertyAll(Colors.white),
@@ -556,14 +674,13 @@ MenuStyle _popoverStyle(double width) {
       RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: const BorderSide(color: AppColors.line),
-        ),
+      ),
     ),
     minimumSize: WidgetStatePropertyAll(Size(width, 0)),
     maximumSize: WidgetStatePropertyAll(Size(width, 320)),
   );
 }
 
-/// Chip Category atau Wallet. Menu muncul di bawah chip seperti dropdown di web.
 class _FilterDropdown extends StatefulWidget {
   const _FilterDropdown({
     required this.label,
@@ -636,28 +753,28 @@ class _FilterDropdownState extends State<_FilterDropdown> {
                   minimumSize: WidgetStatePropertyAll(Size(_width, 44)),
                   backgroundColor: WidgetStatePropertyAll(
                     selected ? AppColors.brandSoft : Colors.transparent,
-                    ),
+                  ),
                   foregroundColor: WidgetStatePropertyAll(
                     selected ? AppColors.brand : AppColors.ink,
-                    ),
+                  ),
                   padding: const WidgetStatePropertyAll(
                     EdgeInsets.symmetric(horizontal: 16),
-                    ),
+                  ),
                   shape: const WidgetStatePropertyAll(
                     RoundedRectangleBorder(),
-                    ),
+                  ),
                   textStyle: WidgetStatePropertyAll(
                     TextStyle(
                       fontSize: 15,
                       fontWeight:
                           selected ? FontWeight.w600 : FontWeight.w400,
-                      ),
                     ),
                   ),
+                ),
                 child: Text(o),
               );
             },
-            ),
+          ),
       ],
       builder: (context, controller, _) {
         return filterChip(
@@ -672,7 +789,6 @@ class _FilterDropdownState extends State<_FilterDropdown> {
   }
 }
 
-/// Chip Date. Panel From dan To muncul di bawah chip, seperti di web.
 class _DateFilter extends StatefulWidget {
   const _DateFilter({
     required this.from,
@@ -731,7 +847,6 @@ class _DateFilterState extends State<_DateFilter> {
       );
     }
 
-    // Pastikan panel tetap terbuka setelah date picker ditutup.
     final c = _menuCtrl;
     if (mounted && c != null && !c.isOpen) c.open();
   }
@@ -754,8 +869,8 @@ class _DateFilterState extends State<_DateFilter> {
             fontSize: 13,
             fontWeight: FontWeight.w500,
             color: AppColors.muted,
-            ),
           ),
+        ),
         const SizedBox(height: 6),
         InkWell(
           borderRadius: BorderRadius.circular(12),
@@ -767,7 +882,7 @@ class _DateFilterState extends State<_DateFilter> {
               color: Colors.white,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: AppColors.line),
-              ),
+            ),
             child: Row(
               children: [
                 Expanded(
@@ -776,18 +891,18 @@ class _DateFilterState extends State<_DateFilter> {
                     style: TextStyle(
                       fontSize: 15,
                       color: value == null ? AppColors.muted : AppColors.ink,
-                      ),
                     ),
                   ),
+                ),
                 const Icon(
                   Icons.calendar_today_outlined,
                   size: 18,
                   color: AppColors.muted,
-                  ),
+                ),
               ],
-              ),
             ),
           ),
+        ),
       ],
     );
   }
@@ -803,13 +918,13 @@ class _DateFilterState extends State<_DateFilter> {
             label: 'From',
             value: widget.from,
             onTap: () => _pick(isFrom: true),
-            ),
+          ),
           const SizedBox(height: 12),
           _dateField(
             label: 'To',
             value: widget.to,
             onTap: () => _pick(isFrom: false),
-            ),
+          ),
           const SizedBox(height: 12),
           GestureDetector(
             behavior: HitTestBehavior.opaque,
@@ -823,11 +938,11 @@ class _DateFilterState extends State<_DateFilter> {
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
                 color: AppColors.brand,
-                ),
               ),
             ),
+          ),
         ],
-        ),
+      ),
     );
   }
 
@@ -839,8 +954,6 @@ class _DateFilterState extends State<_DateFilter> {
       alignmentOffset: Offset(_dx, 6),
       style: _popoverStyle(_width),
       menuChildren: [
-        // Panel tidak memakai MenuItemButton, jadi menu tidak tertutup
-        // saat field diketuk.
         SizedBox(width: _width, child: _panel()),
       ],
       builder: (context, controller, _) {
@@ -882,9 +995,9 @@ class _TransactionRow extends StatelessWidget {
             decoration: BoxDecoration(
               color: item.iconBackground,
               borderRadius: BorderRadius.circular(14),
-              ),
-            child: Icon(item.icon, size: 20, color: item.iconColor),
             ),
+            child: Icon(item.icon, size: 20, color: item.iconColor),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -898,13 +1011,13 @@ class _TransactionRow extends StatelessWidget {
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                     color: AppColors.ink,
-                    ),
                   ),
+                ),
                 const SizedBox(height: 4),
                 Wrap(spacing: 6, runSpacing: 4, children: tags),
               ],
-              ),
             ),
+          ),
           const SizedBox(width: 8),
           Text(
             '$sign${item.amount.text}',
@@ -912,10 +1025,10 @@ class _TransactionRow extends StatelessWidget {
               fontSize: 14,
               fontWeight: FontWeight.w700,
               color: amountColor,
-              ),
             ),
+          ),
         ],
-        ),
+      ),
     );
   }
 
@@ -925,11 +1038,11 @@ class _TransactionRow extends StatelessWidget {
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(6),
-        ),
+      ),
       child: Text(
         text,
         style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: fg),
-        ),
+      ),
     );
   }
 }

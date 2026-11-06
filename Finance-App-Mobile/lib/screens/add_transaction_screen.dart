@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import '../data/dummy_data.dart';
-import '../data/transaction_samples.dart';
 import '../models/category_item.dart';
-import '../models/transaction_item.dart';
 import '../models/wallet.dart';
+import '../services/category_service.dart';
 import '../services/notification_service.dart';
+import '../services/transaction_service.dart';
+import '../services/wallet_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/amount_format.dart';
 import '../utils/currency.dart';
@@ -28,8 +29,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   final _nameCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
 
+  List<Wallet> _wallets = [];
+  List<CategoryItem> _categories = [];
+  bool _isLoading = true;
+  bool _isSubmitting = false;
+
   CategoryItem? _selectedCategory;
-  late Wallet _selectedWallet;
+  Wallet? _selectedWallet;
   DateTime _selectedDate = DateTime.now();
 
   bool _isCategoryDropdownOpen = false;
@@ -38,11 +44,57 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   @override
   void initState() {
     super.initState();
-    // Default wallet: first wallet or Cash
-    final wallets = DummyData.wallets;
-    _selectedWallet = wallets.isNotEmpty
-        ? wallets.firstWhere((w) => w.name == 'Cash', orElse: () => wallets.first)
-        : const Wallet(
+    _loadDependencies();
+  }
+
+  Future<void> _loadDependencies() async {
+    try {
+      // 1. Fetch Wallets
+      final wRes = await WalletService.fetchWallets();
+      List<Wallet> loadedWallets = [];
+      if (wRes.success && wRes.data != null) {
+        dynamic rawW;
+        if (wRes.data is Map && wRes.data['data'] != null) {
+          rawW = wRes.data['data'];
+        } else if (wRes.data is List) {
+          rawW = wRes.data;
+        }
+        if (rawW is List) {
+          loadedWallets = rawW.map((item) {
+            final map = Map<String, dynamic>.from(item as Map);
+            final id = map['id_dompet'] ?? map['id'];
+            final name = map['nama_dompet'] ?? map['nama'] ?? map['name'] ?? 'Wallet';
+            final type = map['kategori'] ?? map['type'] ?? 'Physical wallet';
+            final saldoRaw = map['saldo'] ?? map['balance'] ?? 0;
+            final saldo = (saldoRaw is num)
+                ? saldoRaw.toDouble()
+                : (double.tryParse(saldoRaw.toString()) ?? 0.0);
+            final isPrimary = map['is_primary'] == true || map['is_primary'] == 1;
+
+            IconData icon = Icons.payments_outlined;
+            Color color = AppColors.income;
+            if (type.toString().toLowerCase().contains('bank')) {
+              icon = Icons.account_balance_outlined;
+              color = AppColors.brand;
+            }
+
+            return Wallet(
+              id: id,
+              name: name.toString(),
+              type: type.toString(),
+              balanceIdr: saldo,
+              isPrimary: isPrimary,
+              icon: icon,
+              color: color,
+              background: color.withValues(alpha: 0.12),
+            );
+          }).toList();
+        }
+      }
+
+      if (loadedWallets.isEmpty) {
+        loadedWallets = [
+          const Wallet(
             name: 'Cash',
             type: 'Physical wallet',
             balanceIdr: 0,
@@ -50,14 +102,61 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             icon: Icons.payments_outlined,
             color: AppColors.income,
             background: AppColors.incomeSoft,
-          );
+          )
+        ];
+      }
 
-    // Default category matching initial type
-    _syncCategoryWithType();
+      // 2. Fetch Categories
+      final catRes = await CategoryService.fetchCategories();
+      List<CategoryItem> loadedCats = [];
+      if (catRes.success && catRes.data != null) {
+        dynamic rawCat;
+        if (catRes.data is Map && catRes.data['data'] != null) {
+          rawCat = catRes.data['data'];
+        } else if (catRes.data is List) {
+          rawCat = catRes.data;
+        }
+        if (rawCat is List) {
+          for (final c in rawCat) {
+            final map = Map<String, dynamic>.from(c as Map);
+            final id = (map['id'] ?? map['id_kategori'] ?? '').toString();
+            final name = (map['name'] ?? map['nama_kategori'] ?? map['nama'] ?? '').toString();
+            final typeStr = (map['type'] ?? map['jenis'] ?? '').toString().toLowerCase();
+            final type = typeStr == 'income' ? CategoryType.income : CategoryType.expense;
+            final iconKey = map['icon']?.toString();
+            final emoji = map['emoji']?.toString();
+
+            loadedCats.add(CategoryItem(
+              id: id.isNotEmpty ? id : DateTime.now().microsecondsSinceEpoch.toString(),
+              name: name,
+              type: type,
+              iconKey: iconKey,
+              emoji: emoji,
+            ));
+          }
+        }
+      }
+
+      if (loadedCats.isEmpty) {
+        loadedCats = List<CategoryItem>.of(sampleCategories);
+      }
+
+      if (mounted) {
+        setState(() {
+          _wallets = loadedWallets;
+          _selectedWallet = _wallets.first;
+          _categories = loadedCats;
+          _isLoading = false;
+          _syncCategoryWithType();
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   void _syncCategoryWithType() {
-    final available = sampleCategories.where((c) => c.isIncome == _isIncome).toList();
+    final available = _categories.where((c) => c.isIncome == _isIncome).toList();
     if (available.isNotEmpty) {
       if (_selectedCategory == null || _selectedCategory!.isIncome != _isIncome) {
         _selectedCategory = available.first;
@@ -99,7 +198,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.light(
+            colorScheme: const ColorScheme.light(
               primary: AppColors.brand,
               onPrimary: Colors.white,
               surface: Colors.white,
@@ -116,7 +215,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     }
   }
 
-  void _submit() {
+  Future<void> _submit() async {
+    if (_isSubmitting) return;
+
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) {
       showComingSoon(context, 'Please enter a transaction name.');
@@ -128,45 +229,44 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       return;
     }
 
-    final categoryName = _selectedCategory?.name ?? (_isIncome ? 'Income' : 'Expense');
-    final monthNames = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
-    ];
-    final dateLabel = '${_selectedDate.day} ${monthNames[_selectedDate.month - 1]}';
-
-    IconData icon = Icons.receipt_long_outlined;
-    if (_selectedCategory?.iconKey != null && categoryIcons.containsKey(_selectedCategory!.iconKey!)) {
-      icon = categoryIcons[_selectedCategory!.iconKey!]!.icon;
+    if (_selectedWallet == null) {
+      showComingSoon(context, 'Please select a wallet.');
+      return;
     }
 
-    final newTx = TransactionItem(
-      title: name,
-      category: categoryName,
-      dateLabel: dateLabel,
-      amount: DummyData.money(_amount),
-      type: _isIncome ? TransactionType.income : TransactionType.expense,
-      icon: icon,
-      iconColor: _isIncome ? AppColors.income : AppColors.expense,
-      iconBackground: _isIncome ? AppColors.incomeSoft : AppColors.expenseSoft,
-      walletName: _selectedWallet.name,
-      value: _isIncome ? _amount : -_amount,
-      date: _selectedDate,
-    );
+    setState(() => _isSubmitting = true);
 
-    sampleTransactions.insert(0, newTx);
+    final categoryName = _selectedCategory?.name ?? (_isIncome ? 'Income' : 'Expense');
+    final dateStr =
+        '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}';
 
-    final currCode = preferredCurrency.value;
-    final formattedAmt = formatCurrency(_amount, currCode);
-
-    NotificationService.notifyTransaction(
-      context: context,
+    final res = await TransactionService.createTransaction(
       name: name,
-      amountStr: formattedAmt,
-      isIncome: _isIncome,
+      amount: _amount,
+      type: _isIncome ? 'income' : 'expense',
+      category: categoryName,
+      walletName: _selectedWallet!.name,
+      date: dateStr,
     );
 
-    Navigator.of(context).pop();
+    if (!mounted) return;
+    setState(() => _isSubmitting = false);
+
+    if (res.success) {
+      final currCode = preferredCurrency.value;
+      final formattedAmt = formatCurrency(_amount, currCode);
+
+      NotificationService.notifyTransaction(
+        context: context,
+        name: name,
+        amountStr: formattedAmt,
+        isIncome: _isIncome,
+      );
+
+      Navigator.of(context).pop(true);
+    } else {
+      showComingSoon(context, res.message ?? 'Failed to save transaction to server.');
+    }
   }
 
   String _formatDate(DateTime d) {
@@ -178,14 +278,24 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        backgroundColor: AppColors.page,
+        appBar: AppHeader(showBackButton: true),
+        body: Center(child: CircularProgressIndicator(color: AppColors.brand)),
+      );
+    }
+
     return ValueListenableBuilder<String>(
       valueListenable: preferredCurrency,
       builder: (context, currCode, _) {
         final symbol = currCode == 'USD' ? r'$' : currCode == 'EUR' ? '€' : 'Rp ';
-        final baseBalance = DummyData.money(_selectedWallet.balanceIdr).displayAmount;
+        final baseBalance = _selectedWallet != null
+            ? DummyData.money(_selectedWallet!.balanceIdr).displayAmount
+            : 0.0;
         final newBalance = _isIncome ? baseBalance + _amount : baseBalance - _amount;
 
-        final availableCategories = sampleCategories
+        final availableCategories = _categories
             .where((c) => c.isIncome == _isIncome)
             .toList();
 
@@ -349,9 +459,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                     builder: (_) => const ManageCategoriesScreen(),
                                   ),
                                 );
-                                setState(() {
-                                  _syncCategoryWithType();
-                                });
+                                _loadDependencies();
                               },
                               child: const Text(
                                 'Manage',
@@ -558,27 +666,31 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                             ),
                             child: Row(
                               children: [
-                                Container(
-                                  padding: const EdgeInsets.all(4),
-                                  decoration: BoxDecoration(
-                                    color: _selectedWallet.background,
-                                    borderRadius: BorderRadius.circular(6),
+                                if (_selectedWallet != null) ...[
+                                  Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: BoxDecoration(
+                                      color: _selectedWallet!.background,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Icon(
+                                      _selectedWallet!.icon,
+                                      size: 16,
+                                      color: _selectedWallet!.color,
+                                    ),
                                   ),
-                                  child: Icon(
-                                    _selectedWallet.icon,
-                                    size: 16,
-                                    color: _selectedWallet.color,
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    _selectedWallet!.name,
+                                    style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.ink,
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(width: 10),
-                                Text(
-                                  _selectedWallet.name,
-                                  style: const TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.ink,
-                                  ),
-                                ),
+                                ] else ...[
+                                  const Text('Select wallet', style: TextStyle(color: AppColors.muted)),
+                                ],
                                 const Spacer(),
                                 Icon(
                                   _isWalletDropdownOpen
@@ -608,8 +720,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                               ],
                             ),
                             child: Column(
-                              children: DummyData.wallets.map((w) {
-                                final isSelected = _selectedWallet.name == w.name;
+                              children: _wallets.map((w) {
+                                final isSelected = _selectedWallet?.name == w.name;
                                 final b = DummyData.money(w.balanceIdr).displayAmount;
                                 final formattedBal = formatCurrency(b, currCode);
                                 return InkWell(
@@ -762,7 +874,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                               child: SizedBox(
                                 height: 46,
                                 child: ElevatedButton(
-                                  onPressed: _submit,
+                                  onPressed: _isSubmitting ? null : _submit,
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: AppColors.dark,
                                     foregroundColor: Colors.white,
@@ -771,13 +883,22 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                   ),
-                                  child: Text(
-                                    _isIncome ? 'Add Income' : 'Add Expense',
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
+                                  child: _isSubmitting
+                                      ? const SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                      : Text(
+                                          _isIncome ? 'Add Income' : 'Add Expense',
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
                                 ),
                               ),
                             ),
@@ -852,7 +973,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                               ),
                             ),
                             Text(
-                              _selectedWallet.name,
+                              _selectedWallet?.name ?? '—',
                               style: const TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,

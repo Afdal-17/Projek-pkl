@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../data/dummy_data.dart';
 import '../models/saving_goal.dart';
+import '../services/saving_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/currency.dart';
 import '../widgets/app_button.dart';
@@ -16,16 +17,79 @@ class SavingsScreen extends StatefulWidget {
 }
 
 class _SavingsScreenState extends State<SavingsScreen> {
+  List<SavingGoal> _goals = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavings();
+  }
+
+  Future<void> _loadSavings() async {
+    try {
+      final res = await SavingService.fetchSavings();
+      if (!mounted) return;
+
+      List<SavingGoal> loaded = [];
+      if (res.success && res.data != null) {
+        dynamic rawList;
+        if (res.data is Map && res.data['data'] != null) {
+          rawList = res.data['data'];
+        } else if (res.data is List) {
+          rawList = res.data;
+        }
+
+        if (rawList is List) {
+          for (final item in rawList) {
+            final map = Map<String, dynamic>.from(item as Map);
+            final id = map['id_tabungan'] ?? map['id'];
+            final name = map['nama_target'] ?? map['name'] ?? 'Target';
+            final desc = map['keterangan'] ?? map['description'] ?? '';
+            final wallet = map['nama_dompet'] ?? map['wallet'] ?? 'Cash';
+            final targetRaw = map['jumlah_target'] ?? map['target'] ?? 0;
+            final savedRaw = map['jumlah_terkumpul'] ?? map['saved'] ?? 0;
+            final target = (targetRaw is num)
+                ? targetRaw.toDouble()
+                : (double.tryParse(targetRaw.toString()) ?? 0.0);
+            final saved = (savedRaw is num)
+                ? savedRaw.toDouble()
+                : (double.tryParse(savedRaw.toString()) ?? 0.0);
+
+            loaded.add(SavingGoal(
+              id: id,
+              name: name.toString(),
+              description: desc.toString(),
+              walletName: wallet.toString(),
+              savedIdr: saved,
+              targetIdr: target,
+            ));
+          }
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _goals = loaded;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   Future<void> _handleRefresh() async {
-    await Future.delayed(const Duration(milliseconds: 700));
-    setState(() {});
+    await _loadSavings();
   }
 
   void _openAddTarget() async {
     final added = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => const AddSavingTargetScreen()),
     );
-    if (added == true) setState(() {});
+    if (added == true) {
+      _loadSavings();
+    }
   }
 
   void _confirmDelete(SavingGoal goal) {
@@ -33,9 +97,13 @@ class _SavingsScreenState extends State<SavingsScreen> {
       context: context,
       builder: (ctx) => _DeleteDialog(
         goalName: goal.name,
-        onConfirm: () {
-          setState(() => DummyData.savings.remove(goal));
+        onConfirm: () async {
           Navigator.of(ctx).pop();
+          setState(() => _goals.remove(goal));
+          if (goal.id != null) {
+            await SavingService.deleteSaving(goal.id);
+          }
+          _loadSavings();
         },
       ),
     );
@@ -46,7 +114,7 @@ class _SavingsScreenState extends State<SavingsScreen> {
     return ValueListenableBuilder<String>(
       valueListenable: preferredCurrency,
       builder: (context, currCode, _) {
-        final goals = DummyData.savings;
+        final goals = _goals;
         final totalSavedIdr =
             goals.fold<double>(0, (s, g) => s + g.savedIdr);
         final totalTargetIdr =
@@ -77,101 +145,130 @@ class _SavingsScreenState extends State<SavingsScreen> {
                 child: RefreshIndicator(
                   onRefresh: _handleRefresh,
                   color: AppColors.brand,
-                  child: ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-                    children: [
-                      const Text(
-                  'Savings Goals',
-                  style: TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.ink,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Set targets and follow your progress over time.',
-                  style: TextStyle(fontSize: 14, color: AppColors.muted),
-                ),
-                const SizedBox(height: 16),
-                AppButton(
-                  label: 'Add Saving Target',
-                  icon: Icons.add_rounded,
-                  onPressed: _openAddTarget,
-                ),
-                const SizedBox(height: 16),
+                  child: _isLoading
+                      ? const Center(child: CircularProgressIndicator(color: AppColors.brand))
+                      : ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                          children: [
+                            const Text(
+                              'Savings Goals',
+                              style: TextStyle(
+                                fontSize: 26,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.ink,
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'Set targets and follow your progress over time.',
+                              style: TextStyle(fontSize: 14, color: AppColors.muted),
+                            ),
+                            const SizedBox(height: 16),
+                            AppButton(
+                              label: 'Add Saving Target',
+                              icon: Icons.add_rounded,
+                              onPressed: _openAddTarget,
+                            ),
+                            const SizedBox(height: 16),
 
-                // ─── Total Saved Card ───
-                _StatCard(
-                  label: 'Total Saved',
-                  value: formatCurrency(totalSaved, currCode),
-                  iconBg: AppColors.incomeSoft,
-                  iconColor: AppColors.income,
-                  icon: Icons.attach_money_rounded,
-                ),
-                const SizedBox(height: 12),
+                            // Total Saved Card
+                            _StatCard(
+                              label: 'Total Saved',
+                              value: formatCurrency(totalSaved, currCode),
+                              iconBg: AppColors.incomeSoft,
+                              iconColor: AppColors.income,
+                              icon: Icons.attach_money_rounded,
+                            ),
+                            const SizedBox(height: 12),
 
-                // ─── Combined Target Card ───
-                _StatCard(
-                  label: 'Combined Target',
-                  value: formatCurrency(totalTarget, currCode),
-                  subtitle:
-                      '$funded% funded across ${goals.length} targets',
-                  iconBg: AppColors.brandSoft,
-                  iconColor: AppColors.brand,
-                  icon: Icons.track_changes_rounded,
-                ),
-                const SizedBox(height: 12),
+                            // Combined Target Card
+                            _StatCard(
+                              label: 'Combined Target',
+                              value: formatCurrency(totalTarget, currCode),
+                              subtitle:
+                                  '$funded% funded across ${goals.length} targets',
+                              iconBg: AppColors.brandSoft,
+                              iconColor: AppColors.brand,
+                              icon: Icons.track_changes_rounded,
+                            ),
+                            const SizedBox(height: 12),
 
-                // ─── Next Milestone Card ───
-                _StatCard(
-                  label: 'Next Milestone',
-                  value: nextGoal != null
-                      ? formatCurrency(nextRemaining, currCode)
-                      : '—',
-                  subtitle: nextGoal != null
-                      ? '${nextGoal.name}: ${formatCurrency(nextSavedDisplay, currCode)} / ${formatCurrency(nextTargetDisplay, currCode)}'
-                      : 'All targets completed!',
-                  iconBg: AppColors.warnSoft,
-                  iconColor: AppColors.warn,
-                  icon: Icons.history_rounded,
-                ),
-                const SizedBox(height: 20),
+                            // Next Milestone Card
+                            _StatCard(
+                              label: 'Next Milestone',
+                              value: nextGoal != null
+                                  ? formatCurrency(nextRemaining, currCode)
+                                  : '—',
+                              subtitle: nextGoal != null
+                                  ? '${nextGoal.name}: ${formatCurrency(nextSavedDisplay, currCode)} / ${formatCurrency(nextTargetDisplay, currCode)}'
+                                  : 'All targets completed!',
+                              iconBg: AppColors.warnSoft,
+                              iconColor: AppColors.warn,
+                              icon: Icons.history_rounded,
+                            ),
+                            const SizedBox(height: 20),
 
-                // ─── Goal Cards ───
-                for (final goal in goals) ...[
-                  _SavingCard(
-                    goal: goal,
-                    currCode: currCode,
-                    onDelete: () => _confirmDelete(goal),
-                  ),
-                  const SizedBox(height: 12),
-                ],
+                            // Goal Cards
+                            if (goals.isEmpty)
+                              AppCard(
+                                padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
+                                child: Center(
+                                  child: Column(
+                                    children: [
+                                      Icon(Icons.track_changes_rounded,
+                                          size: 40, color: AppColors.muted.withValues(alpha: 0.6)),
+                                      const SizedBox(height: 8),
+                                      const Text(
+                                        'No savings goals yet',
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w700,
+                                          color: AppColors.ink,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      const Text(
+                                        'Tap "Add Saving Target" above to start saving.',
+                                        style: TextStyle(fontSize: 13, color: AppColors.muted),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              )
+                            else
+                              for (final goal in goals) ...[
+                                _SavingCard(
+                                  goal: goal,
+                                  currCode: currCode,
+                                  onDelete: () => _confirmDelete(goal),
+                                ),
+                                const SizedBox(height: 12),
+                              ],
 
-                // Footer
-                Center(
-                  child: Text(
-                    '${goals.length} active targets',
-                    style: const TextStyle(
-                        fontSize: 13, color: AppColors.muted),
-                  ),
+                            const SizedBox(height: 8),
+                            Center(
+                              child: Text(
+                                '${goals.length} active targets',
+                                style: const TextStyle(
+                                    fontSize: 13, color: AppColors.muted),
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                          ],
+                        ),
                 ),
-                const SizedBox(height: 20),
-              ],
-            ),
+              ),
+            ],
           ),
-        ),
-      ],
-    ),
-  );
+        );
       },
     );
   }
 }
 
-// ─── Stat Card ──────────────────────────────────────────────
 class _StatCard extends StatelessWidget {
   const _StatCard({
     required this.label,
@@ -240,7 +337,6 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-// ─── Saving Goal Card ───────────────────────────────────────
 class _SavingCard extends StatelessWidget {
   const _SavingCard({
     required this.goal,
@@ -263,7 +359,6 @@ class _SavingCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header row: icon + name/desc + trash
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -324,8 +419,6 @@ class _SavingCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-
-          // Progress amounts
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -345,8 +438,6 @@ class _SavingCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-
-          // Progress bar
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: LinearProgressIndicator(
@@ -357,8 +448,6 @@ class _SavingCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-
-          // Status + percent badge
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -395,7 +484,6 @@ class _SavingCard extends StatelessWidget {
   }
 }
 
-// ─── Delete Confirmation Dialog ─────────────────────────────
 class _DeleteDialog extends StatelessWidget {
   const _DeleteDialog({
     required this.goalName,
