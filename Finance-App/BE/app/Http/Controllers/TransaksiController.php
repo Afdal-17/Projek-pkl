@@ -11,7 +11,9 @@ use App\Models\TargetTabungan;
 use App\Models\Transaksi;
 use App\Services\CurrencyService;
 use App\Services\NotifikasiService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
@@ -27,40 +29,49 @@ class TransaksiController extends Controller
      */
     private const DUPLICATE_GUARD_SECONDS = 30;
 
-    public function frontendIndex(): View
+    public function frontendIndex(Request $request): View|JsonResponse
     {
         $userId = (int) Auth::id();
-        $icons = ['makanan' => 'utensils', 'transport' => 'car', 'hiburan' => 'film', 'tagihan' => 'landmark', 'gaji' => 'landmark'];
 
-        $transactions = Transaksi::with(['dompet', 'kategori', 'transfer.dompetAsal.user', 'transfer.dompetTujuan.user'])
-            ->whereHas('dompet', fn ($query) => $query->where('id_user', $userId))
+        $transactions = $this->baseQuery($userId)
             ->latest('tanggal')
             ->get()
-            ->map(fn (Transaksi $transaction): array => [
-                'id' => $transaction->id_transaksi,
-                'name' => $transaction->displayNama(),
-                'type' => $transaction->id_transfer !== null
-                    ? 'transfer'
-                    : ($transaction->jenis === 'pemasukan' ? 'income' : 'expense'),
-                'category' => $transaction->id_transfer !== null
-                    ? 'Transfer'
-                    : ($transaction->kategori?->nama_kategori ?? ($transaction->nama_transaksi === 'Saldo awal' ? 'Saldo awal' : 'Without category')),
-                'wallet' => $transaction->dompet->nama_dompet,
-                'to' => $transaction->id_transfer !== null
-                    ? $transaction->displayLawan()
-                    : null,
-                'amount' => (float) $transaction->jumlah,
-                'date' => $transaction->tanggal->toDateString(),
-                'jenis' => $transaction->jenis,
-                'icon' => $transaction->id_transfer !== null
-                    ? 'transfer'
-                    : ($transaction->kategori?->icon ?: ($icons[strtolower($transaction->kategori?->nama_kategori ?? '')] ?? ($transaction->jenis === 'pemasukan' ? 'landmark' : 'utensils'))),
-            ]);
+            ->map(fn (Transaksi $transaction): array => $this->mapTransaction($transaction));
+
+        if ($request->expectsJson()) {
+            return response()->json($transactions);
+        }
 
         return view('transactions.index', [
             'transactions' => $transactions,
             ...$this->frontendOptions($userId),
         ]);
+    }
+
+    /**
+     * Versi API untuk mobile/SPA: mendukung filter + pagination.
+     * Query param: page, per_page (1-100), q, jenis, id_dompet, id_kategori,
+     * tanggal_mulai, tanggal_selesai.
+     */
+    public function apiIndex(FilterTransaksiRequest $request): JsonResponse
+    {
+        $userId = (int) Auth::id();
+        $filters = $request->validated();
+        $perPage = min(max($request->integer('per_page', 15), 1), 100);
+
+        $transactions = $this->baseQuery($userId)
+            ->when($filters['q'] ?? null, fn ($query, $value) => $query->where('nama_transaksi', 'like', '%'.$value.'%'))
+            ->when($filters['jenis'] ?? null, fn ($query, $value) => $query->where('jenis', $value))
+            ->when($filters['id_dompet'] ?? null, fn ($query, $value) => $query->where('id_dompet', $value))
+            ->when($filters['id_kategori'] ?? null, fn ($query, $value) => $query->where('id_kategori', $value))
+            ->when($filters['tanggal_mulai'] ?? null, fn ($query, $value) => $query->whereDate('tanggal', '>=', $value))
+            ->when($filters['tanggal_selesai'] ?? null, fn ($query, $value) => $query->whereDate('tanggal', '<=', $value))
+            ->latest('tanggal')
+            ->paginate($perPage)
+            ->withQueryString()
+            ->through(fn (Transaksi $transaction): array => $this->mapTransaction($transaction));
+
+        return response()->json($transactions);
     }
 
     public function frontendCreate(): View
@@ -99,7 +110,7 @@ class TransaksiController extends Controller
         ]);
     }
 
-    public function store(StoreTransaksiRequest $request, NotifikasiService $notifikasiService): RedirectResponse
+    public function store(StoreTransaksiRequest $request, NotifikasiService $notifikasiService): RedirectResponse|JsonResponse
     {
         $data = $request->validated();
         $userId = (int) Auth::id();
@@ -146,6 +157,10 @@ class TransaksiController extends Controller
             throw $e;
         }
 
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Transaksi berhasil dicatat.'], 201);
+        }
+
         return redirect()->route('transaksi.index');
     }
 
@@ -168,7 +183,7 @@ class TransaksiController extends Controller
         ]);
     }
 
-    public function update(UpdateTransaksiRequest $request, Transaksi $transaksi, NotifikasiService $notifikasiService): RedirectResponse
+    public function update(UpdateTransaksiRequest $request, Transaksi $transaksi, NotifikasiService $notifikasiService): RedirectResponse|JsonResponse
     {
         $data = $request->validated();
         $userId = (int) Auth::id();
@@ -203,10 +218,14 @@ class TransaksiController extends Controller
             $notifikasiService->transaksiDiubah($current->fresh(), $userId);
         });
 
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Transaksi berhasil diubah.']);
+        }
+
         return redirect()->route('transaksi.index');
     }
 
-    public function destroy(Transaksi $transaksi, NotifikasiService $notifikasiService): RedirectResponse
+    public function destroy(Transaksi $transaksi, NotifikasiService $notifikasiService): RedirectResponse|JsonResponse
     {
         $userId = (int) Auth::id();
 
@@ -230,6 +249,10 @@ class TransaksiController extends Controller
             $notifikasiService->transaksiDihapus($namaTransaksi, $jumlahTransaksi, $userId);
         });
 
+        if (request()->expectsJson()) {
+            return response()->json(['message' => 'Transaksi berhasil dihapus.']);
+        }
+
         return redirect()->route('transaksi.index');
     }
 
@@ -241,6 +264,46 @@ class TransaksiController extends Controller
         );
 
         return $transaksi->load(['dompet', 'kategori', 'transfer.dompetAsal.user', 'transfer.dompetTujuan.user']);
+    }
+
+    /**
+     * Dasar query transaksi milik user, sudah eager-load relasi yang dipakai
+     * mapTransaction(). Dipakai oleh versi web (frontendIndex) dan API (apiIndex).
+     */
+    private function baseQuery(int $userId): \Illuminate\Database\Eloquent\Builder
+    {
+        return Transaksi::with(['dompet', 'kategori', 'transfer.dompetAsal.user', 'transfer.dompetTujuan.user'])
+            ->whereHas('dompet', fn ($query) => $query->where('id_user', $userId));
+    }
+
+    /**
+     * Bentuk satu baris transaksi untuk respons API maupun view.
+     * Bentuk key-nya identik di kedua versi supaya klien tidak perlu bercabang.
+     */
+    private function mapTransaction(Transaksi $transaction): array
+    {
+        $icons = ['makanan' => 'utensils', 'transport' => 'car', 'hiburan' => 'film', 'tagihan' => 'landmark', 'gaji' => 'landmark'];
+
+        return [
+            'id' => $transaction->id_transaksi,
+            'name' => $transaction->displayNama(),
+            'type' => $transaction->id_transfer !== null
+                ? 'transfer'
+                : ($transaction->jenis === 'pemasukan' ? 'income' : 'expense'),
+            'category' => $transaction->id_transfer !== null
+                ? 'Transfer'
+                : ($transaction->kategori?->nama_kategori ?? ($transaction->nama_transaksi === 'Saldo awal' ? 'Saldo awal' : 'Without category')),
+            'wallet' => $transaction->dompet->nama_dompet,
+            'to' => $transaction->id_transfer !== null
+                ? $transaction->displayLawan()
+                : null,
+            'amount' => (float) $transaction->jumlah,
+            'date' => $transaction->tanggal->toDateString(),
+            'jenis' => $transaction->jenis,
+            'icon' => $transaction->id_transfer !== null
+                ? 'transfer'
+                : ($transaction->kategori?->icon ?: ($icons[strtolower($transaction->kategori?->nama_kategori ?? '')] ?? ($transaction->jenis === 'pemasukan' ? 'landmark' : 'utensils'))),
+        ];
     }
 
     private function applyBalanceChange(Dompet $dompet, string $jenis, float $amount): void

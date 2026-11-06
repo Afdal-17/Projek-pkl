@@ -1,113 +1,196 @@
 {
   "info": {
-    "name": "Finance App API - Frontend User",
+    "name": "Finance App API - Backend (Laravel)",
+    "description": "API untuk Frontend Web & Mobile.\n\nWAJIB: prefix /api, header Accept: application/json, dan port 8003 (port 8000 = Apache XAMPP, bukan Laravel).\n\nCara pakai: atur variabel baseUrl, lalu jalankan folder '1. Auth & Akun > Login' — token otomatis tersimpan. Lihat API_DOCUMENTATION.md untuk detail.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://127.0.0.1:8003/api" },
+    { "key": "token", "value": "" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
   },
   "item": [
     {
-      "name": "Auth",
+      "name": "1. Auth & Akun",
       "item": [
         {
-          "name": "Login API",
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    pm.collectionVariables.set('token', pm.response.json().token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json"
-              }
-            ],
+            "header": [{ "key": "Accept", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"email\": \"user@example.com\",\n    \"password\": \"password123\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+              "raw": "{\n    \"email\": \"user@finance.test\",\n    \"password\": \"password\"\n}",
+              "options": { "raw": { "language": "json" } }
             },
-            "url": {
-              "raw": "http://127.0.0.1:8000/api/login",
-              "protocol": "http",
-              "host": [
-                "127",
-                "0",
-                "0",
-                "1"
-              ],
-              "port": "8000",
-              "path": [
-                "api",
-                "login"
-              ]
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "Dompet",
-      "item": [
-        {
-          "name": "Get Wallets",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "url": {
-              "raw": "http://127.0.0.1:8000/api/dompet",
-              "protocol": "http",
-              "host": [
-                "127",
-                "0",
-                "0",
-                "1"
-              ],
-              "port": "8000",
-              "path": [
-                "api",
-                "dompet"
-              ]
-            }
+            "url": { "raw": "{{baseUrl}}/login", "host": ["{{baseUrl}}"], "path": ["login"] }
           }
         },
         {
-          "name": "Toggle Transfer Receiver",
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/logout", "host": ["{{baseUrl}}"], "path": ["logout"] }
+          }
+        },
+        {
+          "name": "Get User Login",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/user", "host": ["{{baseUrl}}"], "path": ["user"] }
+          }
+        },
+        {
+          "name": "Get Account / Profil",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/account", "host": ["{{baseUrl}}"], "path": ["account"] }
+          }
+        },
+        {
+          "name": "Update Profil",
           "request": {
             "method": "PATCH",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"nama\": \"Nama Baru\",\n    \"mata_uang\": \"IDR\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/account", "host": ["{{baseUrl}}"], "path": ["account"] }
+          }
+        },
+        {
+          "name": "Ganti Mata Uang",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"mata_uang\": \"USD\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/account/currency", "host": ["{{baseUrl}}"], "path": ["account", "currency"] }
+          }
+        },
+        {
+          "name": "Upload Avatar",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [{ "key": "avatar", "type": "file", "src": [] }]
+            },
+            "url": { "raw": "{{baseUrl}}/account/avatar", "host": ["{{baseUrl}}"], "path": ["account", "avatar"] }
+          }
+        },
+        {
+          "name": "Hapus Avatar",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/account/avatar", "host": ["{{baseUrl}}"], "path": ["account", "avatar"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Dashboard",
+      "item": [
+        {
+          "name": "Summary Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/dashboard/summary", "host": ["{{baseUrl}}"], "path": ["dashboard", "summary"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Dompet",
+      "item": [
+        {
+          "name": "Get Dompet (list)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/dompet", "host": ["{{baseUrl}}"], "path": ["dompet"] }
+          }
+        },
+        {
+          "name": "Create Dompet",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"nama_dompet\": \"Dompet Baru\",\n    \"jenis\": \"digital\",\n    \"saldo_awal\": 100000\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/dompet", "host": ["{{baseUrl}}"], "path": ["dompet"] }
+          }
+        },
+        {
+          "name": "Get Dompet Detail + Riwayat",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/dompet/1", "host": ["{{baseUrl}}"], "path": ["dompet", "1"] }
+          }
+        },
+        {
+          "name": "Manage / Edit Saldo Dompet",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"nama_dompet\": \"Dompet Baru\",\n    \"jenis\": \"digital\",\n    \"warna\": \"brand\",\n    \"saldo\": 500000,\n    \"deskripsi\": \"Dipakai untuk belanja\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/dompet/1/manage", "host": ["{{baseUrl}}"], "path": ["dompet", "1", "manage"] }
+          }
+        },
+        {
+          "name": "Toggle Penerima Transfer",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/dompet/1/toggle-transfer", "host": ["{{baseUrl}}"], "path": ["dompet", "1", "toggle-transfer"] }
+          }
+        },
+        {
+          "name": "Delete Dompet",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Accept", "value": "application/json" }],
             "url": {
-              "raw": "http://127.0.0.1:8000/api/dompet/1/toggle-transfer",
-              "protocol": "http",
-              "host": [
-                "127",
-                "0",
-                "0",
-                "1"
-              ],
-              "port": "8000",
-              "path": [
-                "api",
-                "dompet",
-                "1",
-                "toggle-transfer"
+              "raw": "{{baseUrl}}/dompet/1?force=1",
+              "host": ["{{baseUrl}}"],
+              "path": ["dompet", "1"],
+              "query": [
+                { "key": "force", "value": "1", "description": "Paksa hapus bila masih ada riwayat transfer (tanpa ini -> 422)" }
               ]
             }
           }
@@ -115,85 +198,223 @@
       ]
     },
     {
-      "name": "Transfer",
+      "name": "4. Transfer",
       "item": [
         {
-          "name": "Search Recipients",
+          "name": "Search Penerima",
           "request": {
             "method": "GET",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
+            "header": [{ "key": "Accept", "value": "application/json" }],
             "url": {
-              "raw": "http://127.0.0.1:8000/api/transfer/recipients/search?q=budi",
-              "protocol": "http",
-              "host": [
-                "127",
-                "0",
-                "0",
-                "1"
-              ],
-              "port": "8000",
-              "path": [
-                "api",
-                "transfer",
-                "recipients",
-                "search"
-              ],
+              "raw": "{{baseUrl}}/transfer/recipients/search?query=budi",
+              "host": ["{{baseUrl}}"],
+              "path": ["transfer", "recipients", "search"],
+              "query": [{ "key": "query", "value": "budi", "description": "Nama / email / ID penerima. BUKAN 'q'." }]
+            }
+          }
+        },
+        {
+          "name": "Kirim Transfer",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"id_dompet_asal\": 1,\n    \"id_dompet_tujuan\": 2,\n    \"jumlah\": 100000,\n    \"tanggal_transfer\": \"2026-11-05 10:00:00\",\n    \"catatan\": \"bayar hutang\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/transfer", "host": ["{{baseUrl}}"], "path": ["transfer"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Transaksi",
+      "item": [
+        {
+          "name": "Get Transaksi (filter + pagination)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/transactions?page=1&per_page=15",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions"],
               "query": [
-                {
-                  "key": "q",
-                  "value": "budi"
-                }
+                { "key": "page", "value": "1", "description": "Halaman (default 1)" },
+                { "key": "per_page", "value": "15", "description": "1-100, default 15" },
+                { "key": "q", "value": "", "description": "Cari nama_transaksi", "disabled": true },
+                { "key": "jenis", "value": "pengeluaran", "description": "pemasukan | pengeluaran", "disabled": true },
+                { "key": "id_dompet", "value": "1", "disabled": true },
+                { "key": "id_kategori", "value": "1", "disabled": true },
+                { "key": "tanggal_mulai", "value": "2026-11-01", "disabled": true },
+                { "key": "tanggal_selesai", "value": "2026-11-30", "disabled": true }
               ]
             }
           }
         },
         {
-          "name": "Store Transfer",
+          "name": "Create Transaksi",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
+            "header": [{ "key": "Accept", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"penerima_id\": 2,\n    \"jumlah\": 100000.00,\n    \"catatan\": \"Uji coba transfer\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+              "raw": "{\n    \"id_dompet\": 1,\n    \"id_kategori\": 1,\n    \"nama_transaksi\": \"Makan siang\",\n    \"jumlah\": 25000,\n    \"jenis\": \"pengeluaran\",\n    \"tanggal\": \"2026-11-05 12:00:00\"\n}",
+              "options": { "raw": { "language": "json" } }
             },
+            "url": { "raw": "{{baseUrl}}/transactions", "host": ["{{baseUrl}}"], "path": ["transactions"] }
+          }
+        },
+        {
+          "name": "Update Transaksi",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"id_dompet\": 1,\n    \"id_kategori\": 1,\n    \"nama_transaksi\": \"Makan siang (edit)\",\n    \"jumlah\": 30000,\n    \"jenis\": \"pengeluaran\",\n    \"tanggal\": \"2026-11-05 12:00:00\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/transactions/1", "host": ["{{baseUrl}}"], "path": ["transactions", "1"] }
+          }
+        },
+        {
+          "name": "Delete Transaksi",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/transactions/1", "host": ["{{baseUrl}}"], "path": ["transactions", "1"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Kategori",
+      "item": [
+        {
+          "name": "Get Kategori",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/categories", "host": ["{{baseUrl}}"], "path": ["categories"] }
+          }
+        },
+        {
+          "name": "Create Kategori",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"nama_kategori\": \"Makanan\",\n    \"jenis\": \"pengeluaran\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/categories", "host": ["{{baseUrl}}"], "path": ["categories"] }
+          }
+        },
+        {
+          "name": "Update Kategori",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"nama_kategori\": \"Makanan & Minuman\",\n    \"jenis\": \"pengeluaran\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/categories/1", "host": ["{{baseUrl}}"], "path": ["categories", "1"] }
+          }
+        },
+        {
+          "name": "Delete Kategori",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/categories/1", "host": ["{{baseUrl}}"], "path": ["categories", "1"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Target Tabungan",
+      "item": [
+        {
+          "name": "Get Saving",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/saving", "host": ["{{baseUrl}}"], "path": ["saving"] }
+          }
+        },
+        {
+          "name": "Create Saving",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"id_dompet\": 1,\n    \"nama_target\": \"Liburan\",\n    \"deskripsi\": \"Ke Bali\",\n    \"nominal_target\": 5000000,\n    \"initial_savings\": 100000\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/saving", "host": ["{{baseUrl}}"], "path": ["saving"] }
+          }
+        },
+        {
+          "name": "Update Saving",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"id_dompet\": 1,\n    \"nama_target\": \"Liburan\",\n    \"deskripsi\": \"Ke Bali\",\n    \"nominal_target\": 7500000,\n    \"initial_savings\": 200000\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/saving/1", "host": ["{{baseUrl}}"], "path": ["saving", "1"] }
+          }
+        },
+        {
+          "name": "Delete Saving",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/saving/1", "host": ["{{baseUrl}}"], "path": ["saving", "1"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Notifikasi",
+      "item": [
+        {
+          "name": "Get Notifikasi (filter belum dibaca)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
             "url": {
-              "raw": "http://127.0.0.1:8000/api/transfer",
-              "protocol": "http",
-              "host": [
-                "127",
-                "0",
-                "0",
-                "1"
-              ],
-              "port": "8000",
-              "path": [
-                "api",
-                "transfer"
+              "raw": "{{baseUrl}}/notifications?read=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications"],
+              "query": [
+                { "key": "read", "value": "0", "description": "0 = belum dibaca, 1 = sudah dibaca, hapus param untuk semua" }
               ]
             }
+          }
+        },
+        {
+          "name": "Mark Read (satu)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/notifications/1/read", "host": ["{{baseUrl}}"], "path": ["notifications", "1", "read"] }
+          }
+        },
+        {
+          "name": "Mark Read All",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/notifications/read-all", "host": ["{{baseUrl}}"], "path": ["notifications", "read-all"] }
           }
         }
       ]

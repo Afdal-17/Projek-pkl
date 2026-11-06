@@ -102,7 +102,7 @@ class WalletIntegrationTest extends TestCase
             'jenis' => 'bank',
             'warna' => 'brand',
             'saldo_awal' => 2500,
-        ])->assertRedirect(route('dompet.index'));
+        ])->assertCreated();
 
         $this->assertDatabaseHas('dompet', [
             'id_user' => $user->id_user,

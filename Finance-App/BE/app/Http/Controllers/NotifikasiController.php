@@ -3,15 +3,19 @@
 namespace App\Http\Controllers;
 
 use App\Models\Notifikasi;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
 class NotifikasiController extends Controller
 {
-    public function frontendIndex(): View
+    public function frontendIndex(Request $request): View|JsonResponse
     {
         $notifications = Notifikasi::where('id_user', Auth::id())
+            // Filter opsional untuk klien mobile: ?read=1 (sudah) / ?read=0 (belum)
+            ->when($request->filled('read'), fn ($query) => $query->where('sudah_dibaca', $request->boolean('read')))
             ->latest('id_notifikasi')
             ->get()
             ->map(fn (Notifikasi $notification): array => [
@@ -26,6 +30,10 @@ class NotifikasiController extends Controller
                 'scope' => $notification->tanggal->diffForHumans(),
                 'read' => $notification->sudah_dibaca,
             ]);
+
+        if ($request->expectsJson()) {
+            return response()->json($notifications);
+        }
 
         return view('notifications', [
             'notifications' => $notifications,

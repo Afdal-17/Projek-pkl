@@ -41,7 +41,7 @@ class DuplicateSubmissionGuardTest extends TestCase
         $payload = $this->transaksiPayload($dompet, $kategori);
 
         $this->actingAs($user)->postJson(route('transactions.store'), $payload)
-            ->assertRedirect(route('transaksi.index'));
+            ->assertCreated();
 
         $this->actingAs($user)->postJson(route('transactions.store'), $payload)
             ->assertUnprocessable()

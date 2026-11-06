@@ -26,9 +26,16 @@ class ProfileController extends Controller
         ]);
     }
 
-    public function frontendEdit(Request $request): View
+    public function frontendEdit(Request $request): View|JsonResponse
     {
         $user = $request->user();
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'user' => $user,
+                'avatar_url' => $user->avatar_path ? asset('storage/'.$user->avatar_path) : null,
+            ]);
+        }
 
         return view('account', [
             'user' => $user,

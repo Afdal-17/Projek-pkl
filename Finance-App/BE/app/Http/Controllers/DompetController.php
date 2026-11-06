@@ -19,9 +19,15 @@ use Illuminate\View\View;
 
 class DompetController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View|JsonResponse
     {
-        return view('dompet.index', ['dompet' => Dompet::where('id_user', Auth::id())->latest()->paginate(10)]);
+        $dompet = Dompet::where('id_user', Auth::id())->latest()->paginate(10);
+
+        if ($request->expectsJson()) {
+            return response()->json($dompet);
+        }
+
+        return view('dompet.index', ['dompet' => $dompet]);
     }
 
     public function create(): View
@@ -29,7 +35,7 @@ class DompetController extends Controller
         return view('dompet.create');
     }
 
-    public function frontendShow(Dompet $dompet): View
+    public function frontendShow(Request $request, Dompet $dompet): View|JsonResponse
     {
         abort_unless($dompet->id_user === (int) Auth::id(), 404);
 
@@ -56,13 +62,20 @@ class DompetController extends Controller
                 'date' => $transaction->tanggal->toDateString(),
             ]);
 
+        if ($request->expectsJson()) {
+            return response()->json([
+                'dompet' => $dompet,
+                'transactions' => $transactions,
+            ]);
+        }
+
         return view('dompet.history', [
             'dompet' => $dompet,
             'transactions' => $transactions,
         ]);
     }
 
-    public function store(StoreDompetRequest $request): RedirectResponse
+    public function store(StoreDompetRequest $request): RedirectResponse|JsonResponse
     {
         $data = $request->validated();
         $saldoAwal = isset($data['saldo_awal']) && $data['saldo_awal'] !== null && $data['saldo_awal'] !== ''
@@ -99,6 +112,10 @@ class DompetController extends Controller
                 ]);
             }
         });
+
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Dompet berhasil ditambahkan.'], 201);
+        }
 
         return redirect()->route('dompet.index');
     }

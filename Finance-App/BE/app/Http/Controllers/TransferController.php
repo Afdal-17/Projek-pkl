@@ -134,7 +134,7 @@ class TransferController extends Controller
         ]);
     }
 
-    public function store(StoreTransferRequest $request, NotifikasiService $notifikasiService): RedirectResponse
+    public function store(StoreTransferRequest $request, NotifikasiService $notifikasiService): RedirectResponse|JsonResponse
     {
         $data = $request->validated();
         $userId = (int) Auth::id();
@@ -224,6 +224,10 @@ class TransferController extends Controller
             /* Proses gagal (mis. saldo kurang) — buka lagi pintu retry-nya. */
             RateLimiter::clear($dupKey);
             throw $e;
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Transfer berhasil dikirim.'], 201);
         }
 
         return redirect()->route('transfer.index');

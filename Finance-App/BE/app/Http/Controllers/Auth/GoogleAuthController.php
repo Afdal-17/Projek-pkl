@@ -30,7 +30,7 @@ class GoogleAuthController extends Controller
         $mode = $request->query('mode', 'login');
         session(['google_auth_mode' => $mode]);
 
-        return Socialite::driver('google')->setHttpClient(new \GuzzleHttp\Client(['verify' => false]))->redirect();
+        return Socialite::driver('google')->redirect();
     }
 
     /**
@@ -39,7 +39,7 @@ class GoogleAuthController extends Controller
     public function handleGoogleCallback(): RedirectResponse
     {
         try {
-            $googleUser = Socialite::driver('google')->setHttpClient(new \GuzzleHttp\Client(['verify' => false]))->user();
+            $googleUser = Socialite::driver('google')->user();
         } catch (Throwable $e) {
             return redirect()->route('login')->with('error', 'Gagal masuk dengan akun Google: ' . $e->getMessage());
         }

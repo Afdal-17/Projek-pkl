@@ -29,7 +29,32 @@ class AuthenticatedSessionController extends Controller
 
         $user = Auth::user();
 
-        // Buat Sanctum token untuk autentikasi API frontend Vue
+        // Cek verifikasi admin untuk role user
+        if ($user?->role === 'user' && $user?->email_verified_at === null) {
+            $user->tokens()->delete();
+            throw ValidationException::withMessages([
+                'email' => 'Akun Anda belum diverifikasi oleh admin. Silakan hubungi admin.',
+            ]);
+        }
+
+        // Cek status banned
+        if ($user?->isBanned()) {
+            if ($user->banned_at && $user->banned_at->addDays(30)->isPast()) {
+                $user->update([
+                    'status' => true,
+                    'banned_at' => null,
+                    'ban_reason' => null,
+                ]);
+            } else {
+                $user->tokens()->delete();
+                $banReason = $user->ban_reason ?: 'Melanggar ketentuan layanan';
+                throw ValidationException::withMessages([
+                    'email' => 'Akun Anda ditangguhkan: '.$banReason,
+                ]);
+            }
+        }
+
+        // Buat Sanctum token untuk autentikasi API frontend Vue/mobile
         $token = $user->createToken('vue-frontend-token')->plainTextToken;
 
         return response()->json([
@@ -37,6 +62,16 @@ class AuthenticatedSessionController extends Controller
             'token' => $token,
             'user' => $user
         ]);
+    }
+
+    /**
+     * Revoke the token used by the API client (Vue/mobile).
+     */
+    public function apiLogout(Request $request): JsonResponse
+    {
+        $request->user()?->currentAccessToken()?->delete();
+
+        return response()->json(['message' => 'Logout berhasil']);
     }
 
     /**

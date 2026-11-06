@@ -8,7 +8,9 @@ use App\Models\Dompet;
 use App\Models\TargetTabungan;
 use App\Services\CurrencyService;
 use App\Services\NotifikasiService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
@@ -23,7 +25,7 @@ class TargetTabunganController extends Controller
      */
     private const DUPLICATE_GUARD_SECONDS = 30;
 
-    public function frontendIndex(): View
+    public function frontendIndex(Request $request): View|JsonResponse
     {
         $targets = TargetTabungan::with('dompet')
             ->where('id_user', Auth::id())
@@ -36,7 +38,14 @@ class TargetTabunganController extends Controller
                 'wallet' => $target->dompet->nama_dompet,
                 'saved' => min((float) $target->jumlah_terkumpul, (float) $target->nominal_target),
                 'target' => (float) $target->nominal_target,
+                // Accessor model TargetTabungan (0-100, dibulatkan 2 desimal)
+                'progress' => (float) $target->progress,
+                'achieved' => (bool) $target->tercapai,
             ]);
+
+        if ($request->expectsJson()) {
+            return response()->json($targets);
+        }
 
         return view('saving.index', compact('targets'));
     }
@@ -72,7 +81,7 @@ class TargetTabunganController extends Controller
         ]);
     }
 
-    public function store(StoreTargetTabunganRequest $request, NotifikasiService $notifikasiService): RedirectResponse
+    public function store(StoreTargetTabunganRequest $request, NotifikasiService $notifikasiService): RedirectResponse|JsonResponse
     {
         $data = $request->validated();
         $userId = (int) Auth::id();
@@ -128,6 +137,10 @@ class TargetTabunganController extends Controller
             throw $e;
         }
 
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Target tabungan berhasil dibuat.'], 201);
+        }
+
         return redirect()->route('target-tabungan.index');
     }
 
@@ -148,7 +161,7 @@ class TargetTabunganController extends Controller
         ]);
     }
 
-    public function update(UpdateTargetTabunganRequest $request, TargetTabungan $targetTabungan): RedirectResponse
+    public function update(UpdateTargetTabunganRequest $request, TargetTabungan $targetTabungan): RedirectResponse|JsonResponse
     {
         $targetTabungan = $this->ownedTarget($targetTabungan);
         $data = $request->validated();
@@ -183,12 +196,20 @@ class TargetTabunganController extends Controller
 
         $targetTabungan->update($updates);
 
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Target tabungan berhasil diubah.']);
+        }
+
         return redirect()->route('target-tabungan.index');
     }
 
-    public function destroy(TargetTabungan $targetTabungan): RedirectResponse
+    public function destroy(TargetTabungan $targetTabungan): RedirectResponse|JsonResponse
     {
         $this->ownedTarget($targetTabungan)->delete();
+
+        if (request()->expectsJson()) {
+            return response()->json(['message' => 'Target tabungan berhasil dihapus.']);
+        }
 
         return redirect()->route('target-tabungan.index');
     }
