@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\OtpService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -142,5 +143,74 @@ class GoogleAuthController extends Controller
         }
 
         return redirect()->intended(route('user.dashboard'));
+    }
+
+    /**
+     * API Login/Register via Google untuk aplikasi Mobile / API Client
+     */
+    public function apiGoogleLogin(Request $request): JsonResponse
+    {
+        $request->validate([
+            'email' => ['required', 'email'],
+            'google_id' => ['nullable', 'string'],
+            'nama' => ['nullable', 'string'],
+            'avatar_path' => ['nullable', 'string'],
+        ]);
+
+        $email = $request->input('email');
+        $googleId = $request->input('google_id');
+        $nama = $request->input('nama') ?: 'Google User';
+
+        $user = null;
+        if (! empty($googleId)) {
+            $user = User::where('google_id', $googleId)->first();
+        }
+        if (! $user && ! empty($email)) {
+            $user = User::where('email', $email)->first();
+        }
+
+        if (! $user) {
+            $user = User::create([
+                'nama' => $nama,
+                'email' => $email,
+                'google_id' => $googleId,
+                'password' => Hash::make(Str::random(32)),
+                'role' => 'user',
+                'status' => true,
+                'email_verified_at' => now(),
+                'otp_verified_at' => now(),
+                'mata_uang' => 'IDR',
+            ]);
+        } else {
+            if ($googleId && ! $user->google_id) {
+                $user->google_id = $googleId;
+            }
+            if (! $user->email_verified_at) {
+                $user->email_verified_at = now();
+                $user->status = true;
+            }
+            $user->save();
+        }
+
+        if ($user->isBanned()) {
+            $banReason = $user->ban_reason ?: 'Melanggar ketentuan layanan';
+            return response()->json([
+                'message' => 'Akun Anda ditangguhkan: ' . $banReason,
+            ], 403);
+        }
+
+        if (! $user->status) {
+            return response()->json([
+                'message' => 'Akun Anda sedang tidak aktif. Silakan hubungi admin.',
+            ], 403);
+        }
+
+        $token = $user->createToken('mobile-google-token')->plainTextToken;
+
+        return response()->json([
+            'message' => 'Login Google berhasil',
+            'token' => $token,
+            'user' => $user,
+        ]);
     }
 }
