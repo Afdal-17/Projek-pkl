@@ -1,4 +1,5 @@
-import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../data/admin_dummy_data.dart';
@@ -36,7 +37,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   bool _obscureNew = true;
   bool _obscureConfirm = true;
 
-  File? _avatarFile;
+  Uint8List? _avatarFile;
   final _picker = ImagePicker();
 
   bool _isSaving = false;
@@ -51,8 +52,8 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
     _emailCtrl = TextEditingController(text: AdminDummyData.adminEmail);
     _phoneCtrl = TextEditingController(text: AdminDummyData.adminPhone);
     _locationCtrl = TextEditingController(text: AdminDummyData.adminLocation);
-    if (AdminDummyData.adminAvatarFile is File) {
-      _avatarFile = AdminDummyData.adminAvatarFile as File;
+    if (AdminDummyData.adminAvatarFile is Uint8List) {
+      _avatarFile = AdminDummyData.adminAvatarFile as Uint8List;
     }
   }
 
@@ -165,8 +166,9 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
       imageQuality: 85,
     );
     if (picked != null && mounted) {
+      final bytes = await picked.readAsBytes();
       setState(() {
-        _avatarFile = File(picked.path);
+        _avatarFile = bytes;
         AdminDummyData.adminAvatarFile = _avatarFile;
       });
     }
@@ -462,7 +464,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                           ],
                           image: _avatarFile != null
                               ? DecorationImage(
-                                  image: FileImage(_avatarFile!),
+                                  image: MemoryImage(_avatarFile!),
                                   fit: BoxFit.cover,
                                 )
                               : null,
