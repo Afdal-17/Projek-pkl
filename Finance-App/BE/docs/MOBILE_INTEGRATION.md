@@ -76,11 +76,68 @@ Format **harus persis**: kata `Bearer`, **satu spasi**, lalu token.
 
 ---
 
-## 3. Autentikasi
+## 3. Autentikasi & Registrasi
 
-Ada **2 jalur login**, keduanya menghasilkan Sanctum token yang identik.
+Ada **3 jalur autentikasi**, semuanya menghasilkan Sanctum token.
 
-### 3a. Login Email & Password
+### 3a. Registrasi Akun Baru via Email (dengan OTP)
+
+```http
+POST /api/register
+Content-Type: application/json
+Accept: application/json
+
+{
+  "nama": "Afdal",
+  "email": "afdal@example.com",
+  "password": "password123",
+  "password_confirmation": "password123"
+}
+```
+
+**Sukses → 201 Created** (Kode OTP dikirim ke email)
+
+```json
+{
+  "message": "Registrasi berhasil. Kode OTP telah dikirim ke email Anda.",
+  "user_id": 12,
+  "email": "afdal@example.com"
+}
+```
+
+---
+
+### 3b. Verifikasi Kode OTP Registrasi
+
+```http
+POST /api/register/verify-otp
+Content-Type: application/json
+Accept: application/json
+
+{
+  "user_id": 12,
+  "kode": "481926"
+}
+```
+
+**Sukses → 200 OK** (Akun aktif & langsung mendapat token login)
+
+```json
+{
+  "message": "Verifikasi OTP berhasil. Akun Anda aktif.",
+  "token": "26|abcdef...",
+  "user": {
+    "id_user": 12,
+    "nama": "Afdal",
+    "email": "afdal@example.com",
+    "email_verified_at": "2026-11-09T05:00:00.000000Z"
+  }
+}
+```
+
+---
+
+### 3c. Login Email & Password
 
 ```http
 POST /api/login
@@ -119,12 +176,12 @@ Accept: application/json
 }
 ```
 
-**Akun belum diverifikasi admin → 422**
+**Akun belum diverifikasi OTP / Admin → 422**
 
 ```json
 {
-  "message": "Akun Anda belum diverifikasi oleh admin. Silakan hubungi admin.",
-  "errors": { "email": ["Akun Anda belum diverifikasi oleh admin. Silakan hubungi admin."] }
+  "message": "Akun Anda belum diverifikasi. Silakan masukkan kode OTP yang dikirim ke email Anda.",
+  "errors": { "email": ["Akun Anda belum diverifikasi..."] }
 }
 ```
 
@@ -139,7 +196,7 @@ Accept: application/json
 
 ---
 
-### 3b. Login Google (untuk tombol *Sign in with Google* native)
+### 3d. Login Google (untuk tombol *Sign in with Google* native)
 
 ```http
 POST /api/auth/google
@@ -846,7 +903,59 @@ class ApiClient {
 }
 ```
 
-### 8.3 Login Google
+### 8.3 Registrasi & Verifikasi OTP Email
+
+```dart
+// 1. Request Register
+Future<int?> registerEmail({
+  required String nama,
+  required String email,
+  required String password,
+  required String passwordConfirmation,
+}) async {
+  final res = await api.post('/register', {
+    'nama': nama,
+    'email': email,
+    'password': password,
+    'password_confirmation': passwordConfirmation,
+  });
+
+  if (res.statusCode == 201) {
+    final body = jsonDecode(res.body);
+    return body['user_id'] as int; // Simpan user_id untuk verifikasi OTP
+  } else {
+    // 422 error validasi
+    final errors = jsonDecode(res.body)['errors'];
+    throw Exception(errors.toString());
+  }
+}
+
+// 2. Verifikasi OTP & Ambil Token
+Future<String?> verifyOtp({
+  required int userId,
+  required String kode,
+}) async {
+  final res = await api.post('/register/verify-otp', {
+    'user_id': userId,
+    'kode': kode,
+  });
+
+  if (res.statusCode == 200) {
+    final body = jsonDecode(res.body);
+    final token = body['token'] as String;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('token', token); // Akun langsung login
+
+    return token;
+  } else {
+    final msg = jsonDecode(res.body)['message'];
+    throw Exception(msg);
+  }
+}
+```
+
+### 8.4 Login Google
 
 ```dart
 Future<void> loginWithGoogle({
