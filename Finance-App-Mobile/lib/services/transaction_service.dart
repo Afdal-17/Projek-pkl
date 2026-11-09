@@ -12,25 +12,39 @@ class TransactionService {
   }
 
   /// Membuat transaksi baru (`POST /api/transactions`)
+  /// StoreTransaksiRequest Laravel mengharuskan:
+  /// - id_dompet (integer)
+  /// - id_kategori (integer)
+  /// - nama_transaksi (string)
+  /// - jumlah (numeric)
+  /// - jenis ('pemasukan' / 'pengeluaran')
+  /// - tanggal ('YYYY-MM-DD')
   static Future<ApiResponse> createTransaction({
+    required dynamic walletId,
+    required dynamic categoryId,
     required String name,
     required double amount,
-    required String type, // 'income' atau 'expense'
-    required String category,
-    required String walletName,
+    required String type, // 'income'/'pemasukan' atau 'expense'/'pengeluaran'
     required String date, // format: 'YYYY-MM-DD'
     String? note,
   }) async {
+    final jenis = (type.toLowerCase() == 'income' || type.toLowerCase() == 'pemasukan')
+        ? 'pemasukan'
+        : 'pengeluaran';
+
     final body = <String, dynamic>{
-      'name': name,
-      'amount': amount,
-      'type': type,
-      'category': category,
-      'wallet': walletName,
-      'date': date,
-      if (note != null && note.isNotEmpty) 'note': note,
+      'id_dompet': int.tryParse(walletId.toString()) ?? walletId,
+      'id_kategori': int.tryParse(categoryId.toString()) ?? categoryId,
+      'nama_transaksi': name,
+      'jumlah': amount,
+      'jenis': jenis,
+      'tanggal': date,
     };
     return await ApiService.post(ApiConfig.transactionsEndpoint, body: body);
   }
-}
 
+  /// Hapus transaksi (`DELETE /api/transactions/{id}`)
+  static Future<ApiResponse> deleteTransaction(dynamic id) async {
+    return await ApiService.delete('${ApiConfig.transactionsEndpoint}/$id');
+  }
+}

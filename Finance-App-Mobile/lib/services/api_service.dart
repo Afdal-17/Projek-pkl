@@ -175,4 +175,47 @@ class ApiService {
       );
     }
   }
+
+  /// Request DELETE generik
+  static Future<ApiResponse> delete(
+    String url, {
+    bool requiresAuth = true,
+  }) async {
+    try {
+      final uri = Uri.parse(url);
+      final request = await _client.deleteUrl(uri);
+
+      final headers = await _prepareHeaders(requiresAuth: requiresAuth);
+      headers.forEach((key, value) {
+        request.headers.set(key, value);
+      });
+
+      final response = await request.close().timeout(const Duration(seconds: 20));
+      final responseBody = await response.transform(utf8.decoder).join();
+
+      dynamic decodedData;
+      try {
+        decodedData = jsonDecode(responseBody);
+      } catch (_) {
+        decodedData = responseBody;
+      }
+
+      final isSuccess = response.statusCode >= 200 && response.statusCode < 300;
+      final message = decodedData is Map ? (decodedData['message'] as String?) : null;
+
+      return ApiResponse(
+        success: isSuccess,
+        statusCode: response.statusCode,
+        data: decodedData,
+        message: message,
+      );
+    } catch (e) {
+      return ApiResponse(
+        success: false,
+        statusCode: 500,
+        message: 'Koneksi gagal: $e',
+      );
+    }
+  }
 }
+

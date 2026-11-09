@@ -16,20 +16,32 @@ class WalletService {
   }
 
   /// Tambah dompet baru (`POST /api/dompet`)
+  /// StoreDompetRequest Laravel mengharuskan:
+  /// - nama_dompet (string)
+  /// - jenis ('physical' / 'digital' / 'bank')
+  /// - saldo / saldo_awal (numeric)
   static Future<ApiResponse> createWallet({
     required String name,
     required String category,
     required double initialBalance,
     String? currency,
+    String? color,
   }) async {
-    final body = <String, dynamic>{
-      'nama': name,
-      'kategori': category,
-      'saldo': initialBalance,
-    };
-    if (currency != null) {
-      body['mata_uang'] = currency;
+    String jenis = 'digital';
+    final catLower = category.toLowerCase();
+    if (catLower.contains('physical') || catLower.contains('cash')) {
+      jenis = 'physical';
+    } else if (catLower.contains('bank')) {
+      jenis = 'bank';
     }
+
+    final body = <String, dynamic>{
+      'nama_dompet': name,
+      'jenis': jenis,
+      'saldo': initialBalance,
+      'saldo_awal': initialBalance,
+      if (color != null) 'warna': color,
+    };
 
     return await ApiService.post(
       ApiConfig.dompetEndpoint,
@@ -46,9 +58,18 @@ class WalletService {
   }) async {
     final body = <String, dynamic>{};
     if (name != null) {
+      body['nama_dompet'] = name;
       body['nama'] = name;
     }
     if (category != null) {
+      String jenis = 'digital';
+      final catLower = category.toLowerCase();
+      if (catLower.contains('physical') || catLower.contains('cash')) {
+        jenis = 'physical';
+      } else if (catLower.contains('bank')) {
+        jenis = 'bank';
+      }
+      body['jenis'] = jenis;
       body['kategori'] = category;
     }
     if (balance != null) {
@@ -59,5 +80,10 @@ class WalletService {
       ApiConfig.manageDompetEndpoint(walletId),
       body: body,
     );
+  }
+
+  /// Hapus dompet (`DELETE /api/dompet/{id}`)
+  static Future<ApiResponse> deleteWallet(dynamic walletId) async {
+    return await ApiService.delete('${ApiConfig.dompetEndpoint}/$walletId');
   }
 }

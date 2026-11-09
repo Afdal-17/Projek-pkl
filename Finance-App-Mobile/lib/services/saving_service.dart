@@ -6,34 +6,38 @@ class SavingService {
   SavingService._();
 
   /// Mengambil semua target tabungan dari backend (`GET /api/saving`)
-  /// Response: [{id_tabungan, nama_target, keterangan, jumlah_target, jumlah_terkumpul, nama_dompet}]
+  /// Response: [{id, name, note, wallet, saved, target, progress, achieved}]
   static Future<ApiResponse> fetchSavings() async {
     return await ApiService.get(ApiConfig.savingEndpoint);
   }
 
   /// Membuat target tabungan baru (`POST /api/saving`)
+  /// StoreTargetTabunganRequest Laravel mengharuskan:
+  /// - id_dompet (integer)
+  /// - nama_target (string)
+  /// - nominal_target (numeric)
+  /// - initial_savings (numeric)
+  /// - deskripsi (nullable string)
   static Future<ApiResponse> createSaving({
+    required dynamic walletId,
     required String name,
     required double targetAmount,
-    required String walletName,
     double initialAmount = 0,
     String? description,
   }) async {
     final body = <String, dynamic>{
+      'id_dompet': int.tryParse(walletId.toString()) ?? walletId,
       'nama_target': name,
-      'jumlah_target': targetAmount,
-      'nama_dompet': walletName,
-      'jumlah_terkumpul': initialAmount,
+      'nominal_target': targetAmount,
+      'initial_savings': initialAmount,
       if (description != null && description.isNotEmpty)
-        'keterangan': description,
+        'deskripsi': description,
     };
     return await ApiService.post(ApiConfig.savingEndpoint, body: body);
   }
 
   /// Hapus target tabungan (`DELETE /api/saving/{id}`)
-  /// Backend mungkin belum punya route ini — handle secara graceful
   static Future<ApiResponse> deleteSaving(dynamic id) async {
-    return await ApiService.get('${ApiConfig.savingEndpoint}/$id/delete');
+    return await ApiService.delete('${ApiConfig.savingEndpoint}/$id');
   }
 }
-

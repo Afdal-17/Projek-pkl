@@ -217,6 +217,10 @@ class _HomeScreenState extends State<HomeScreen> {
         if (_primaryName == wallet.name) _primaryName = null;
         _wallets.remove(wallet);
       });
+      if (wallet.id != null) {
+        await WalletService.deleteWallet(wallet.id);
+      }
+      await _loadData();
     }
   }
 

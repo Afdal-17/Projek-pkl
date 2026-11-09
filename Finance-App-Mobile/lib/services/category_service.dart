@@ -14,40 +14,48 @@ class CategoryService {
   }
 
   /// Tambah kategori baru (`POST /api/categories`)
-  /// Backend mungkin belum punya route ini — handle 404/405 secara graceful
+  /// Backend Laravel StoreKategoriRequest mengharuskan:
+  /// - nama_kategori (string)
+  /// - jenis ('pemasukan' / 'pengeluaran')
+  /// - icon (nullable string)
   static Future<ApiResponse> createCategory({
     required String name,
     required String type, // 'income' atau 'expense'
     String? icon,
   }) async {
+    final jenis = (type.toLowerCase() == 'income' || type.toLowerCase() == 'pemasukan')
+        ? 'pemasukan'
+        : 'pengeluaran';
+
     final body = <String, dynamic>{
-      'name': name,
-      'type': type,
-      if (icon != null) 'icon': icon,
+      'nama_kategori': name,
+      'jenis': jenis,
+      if (icon != null && icon.isNotEmpty) 'icon': icon,
     };
     return await ApiService.post(_categoriesEndpoint, body: body);
   }
 
-  /// Edit kategori (`PUT /api/categories/{id}`)
-  /// Backend mungkin belum punya route ini — handle secara graceful
+  /// Edit kategori (`PATCH /api/categories/{id}`)
   static Future<ApiResponse> updateCategory(
     dynamic id, {
     String? name,
     String? type,
     String? icon,
   }) async {
-    final body = <String, dynamic>{
-      if (name != null) 'name': name,
-      if (type != null) 'type': type,
-      if (icon != null) 'icon': icon,
-    };
+    final body = <String, dynamic>{};
+    if (name != null) body['nama_kategori'] = name;
+    if (type != null) {
+      body['jenis'] = (type.toLowerCase() == 'income' || type.toLowerCase() == 'pemasukan')
+          ? 'pemasukan'
+          : 'pengeluaran';
+    }
+    if (icon != null) body['icon'] = icon;
+
     return await ApiService.patch('$_categoriesEndpoint/$id', body: body);
   }
 
   /// Hapus kategori (`DELETE /api/categories/{id}`)
-  /// Backend mungkin belum punya route ini — handle secara graceful
   static Future<ApiResponse> deleteCategory(dynamic id) async {
-    return await ApiService.get('$_categoriesEndpoint/$id/delete');
+    return await ApiService.delete('$_categoriesEndpoint/$id');
   }
 }
-

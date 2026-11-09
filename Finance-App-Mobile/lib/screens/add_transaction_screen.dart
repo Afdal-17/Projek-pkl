@@ -236,16 +236,15 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
     setState(() => _isSubmitting = true);
 
-    final categoryName = _selectedCategory?.name ?? (_isIncome ? 'Income' : 'Expense');
     final dateStr =
         '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}';
 
     final res = await TransactionService.createTransaction(
+      walletId: _selectedWallet!.id ?? 1,
+      categoryId: _selectedCategory?.id ?? 1,
       name: name,
       amount: _amount,
       type: _isIncome ? 'income' : 'expense',
-      category: categoryName,
-      walletName: _selectedWallet!.name,
       date: dateStr,
     );
 

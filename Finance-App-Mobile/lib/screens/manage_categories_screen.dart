@@ -39,12 +39,11 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
     super.dispose();
   }
 
-  Future<void> _loadCategories() async {
+  Future<void> _loadCategories({bool showFeedbackOnFailure = false}) async {
     try {
       final res = await CategoryService.fetchCategories();
       if (!mounted) return;
 
-      List<CategoryItem> loaded = [];
       if (res.success && res.data != null) {
         dynamic rawList;
         if (res.data is Map && res.data['data'] != null) {
@@ -53,13 +52,16 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
           rawList = res.data;
         }
 
-        if (rawList is List && rawList.isNotEmpty) {
+        if (rawList is List) {
+          final loaded = <CategoryItem>[];
           for (final item in rawList) {
             final map = Map<String, dynamic>.from(item as Map);
             final id = (map['id'] ?? map['id_kategori'] ?? '').toString();
             final name = (map['name'] ?? map['nama_kategori'] ?? map['nama'] ?? '').toString();
             final typeStr = (map['type'] ?? map['jenis'] ?? '').toString().toLowerCase();
-            final type = typeStr == 'income' ? CategoryType.income : CategoryType.expense;
+            final type = (typeStr == 'income' || typeStr == 'pemasukan')
+                ? CategoryType.income
+                : CategoryType.expense;
             final iconKey = map['icon']?.toString();
             final emoji = map['emoji']?.toString();
             final count = map['count'] is num ? (map['count'] as num).toInt() : 0;
@@ -74,17 +76,31 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
             loaded.add(c);
             _counts[c.id] = count;
           }
+
+          setState(() {
+            _items = loaded;
+            _isLoading = false;
+          });
+          return;
         }
       }
 
-      // If backend has no categories or error, fallback to initial sampleCategories
-      if (loaded.isEmpty) {
-        loaded = List<CategoryItem>.of(sampleCategories);
+      // Jika response gagal (misal server ngrok offline / 401 unauthenticated)
+      if (showFeedbackOnFailure && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(res.message ?? 'Server backend tidak dapat dihubungi (Offline).'),
+            backgroundColor: AppColors.expense,
+            duration: const Duration(seconds: 3),
+          ),
+        );
       }
 
       if (mounted) {
         setState(() {
-          _items = loaded;
+          if (_items.isEmpty) {
+            _items = List<CategoryItem>.of(sampleCategories);
+          }
           _isLoading = false;
         });
       }
@@ -129,28 +145,72 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
     if (result == null || !mounted) return;
 
     if (existing == null) {
-      setState(() => _items.add(result));
-      // Call API
-      await CategoryService.createCategory(
+      // Tampilkan indikator loading atau snackbar proses
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Menyimpan kategori ke server...'),
+          duration: Duration(seconds: 1),
+        ),
+      );
+
+      final res = await CategoryService.createCategory(
         name: result.name,
         type: result.isIncome ? 'income' : 'expense',
         icon: result.iconKey ?? result.emoji,
       );
-    } else {
-      final i = _items.indexWhere((c) => c.id == existing.id);
-      if (i != -1) {
-        setState(() => _items[i] = result);
+
+      if (!mounted) return;
+
+      if (res.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Kategori berhasil disimpan ke server!'),
+            backgroundColor: Color(0xFF10B981),
+          ),
+        );
+        _loadCategories();
+      } else {
+        // Jangan timpa jika gagal, tambahkan ke list tampilan tapi ingatkan user
+        setState(() => _items.add(result));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(res.message ?? 'Gagal terhubung ke backend. Periksa server ngrok.'),
+            backgroundColor: AppColors.expense,
+            duration: const Duration(seconds: 4),
+          ),
+        );
       }
-      // Call API
-      await CategoryService.updateCategory(
+    } else {
+      final res = await CategoryService.updateCategory(
         existing.id,
         name: result.name,
         type: result.isIncome ? 'income' : 'expense',
         icon: result.iconKey ?? result.emoji,
       );
-    }
 
-    _loadCategories();
+      if (!mounted) return;
+
+      if (res.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Kategori berhasil diperbarui!'),
+            backgroundColor: Color(0xFF10B981),
+          ),
+        );
+        _loadCategories();
+      } else {
+        final i = _items.indexWhere((c) => c.id == existing.id);
+        if (i != -1) {
+          setState(() => _items[i] = result);
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(res.message ?? 'Gagal memperbarui ke server.'),
+            backgroundColor: AppColors.expense,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _pickSort() async {
@@ -371,7 +431,7 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
       body: RefreshIndicator(
         color: AppColors.brand,
         backgroundColor: Colors.white,
-        onRefresh: _loadCategories,
+        onRefresh: () => _loadCategories(showFeedbackOnFailure: true),
         child: _isLoading
             ? const Center(
                 child: CircularProgressIndicator(color: AppColors.brand),

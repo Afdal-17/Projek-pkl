@@ -149,9 +149,9 @@ class _AddSavingTargetScreenState extends State<AddSavingTargetScreen> {
     final initialIdr = rate > 0 ? _initialAmount / rate : _initialAmount;
 
     final res = await SavingService.createSaving(
+      walletId: _selectedWallet!.id ?? 1,
       name: name,
       targetAmount: targetIdr,
-      walletName: _selectedWallet!.name,
       initialAmount: initialIdr.clamp(0, targetIdr),
       description: _descCtrl.text.trim(),
     );
