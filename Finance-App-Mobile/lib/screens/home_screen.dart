@@ -112,21 +112,52 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Wallet _walletFromJson(Map<String, dynamic> json) {
     final id = json['id_dompet'] ?? json['id'];
-    final name = json['nama_dompet'] ?? json['nama'] ?? json['name'] ?? 'Wallet';
-    final type = json['kategori'] ?? json['type'] ?? 'Physical wallet';
+    final name = (json['nama_dompet'] ?? json['nama'] ?? json['name'] ?? 'Wallet').toString();
+    final rawJenis = (json['jenis'] ?? json['kategori'] ?? json['type'] ?? 'physical').toString().toLowerCase();
+
+    String type = 'Physical wallet';
+    if (rawJenis.contains('bank')) {
+      type = 'Bank account';
+    } else if (rawJenis.contains('digital') || rawJenis.contains('e-wallet')) {
+      type = 'Digital wallet';
+    }
+
     final saldoRaw = json['saldo'] ?? json['balance'] ?? 0;
     final saldo = (saldoRaw is num)
         ? saldoRaw.toDouble()
         : (double.tryParse(saldoRaw.toString()) ?? 0.0);
-    final isPrimary = json['is_primary'] == true || json['is_primary'] == 1;
 
-    final icon = _iconFor(type.toString());
-    final color = _colorFor(type.toString());
+    final isPrimary = json['is_primary'] == true ||
+        json['is_primary'] == 1 ||
+        json['terima_transfer'] == true ||
+        json['terima_transfer'] == 1;
+
+    final icon = _iconFor(type);
+    Color color = _colorFor(type);
+
+    final warnaRaw = json['warna']?.toString();
+    if (warnaRaw != null && warnaRaw.isNotEmpty) {
+      if (warnaRaw.startsWith('#') && (warnaRaw.length == 7 || warnaRaw.length == 9)) {
+        try {
+          color = Color(int.parse(warnaRaw.replaceFirst('#', '0xFF')));
+        } catch (_) {}
+      } else if (warnaRaw == 'brand') {
+        color = AppColors.brand;
+      } else if (warnaRaw == 'income') {
+        color = AppColors.income;
+      } else if (warnaRaw == 'warn') {
+        color = AppColors.warn;
+      } else if (warnaRaw == 'expense') {
+        color = AppColors.expense;
+      } else if (warnaRaw == 'dark') {
+        color = AppColors.ink;
+      }
+    }
 
     return Wallet(
       id: id,
-      name: name.toString(),
-      type: type.toString(),
+      name: name,
+      type: type,
       balanceIdr: saldo,
       isPrimary: isPrimary,
       icon: icon,
@@ -169,6 +200,11 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _primaryName = wallet.name);
   }
 
+  String _hexFromColor(Color color) {
+    final hex = color.value.toRadixString(16).padLeft(8, '0');
+    return '#${hex.substring(2)}';
+  }
+
   Future<void> _openForm({Wallet? wallet}) async {
     final result = await showModalBottomSheet<WalletFormResult>(
       context: context,
@@ -185,19 +221,37 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _isLoading = true);
 
     if (wallet == null) {
-      await WalletService.createWallet(
+      final res = await WalletService.createWallet(
         name: result.name,
         category: result.type,
         initialBalance: result.balance,
+        color: _hexFromColor(result.color),
       );
+      if (!res.success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(res.message ?? 'Gagal menambahkan dompet ke server.'),
+            backgroundColor: AppColors.expense,
+          ),
+        );
+      }
     } else {
       if (wallet.id != null) {
-        await WalletService.manageWallet(
+        final res = await WalletService.manageWallet(
           wallet.id,
           name: result.name,
           category: result.type,
           balance: result.balance,
+          color: _hexFromColor(result.color),
         );
+        if (!res.success && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(res.message ?? 'Gagal memperbarui dompet.'),
+              backgroundColor: AppColors.expense,
+            ),
+          );
+        }
       }
     }
 

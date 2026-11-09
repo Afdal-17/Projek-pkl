@@ -28,6 +28,11 @@ class ApiConfig {
   static const String transactionsEndpoint = '$baseUrl/transactions';
   static const String savingEndpoint = '$baseUrl/saving';
 
+  // Notifikasi
+  static const String notificationsEndpoint = '$baseUrl/notifications';
+  static String readNotificationEndpoint(dynamic id) => '$baseUrl/notifications/$id/read';
+  static const String readAllNotificationsEndpoint = '$baseUrl/notifications/read-all';
+
   /// Header standar untuk setiap request API
   static Map<String, String> get defaultHeaders => {
     'Content-Type': 'application/json',

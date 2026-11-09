@@ -1,7 +1,8 @@
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../data/dummy_data.dart';
+import '../services/auth_service.dart';
 import '../services/profile_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/currency.dart';
@@ -29,7 +30,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late String _selectedCurrency;
   bool _isCurrencyDropdownOpen = false;
 
-  File? _profileImage;
+  Uint8List? _profileImage;
   final _picker = ImagePicker();
 
   bool _isSaving = false;
@@ -38,15 +39,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _nameCtrl = TextEditingController(text: DummyData.userName);
-    _emailCtrl = TextEditingController(text: DummyData.userEmail);
-    _phoneCtrl = TextEditingController(text: DummyData.userPhone);
-    _locationCtrl = TextEditingController(text: DummyData.userLocation);
+    _nameCtrl = TextEditingController();
+    _emailCtrl = TextEditingController();
+    _phoneCtrl = TextEditingController();
+    _locationCtrl = TextEditingController();
     _selectedCurrency = preferredCurrency.value;
-    if (DummyData.userAvatarFile is File) {
-      _profileImage = DummyData.userAvatarFile as File;
+    if (DummyData.userAvatarFile is Uint8List) {
+      _profileImage = DummyData.userAvatarFile as Uint8List;
     }
-    _loadProfile();
+    _initLocalAndLoad();
+  }
+
+  Future<void> _initLocalAndLoad() async {
+    final storedName = await AuthService.getUserName();
+    final storedEmail = await AuthService.getUserEmail();
+    final storedPhone = await AuthService.getUserPhone();
+    if (mounted) {
+      setState(() {
+        if (storedName != null && storedName.isNotEmpty) _nameCtrl.text = storedName;
+        if (storedEmail != null && storedEmail.isNotEmpty) _emailCtrl.text = storedEmail;
+        if (storedPhone != null && storedPhone.isNotEmpty) _phoneCtrl.text = storedPhone;
+      });
+    }
+    await _loadProfile();
   }
 
   Future<void> _loadProfile() async {
@@ -64,19 +79,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
         setState(() {
           if (name.toString().isNotEmpty) {
             _nameCtrl.text = name.toString();
-            DummyData.userName = name.toString();
           }
           if (email.toString().isNotEmpty) {
             _emailCtrl.text = email.toString();
-            DummyData.userEmail = email.toString();
           }
           if (phone.toString().isNotEmpty) {
             _phoneCtrl.text = phone.toString();
-            DummyData.userPhone = phone.toString();
           }
           if (location.toString().isNotEmpty) {
             _locationCtrl.text = location.toString();
-            DummyData.userLocation = location.toString();
           }
           if (currency.toString().isNotEmpty) {
             _selectedCurrency = currency.toString();
@@ -192,8 +203,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       imageQuality: 85,
     );
     if (picked != null && mounted) {
+      final bytes = await picked.readAsBytes();
       setState(() {
-        _profileImage = File(picked.path);
+        _profileImage = bytes;
         DummyData.userAvatarFile = _profileImage;
       });
     }
@@ -564,7 +576,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ],
                           image: _profileImage != null
                               ? DecorationImage(
-                                  image: FileImage(_profileImage!),
+                                  image: MemoryImage(_profileImage!),
                                   fit: BoxFit.cover,
                                 )
                               : null,

@@ -31,6 +31,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    NotificationService.fetchNotifications();
+  }
+
+  @override
   void dispose() {
     _searchCtrl.dispose();
     super.dispose();

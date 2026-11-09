@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
+import 'package:http/http.dart' as http;
 import 'api_config.dart';
 import 'auth_service.dart';
 
@@ -23,11 +23,31 @@ class ApiResponse {
 }
 
 /// Service utama untuk komunikasi HTTP dengan Backend Laravel
+/// Menggunakan package:http yang 100% kompatibel dan aman untuk Flutter Web (Chrome/Edge)
+/// maupun Flutter Mobile (Android/iOS) tanpa dependensi dart:io yang memicu crash Platform._version.
 class ApiService {
   ApiService._();
 
-  static final HttpClient _client = HttpClient()
-    ..connectionTimeout = const Duration(seconds: 15);
+  static final http.Client _client = http.Client();
+
+  static String? _extractMessage(dynamic decodedData) {
+    if (decodedData is! Map) return null;
+    if (decodedData['message'] != null) {
+      return decodedData['message'].toString();
+    }
+    if (decodedData['errors'] is Map) {
+      final errors = decodedData['errors'] as Map;
+      if (errors.isNotEmpty) {
+        final firstKey = errors.keys.first;
+        final firstVal = errors[firstKey];
+        if (firstVal is List && firstVal.isNotEmpty) {
+          return firstVal.first.toString();
+        }
+        return firstVal.toString();
+      }
+    }
+    return null;
+  }
 
   /// Helper untuk membaca token dan membuat header terotentikasi
   static Future<Map<String, String>> _prepareHeaders({bool requiresAuth = true}) async {
@@ -45,15 +65,10 @@ class ApiService {
   static Future<ApiResponse> get(String url, {bool requiresAuth = true}) async {
     try {
       final uri = Uri.parse(url);
-      final request = await _client.getUrl(uri);
-
       final headers = await _prepareHeaders(requiresAuth: requiresAuth);
-      headers.forEach((key, value) {
-        request.headers.set(key, value);
-      });
 
-      final response = await request.close().timeout(const Duration(seconds: 20));
-      final responseBody = await response.transform(utf8.decoder).join();
+      final response = await _client.get(uri, headers: headers).timeout(const Duration(seconds: 20));
+      final responseBody = utf8.decode(response.bodyBytes);
 
       dynamic decodedData;
       try {
@@ -63,7 +78,7 @@ class ApiService {
       }
 
       final isSuccess = response.statusCode >= 200 && response.statusCode < 300;
-      final message = decodedData is Map ? (decodedData['message'] as String?) : null;
+      final message = _extractMessage(decodedData);
 
       return ApiResponse(
         success: isSuccess,
@@ -88,20 +103,16 @@ class ApiService {
   }) async {
     try {
       final uri = Uri.parse(url);
-      final request = await _client.postUrl(uri);
-
       final headers = await _prepareHeaders(requiresAuth: requiresAuth);
-      headers.forEach((key, value) {
-        request.headers.set(key, value);
-      });
+      final String? jsonBody = body != null ? jsonEncode(body) : null;
 
-      if (body != null) {
-        final jsonString = jsonEncode(body);
-        request.write(jsonString);
-      }
+      final response = await _client.post(
+        uri,
+        headers: headers,
+        body: jsonBody,
+      ).timeout(const Duration(seconds: 20));
 
-      final response = await request.close().timeout(const Duration(seconds: 20));
-      final responseBody = await response.transform(utf8.decoder).join();
+      final responseBody = utf8.decode(response.bodyBytes);
 
       dynamic decodedData;
       try {
@@ -111,7 +122,7 @@ class ApiService {
       }
 
       final isSuccess = response.statusCode >= 200 && response.statusCode < 300;
-      final message = decodedData is Map ? (decodedData['message'] as String?) : null;
+      final message = _extractMessage(decodedData);
 
       return ApiResponse(
         success: isSuccess,
@@ -136,20 +147,16 @@ class ApiService {
   }) async {
     try {
       final uri = Uri.parse(url);
-      final request = await _client.patchUrl(uri);
-
       final headers = await _prepareHeaders(requiresAuth: requiresAuth);
-      headers.forEach((key, value) {
-        request.headers.set(key, value);
-      });
+      final String? jsonBody = body != null ? jsonEncode(body) : null;
 
-      if (body != null) {
-        final jsonString = jsonEncode(body);
-        request.write(jsonString);
-      }
+      final response = await _client.patch(
+        uri,
+        headers: headers,
+        body: jsonBody,
+      ).timeout(const Duration(seconds: 20));
 
-      final response = await request.close().timeout(const Duration(seconds: 20));
-      final responseBody = await response.transform(utf8.decoder).join();
+      final responseBody = utf8.decode(response.bodyBytes);
 
       dynamic decodedData;
       try {
@@ -159,7 +166,7 @@ class ApiService {
       }
 
       final isSuccess = response.statusCode >= 200 && response.statusCode < 300;
-      final message = decodedData is Map ? (decodedData['message'] as String?) : null;
+      final message = _extractMessage(decodedData);
 
       return ApiResponse(
         success: isSuccess,
@@ -183,15 +190,10 @@ class ApiService {
   }) async {
     try {
       final uri = Uri.parse(url);
-      final request = await _client.deleteUrl(uri);
-
       final headers = await _prepareHeaders(requiresAuth: requiresAuth);
-      headers.forEach((key, value) {
-        request.headers.set(key, value);
-      });
 
-      final response = await request.close().timeout(const Duration(seconds: 20));
-      final responseBody = await response.transform(utf8.decoder).join();
+      final response = await _client.delete(uri, headers: headers).timeout(const Duration(seconds: 20));
+      final responseBody = utf8.decode(response.bodyBytes);
 
       dynamic decodedData;
       try {
@@ -201,7 +203,7 @@ class ApiService {
       }
 
       final isSuccess = response.statusCode >= 200 && response.statusCode < 300;
-      final message = decodedData is Map ? (decodedData['message'] as String?) : null;
+      final message = _extractMessage(decodedData);
 
       return ApiResponse(
         success: isSuccess,
@@ -218,4 +220,3 @@ class ApiService {
     }
   }
 }
-

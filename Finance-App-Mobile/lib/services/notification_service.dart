@@ -4,113 +4,80 @@ import '../models/notification_item.dart';
 import '../models/saving_goal.dart';
 import '../screens/notifications_screen.dart';
 import '../theme/app_colors.dart';
+import 'api_config.dart';
+import 'api_service.dart';
 
 class NotificationService {
   NotificationService._();
 
   static final ValueNotifier<List<NotificationItem>> notifications =
-      ValueNotifier<List<NotificationItem>>([
-    NotificationItem(
-      id: '1',
-      title: 'Transfer success!',
-      message: 'You received a transfer of 0,49 € from Dzaky fadhilah rahmawan.',
-      category: 'Transfer',
-      timestamp: DateTime.now().subtract(const Duration(days: 3)),
-      isRead: false,
-      icon: Icons.swap_horiz_rounded,
-      iconBg: const Color(0xFFEEF2FF),
-      iconColor: AppColors.brand,
-      activityDetail:
-          'This activity was added to your history. You can view it again in Transactions.',
-    ),
-    NotificationItem(
-      id: '2',
-      title: 'Savings goal reached',
-      message: 'Savings goal Lunasin hutang Indonesia has been reached.',
-      category: 'Goal',
-      timestamp: DateTime.now().subtract(const Duration(days: 3, hours: 2)),
-      isRead: false,
-      icon: Icons.track_changes_rounded,
-      iconBg: const Color(0xFFEEF2FF),
-      iconColor: AppColors.brand,
-      goal: SavingGoal(
-        name: 'New Laptop',
-        description: 'butuh laptop buat belajar',
-        walletName: 'BCA',
-        savedIdr: 988900,
-        targetIdr: 988900,
-      ),
-    ),
-    NotificationItem(
-      id: '3',
-      title: 'Savings goal reached',
-      message: 'Savings goal Laptop has been reached.',
-      category: 'Goal',
-      timestamp: DateTime.now().subtract(const Duration(days: 4)),
-      isRead: false,
-      icon: Icons.track_changes_rounded,
-      iconBg: const Color(0xFFEEF2FF),
-      iconColor: AppColors.brand,
-      goal: SavingGoal(
-        name: 'Laptop',
-        description: 'Laptop for study',
-        walletName: 'BCA',
-        savedIdr: 500000,
-        targetIdr: 500000,
-      ),
-    ),
-    NotificationItem(
-      id: '4',
-      title: 'Transfer success!',
-      message: 'Transfer of Rp 50.000 to SHOPEE completed.',
-      category: 'Transfer',
-      timestamp: DateTime.now().subtract(const Duration(days: 5)),
-      isRead: false,
-      icon: Icons.swap_horiz_rounded,
-      iconBg: const Color(0xFFEEF2FF),
-      iconColor: AppColors.brand,
-      activityDetail:
-          'This activity was added to your history. You can view it again in Transactions.',
-    ),
-    NotificationItem(
-      id: '5',
-      title: 'Verification approved',
-      message: 'Your account identity has been verified successfully.',
-      category: 'Verification',
-      timestamp: DateTime.now().subtract(const Duration(days: 6)),
-      isRead: false,
-      icon: Icons.verified_user_outlined,
-      iconBg: const Color(0xFFE8F7EE),
-      iconColor: AppColors.income,
-    ),
-    NotificationItem(
-      id: '6',
-      title: 'Transaction added',
-      message: 'Salary payment of Rp 8.500.000 recorded in Cash.',
-      category: 'Transaction',
-      timestamp: DateTime.now().subtract(const Duration(days: 7)),
-      isRead: true,
-      icon: Icons.receipt_long_outlined,
-      iconBg: const Color(0xFFE8F7EE),
-      iconColor: AppColors.income,
-      activityDetail:
-          'This activity was added to your history. You can view it again in Transactions.',
-    ),
-    NotificationItem(
-      id: '7',
-      title: 'System update',
-      message: 'Finance App updated to version 2.0 with enhanced security.',
-      category: 'System',
-      timestamp: DateTime.now().subtract(const Duration(days: 10)),
-      isRead: true,
-      icon: Icons.info_outline_rounded,
-      iconBg: const Color(0xFFF3F4F6),
-      iconColor: AppColors.muted,
-    ),
-  ]);
+      ValueNotifier<List<NotificationItem>>([]);
 
   static int get unreadCount =>
       notifications.value.where((n) => !n.isRead).length;
+
+  /// Mengambil notifikasi dari REST API backend Laravel (`GET /api/notifications`)
+  static Future<void> fetchNotifications() async {
+    try {
+      final res = await ApiService.get(ApiConfig.notificationsEndpoint);
+      if (res.success && res.data != null) {
+        dynamic rawList;
+        if (res.data is Map && res.data['data'] != null) {
+          rawList = res.data['data'];
+        } else if (res.data is List) {
+          rawList = res.data;
+        }
+
+        if (rawList is List) {
+          final list = <NotificationItem>[];
+          for (final item in rawList) {
+            if (item is! Map) continue;
+            final map = Map<String, dynamic>.from(item);
+            final id = (map['id'] ?? map['id_notifikasi'] ?? '').toString();
+            final type = (map['type'] ?? map['tipe'] ?? 'transaction').toString().toLowerCase();
+            final title = (map['title'] ?? map['judul'] ?? 'Notification').toString();
+            final text = (map['text'] ?? map['pesan'] ?? '').toString();
+            final isRead = map['read'] == true ||
+                map['read'] == 1 ||
+                map['sudah_dibaca'] == true ||
+                map['sudah_dibaca'] == 1;
+
+            String category = 'Transaction';
+            IconData icon = Icons.receipt_long_outlined;
+            Color iconColor = AppColors.income;
+            Color iconBg = AppColors.incomeSoft;
+
+            if (type == 'saving' || type == 'target') {
+              category = 'Goal';
+              icon = Icons.track_changes_rounded;
+              iconColor = AppColors.brand;
+              iconBg = const Color(0xFFEEF2FF);
+            } else if (type == 'transfer') {
+              category = 'Transfer';
+              icon = Icons.swap_horiz_rounded;
+              iconColor = AppColors.brand;
+              iconBg = const Color(0xFFEEF2FF);
+            }
+
+            list.add(
+              NotificationItem(
+                id: id,
+                title: title,
+                message: text,
+                category: category,
+                timestamp: DateTime.now(),
+                isRead: isRead,
+                icon: icon,
+                iconBg: iconBg,
+                iconColor: iconColor,
+              ),
+            );
+          }
+          notifications.value = list;
+        }
+      }
+    } catch (_) {}
+  }
 
   static void markAsRead(String id) {
     final list = List<NotificationItem>.from(notifications.value);
@@ -119,6 +86,8 @@ class NotificationService {
       list[idx].isRead = true;
       notifications.value = list;
     }
+    // Kirim patch ke backend
+    ApiService.patch(ApiConfig.readNotificationEndpoint(id));
   }
 
   static void markAllAsRead() {
@@ -127,6 +96,8 @@ class NotificationService {
       item.isRead = true;
     }
     notifications.value = list;
+    // Kirim patch ke backend
+    ApiService.patch(ApiConfig.readAllNotificationsEndpoint);
   }
 
   static void addNotification(

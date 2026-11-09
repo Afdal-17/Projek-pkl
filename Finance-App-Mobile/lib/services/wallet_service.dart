@@ -19,7 +19,8 @@ class WalletService {
   /// StoreDompetRequest Laravel mengharuskan:
   /// - nama_dompet (string)
   /// - jenis ('physical' / 'digital' / 'bank')
-  /// - saldo / saldo_awal (numeric)
+  /// - saldo_awal (numeric) -> otomatis menjadi saldo di controller
+  /// (HINDARI mengirim saldo dan saldo_awal sekaligus karena ada prohibits:saldo_awal)
   static Future<ApiResponse> createWallet({
     required String name,
     required String category,
@@ -38,9 +39,8 @@ class WalletService {
     final body = <String, dynamic>{
       'nama_dompet': name,
       'jenis': jenis,
-      'saldo': initialBalance,
       'saldo_awal': initialBalance,
-      if (color != null) 'warna': color,
+      if (color != null && color.isNotEmpty) 'warna': color,
     };
 
     return await ApiService.post(
@@ -50,31 +50,30 @@ class WalletService {
   }
 
   /// Kelola / perbarui dompet (`PATCH /api/dompet/{id}/manage`)
+  /// Validator backend mengharuskan nama_dompet, jenis, warna, saldo
   static Future<ApiResponse> manageWallet(
     dynamic walletId, {
-    String? name,
-    String? category,
-    double? balance,
+    required String name,
+    required String category,
+    required double balance,
+    String? color,
+    String? description,
   }) async {
-    final body = <String, dynamic>{};
-    if (name != null) {
-      body['nama_dompet'] = name;
-      body['nama'] = name;
+    String jenis = 'digital';
+    final catLower = category.toLowerCase();
+    if (catLower.contains('physical') || catLower.contains('cash')) {
+      jenis = 'physical';
+    } else if (catLower.contains('bank')) {
+      jenis = 'bank';
     }
-    if (category != null) {
-      String jenis = 'digital';
-      final catLower = category.toLowerCase();
-      if (catLower.contains('physical') || catLower.contains('cash')) {
-        jenis = 'physical';
-      } else if (catLower.contains('bank')) {
-        jenis = 'bank';
-      }
-      body['jenis'] = jenis;
-      body['kategori'] = category;
-    }
-    if (balance != null) {
-      body['saldo'] = balance;
-    }
+
+    final body = <String, dynamic>{
+      'nama_dompet': name,
+      'jenis': jenis,
+      'saldo': balance,
+      'warna': (color != null && color.isNotEmpty) ? color : 'brand',
+      if (description != null) 'deskripsi': description,
+    };
 
     return await ApiService.patch(
       ApiConfig.manageDompetEndpoint(walletId),
