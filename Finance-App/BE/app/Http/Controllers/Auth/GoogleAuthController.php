@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\OtpService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -30,7 +31,7 @@ class GoogleAuthController extends Controller
         $mode = $request->query('mode', 'login');
         session(['google_auth_mode' => $mode]);
 
-        return Socialite::driver('google')->setHttpClient(new \GuzzleHttp\Client(['verify' => false]))->redirect();
+        return Socialite::driver('google')->redirect();
     }
 
     /**
@@ -39,7 +40,7 @@ class GoogleAuthController extends Controller
     public function handleGoogleCallback(): RedirectResponse
     {
         try {
-            $googleUser = Socialite::driver('google')->setHttpClient(new \GuzzleHttp\Client(['verify' => false]))->user();
+            $googleUser = Socialite::driver('google')->user();
         } catch (Throwable $e) {
             return redirect()->route('login')->with('error', 'Gagal masuk dengan akun Google: ' . $e->getMessage());
         }
@@ -53,32 +54,6 @@ class GoogleAuthController extends Controller
 
         if (! $user && ! empty($email)) {
             $user = User::where('email', $email)->first();
-        }
-
-        if ($user?->isBanned()) {
-            if ($user->banned_at && $user->banned_at->addDays(30)->isPast()) {
-                $user->update([
-                    'status' => true,
-                    'banned_at' => null,
-                    'ban_reason' => null,
-                ]);
-            } else {
-                $banReason = $user->ban_reason ?: 'Melanggar ketentuan layanan';
-                $daysRemaining = $user->banned_at ? (int) floor(max(0, 30 - $user->banned_at->diffInDays(now()))) : 30;
-
-                return redirect()->route('login')
-                    ->with('banned_modal', [
-                        'reason' => $banReason,
-                        'days_remaining' => $daysRemaining,
-                    ])
-                    ->with('error', "Akun Anda telah diblokir selama 30 hari karena {$banReason}. Sisa {$daysRemaining} hari lagi.")
-                    ->with('show_contact_admin', true);
-            }
-        }
-
-        if ($user?->otp_verified_at && ! ($user->status_aktif ?? $user->status ?? true)) {
-            return redirect()->route('login')
-                ->with('error', 'Akun Anda sedang tidak aktif. Silakan hubungi admin.');
         }
 
         // Jika user mencoba LOGIN dengan Google tetapi belum memiliki akun
@@ -134,6 +109,28 @@ class GoogleAuthController extends Controller
             $user->save();
         }
 
+        // Akun yang diblokir (banned) oleh admin
+        if ($user->isBanned()) {
+            if ($user->banned_at && $user->banned_at->addDays(30)->isPast()) {
+                $user->update([
+                    'status' => true,
+                    'banned_at' => null,
+                    'ban_reason' => null,
+                ]);
+            } else {
+                $banReason = $user->ban_reason ?: 'Melanggar ketentuan layanan';
+                $daysRemaining = $user->banned_at ? (int) floor(max(0, 30 - $user->banned_at->diffInDays(now()))) : 30;
+
+                return redirect()->route('login')
+                    ->with('banned_modal', [
+                        'reason' => $banReason,
+                        'days_remaining' => $daysRemaining,
+                    ])
+                    ->with('error', "Akun Anda telah diblokir selama 30 hari karena {$banReason}. Sisa {$daysRemaining} hari lagi.")
+                    ->with('show_contact_admin', true);
+            }
+        }
+
         if (! $user->status) {
             return redirect()->route('login')->with('error', 'Akun Anda sedang tidak aktif. Silakan hubungi admin.');
         }
@@ -146,5 +143,74 @@ class GoogleAuthController extends Controller
         }
 
         return redirect()->intended(route('user.dashboard'));
+    }
+
+    /**
+     * API Login/Register via Google untuk aplikasi Mobile / API Client
+     */
+    public function apiGoogleLogin(Request $request): JsonResponse
+    {
+        $request->validate([
+            'email' => ['required', 'email'],
+            'google_id' => ['nullable', 'string'],
+            'nama' => ['nullable', 'string'],
+            'avatar_path' => ['nullable', 'string'],
+        ]);
+
+        $email = $request->input('email');
+        $googleId = $request->input('google_id');
+        $nama = $request->input('nama') ?: 'Google User';
+
+        $user = null;
+        if (! empty($googleId)) {
+            $user = User::where('google_id', $googleId)->first();
+        }
+        if (! $user && ! empty($email)) {
+            $user = User::where('email', $email)->first();
+        }
+
+        if (! $user) {
+            $user = User::create([
+                'nama' => $nama,
+                'email' => $email,
+                'google_id' => $googleId,
+                'password' => Hash::make(Str::random(32)),
+                'role' => 'user',
+                'status' => true,
+                'email_verified_at' => now(),
+                'otp_verified_at' => now(),
+                'mata_uang' => 'IDR',
+            ]);
+        } else {
+            if ($googleId && ! $user->google_id) {
+                $user->google_id = $googleId;
+            }
+            if (! $user->email_verified_at) {
+                $user->email_verified_at = now();
+                $user->status = true;
+            }
+            $user->save();
+        }
+
+        if ($user->isBanned()) {
+            $banReason = $user->ban_reason ?: 'Melanggar ketentuan layanan';
+            return response()->json([
+                'message' => 'Akun Anda ditangguhkan: ' . $banReason,
+            ], 403);
+        }
+
+        if (! $user->status) {
+            return response()->json([
+                'message' => 'Akun Anda sedang tidak aktif. Silakan hubungi admin.',
+            ], 403);
+        }
+
+        $token = $user->createToken('mobile-google-token')->plainTextToken;
+
+        return response()->json([
+            'message' => 'Login Google berhasil',
+            'token' => $token,
+            'user' => $user,
+        ]);
     }
 }
