@@ -66,7 +66,73 @@ class AdminController extends Controller
         ]);
     }
 
-    public function toggleStatus(Request $request, User $user): \Illuminate\Http\JsonResponse|RedirectResponse
+
+    public function apiDashboard(): JsonResponse
+    {
+        $today = now()->startOfDay();
+        $days = [];
+        $totalUsersByDay = [];
+        $newUsersByDay = [];
+
+        foreach (range(6, 0) as $daysAgo) {
+            $date = $today->copy()->subDays($daysAgo);
+            $days[] = $date->format('D');
+            $newUsersByDay[] = User::whereDate('created_at', $date)->count();
+            $totalUsersByDay[] = User::where('created_at', '<', $date->copy()->addDay())->count();
+        }
+
+        return response()->json([
+            'summary' => [
+                'total_user' => User::where('role', 'user')->count(),
+                'user_aktif' => User::where('role', 'user')->where('status', true)->count(),
+                'user_online' => User::where('role', 'user')
+                    ->where('status', true)
+                    ->where('last_seen_at', '>=', now()->subMinutes(5))
+                    ->count(),
+                'user_baru_minggu_ini' => User::where('role', 'user')->whereBetween('created_at', [$today->copy()->subDays(6), now()])->count(),
+                'total_transaksi' => Transaksi::count(),
+            ],
+            'users' => User::where('role', 'user')->orderByDesc('id_user')->limit(5)->get(),
+            'days' => $days,
+            'chart' => [
+                'total' => $totalUsersByDay,
+                'fresh' => $newUsersByDay,
+            ],
+        ]);
+    }
+
+    public function apiUsers(Request $request): JsonResponse
+    {
+        $q = $request->input('q');
+        $query = User::where('role', 'user')
+            ->whereNotNull('email_verified_at')
+            ->when($q, function ($query, $q) {
+                return $query->where(function ($sub) use ($q) {
+                    $sub->where('nama', 'like', "%{$q}%")
+                        ->orWhere('email', 'like', "%{$q}%");
+                });
+            })
+            ->orderBy('nama');
+
+        return response()->json($query->paginate(20));
+    }
+
+    public function apiVerifyUsers(Request $request): JsonResponse
+    {
+        $q = $request->input('q');
+        $query = User::where('role', 'user')
+            ->whereNull('email_verified_at')
+            ->when($q, function ($query, $q) {
+                return $query->where(function ($sub) use ($q) {
+                    $sub->where('nama', 'like', "%{$q}%")
+                        ->orWhere('email', 'like', "%{$q}%");
+                });
+            })
+            ->orderByDesc('created_at');
+
+        return response()->json($query->paginate(20));
+    }
+public function toggleStatus(Request $request, User $user): \Illuminate\Http\JsonResponse|RedirectResponse
     {
         abort_if($user->is($request->user()), 422, 'Admin tidak dapat menonaktifkan akunnya sendiri.');
         abort_if($user->isAdmin(), 403, 'Status akun admin tidak dapat diubah dari halaman ini.');

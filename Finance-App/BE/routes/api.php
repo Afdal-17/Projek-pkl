@@ -77,4 +77,17 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/notifications', [NotifikasiController::class, 'frontendIndex']);
     Route::patch('/notifications/{notifikasi}/read', [NotifikasiController::class, 'read']);
     Route::patch('/notifications/read-all', [NotifikasiController::class, 'readAll']);
+    // Kurs Mata Uang Real-time
+    Route::get('/currency/rates', fn () => response()->json(\App\Services\CurrencyService::rates()));
+    // Khusus Role Admin (Mobile & SPA)
+    Route::middleware([\App\Http\Middleware\CheckRole::class.':admin'])->prefix('admin')->group(function () {
+        Route::get('/dashboard', [\App\Http\Controllers\AdminController::class, 'apiDashboard']);
+        Route::get('/users', [\App\Http\Controllers\AdminController::class, 'apiUsers']);
+        Route::get('/verify-users', [\App\Http\Controllers\AdminController::class, 'apiVerifyUsers']);
+        Route::patch('/users/{user}/status', [\App\Http\Controllers\AdminController::class, 'toggleStatus']);
+        Route::patch('/users/{user}/ban', [\App\Http\Controllers\AdminController::class, 'banUser']);
+        Route::patch('/users/{user}/verify', [\App\Http\Controllers\AdminController::class, 'verifyUser']);
+        Route::patch('/users/{user}', [\App\Http\Controllers\AdminController::class, 'updateUser']);
+        Route::delete('/users/{user}', [\App\Http\Controllers\AdminController::class, 'deleteUser']);
+    });
 });
