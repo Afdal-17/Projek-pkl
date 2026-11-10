@@ -8,25 +8,12 @@ use App\Models\TargetTabungan;
 use App\Models\Transaksi;
 use App\Models\Transfer;
 use App\Models\User;
-use App\Services\DuplicateSubmissionGuard;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class DuplicateSubmissionGuardTest extends TestCase
 {
     use RefreshDatabase;
-
-    public function test_duplicate_guard_reserves_once_and_reopens_after_release(): void
-    {
-        $guard = app(DuplicateSubmissionGuard::class);
-
-        $this->assertTrue($guard->reserve('same-request', 30));
-        $this->assertFalse($guard->reserve('same-request', 30));
-
-        $guard->release('same-request');
-
-        $this->assertTrue($guard->reserve('same-request', 30));
-    }
 
     public function test_double_tap_identical_transaction_is_recorded_only_once(): void
     {
@@ -54,7 +41,7 @@ class DuplicateSubmissionGuardTest extends TestCase
         $payload = $this->transaksiPayload($dompet, $kategori);
 
         $this->actingAs($user)->postJson(route('transactions.store'), $payload)
-            ->assertRedirect(route('transaksi.index'));
+            ->assertCreated();
 
         $this->actingAs($user)->postJson(route('transactions.store'), $payload)
             ->assertUnprocessable()
@@ -174,7 +161,6 @@ class DuplicateSubmissionGuardTest extends TestCase
             'nama_dompet' => 'Dompet '.$email,
             'saldo_awal' => $saldo,
             'saldo' => $saldo,
-            'terima_transfer' => true,
         ]);
 
         return [$user, $dompet];

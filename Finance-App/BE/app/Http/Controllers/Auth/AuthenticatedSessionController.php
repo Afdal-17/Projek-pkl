@@ -8,6 +8,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class AuthenticatedSessionController extends Controller
@@ -29,7 +30,37 @@ class AuthenticatedSessionController extends Controller
 
         $user = Auth::user();
 
-        // Buat Sanctum token untuk autentikasi API frontend Vue
+        // Cek verifikasi email / admin untuk role user
+        if ($user?->role === 'user' && $user?->email_verified_at === null) {
+            $user->tokens()->delete();
+
+            $pesan = ($user->otp_kode && ! $user->otp_verified_at)
+                ? 'Akun Anda belum diverifikasi. Silakan masukkan kode OTP yang dikirim ke email Anda.'
+                : 'Akun Anda belum diverifikasi oleh admin. Silakan hubungi admin.';
+
+            throw ValidationException::withMessages([
+                'email' => $pesan,
+            ]);
+        }
+
+        // Cek status banned
+        if ($user?->isBanned()) {
+            if ($user->banned_at && $user->banned_at->addDays(30)->isPast()) {
+                $user->update([
+                    'status' => true,
+                    'banned_at' => null,
+                    'ban_reason' => null,
+                ]);
+            } else {
+                $user->tokens()->delete();
+                $banReason = $user->ban_reason ?: 'Melanggar ketentuan layanan';
+                throw ValidationException::withMessages([
+                    'email' => 'Akun Anda ditangguhkan: '.$banReason,
+                ]);
+            }
+        }
+
+        // Buat Sanctum token untuk autentikasi API frontend Vue/mobile
         $token = $user->createToken('vue-frontend-token')->plainTextToken;
 
         return response()->json([
@@ -37,6 +68,16 @@ class AuthenticatedSessionController extends Controller
             'token' => $token,
             'user' => $user
         ]);
+    }
+
+    /**
+     * Revoke the token used by the API client (Vue/mobile).
+     */
+    public function apiLogout(Request $request): JsonResponse
+    {
+        $request->user()?->currentAccessToken()?->delete();
+
+        return response()->json(['message' => 'Logout berhasil']);
     }
 
     /**
@@ -96,25 +137,8 @@ class AuthenticatedSessionController extends Controller
             }
         }
 
-        $isActive = $user?->status_aktif ?? $user?->status ?? true;
-
-        if (!$isActive) {
-            Auth::guard('web')->logout();
-            $request->session()->invalidate();
-            $request->session()->regenerateToken();
-
-            return redirect()->route('login')->withErrors([
-                'email' => 'Akun Anda sedang tidak aktif. Silakan hubungi admin.',
-            ]);
-        }
-
         if ($user?->role === 'admin') {
-            $intended = $request->session()->get('url.intended');
-            if ($intended && str_contains($intended, '/admin')) {
-                return redirect()->intended(route('admin.dashboard', absolute: false));
-            }
-
-            return redirect()->route('admin.dashboard');
+            return redirect()->intended(route('admin.dashboard', absolute: false));
         }
 
         return redirect()->intended(route('user.dashboard', absolute: false));

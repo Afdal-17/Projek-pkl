@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\AdminController;
-use App\Http\Controllers\AvatarController;
 use App\Http\Controllers\DompetController;
 use App\Http\Controllers\KategoriController;
 use App\Http\Controllers\NotifikasiController;
@@ -14,10 +13,6 @@ use App\Http\Middleware\CheckRole;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/avatars/{filename}', [AvatarController::class, 'show'])
-    ->where('filename', '[A-Za-z0-9_-]+\.(?:jpe?g|png)')
-    ->name('avatars.show');
-
 // Route khusus ADMIN
 Route::middleware(['auth', CheckRole::class.':admin'])->prefix('admin')->group(function () {
     Route::get('/dashboard', [AdminController::class, 'index'])->name('admin.dashboard');
@@ -25,8 +20,6 @@ Route::middleware(['auth', CheckRole::class.':admin'])->prefix('admin')->group(f
     Route::get('/verify-users', [AdminController::class, 'verifyUsers'])->name('admin.verify-users');
     Route::get('/profile', [ProfileController::class, 'adminEdit'])->name('admin.profile');
     Route::patch('/profile', [ProfileController::class, 'frontendUpdate'])->name('admin.profile.update');
-    Route::put('/profile/password', [ProfileController::class, 'adminUpdatePassword'])->name('admin.password.update');
-    Route::put('/password', [ProfileController::class, 'adminUpdatePassword']);
     Route::patch('/users/{user}/status', [AdminController::class, 'toggleStatus'])->name('admin.users.status');
     Route::patch('/users/{user}/ban', [AdminController::class, 'banUser'])->name('admin.users.ban');
     Route::patch('/users/{user}/verify', [AdminController::class, 'verifyUser'])->name('admin.users.verify');
@@ -39,7 +32,7 @@ Route::middleware(['auth', CheckRole::class.':user'])->group(function () {
     Route::get('/dashboard/summary', [UserController::class, 'summary'])->name('user.dashboard.summary');
     Route::get('/wallet/{dompet}', [DompetController::class, 'frontendShow'])->name('dompet.history');
     Route::resource('dompet', DompetController::class);
-    Route::patch('/dompet/{dompet}/toggle-transfer', [DompetController::class, 'setPrimaryTransfer'])->name('dompet.toggleTransfer');
+    Route::patch('/dompet/{dompet}/toggle-transfer', [DompetController::class, 'toggleTransfer'])->name('dompet.toggleTransfer');
     Route::patch('/dompet/{dompet}/manage', [DompetController::class, 'frontendUpdate'])->name('dompet.manage');
     Route::resource('kategori', KategoriController::class);
     Route::get('/transactions/categories', [KategoriController::class, 'frontendIndex'])->name('categories.index');

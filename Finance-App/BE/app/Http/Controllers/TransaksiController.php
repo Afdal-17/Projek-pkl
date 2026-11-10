@@ -10,11 +10,13 @@ use App\Models\Kategori;
 use App\Models\TargetTabungan;
 use App\Models\Transaksi;
 use App\Services\CurrencyService;
-use App\Services\DuplicateSubmissionGuard;
 use App\Services\NotifikasiService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Throwable;
@@ -27,40 +29,49 @@ class TransaksiController extends Controller
      */
     private const DUPLICATE_GUARD_SECONDS = 30;
 
-    public function frontendIndex(): View
+    public function frontendIndex(Request $request): View|JsonResponse
     {
         $userId = (int) Auth::id();
-        $icons = ['makanan' => 'utensils', 'transport' => 'car', 'hiburan' => 'film', 'tagihan' => 'landmark', 'gaji' => 'landmark'];
 
-        $transactions = Transaksi::with(['dompet', 'kategori', 'transfer.dompetAsal.user', 'transfer.dompetTujuan.user'])
-            ->whereHas('dompet', fn ($query) => $query->where('id_user', $userId))
+        $transactions = $this->baseQuery($userId)
             ->latest('tanggal')
             ->get()
-            ->map(fn (Transaksi $transaction): array => [
-                'id' => $transaction->id_transaksi,
-                'name' => $transaction->displayNama(),
-                'type' => $transaction->id_transfer !== null
-                    ? 'transfer'
-                    : ($transaction->jenis === 'pemasukan' ? 'income' : 'expense'),
-                'category' => $transaction->id_transfer !== null
-                    ? 'Transfer'
-                    : ($transaction->kategori?->nama_kategori ?? (($transaction->nama_transaksi === 'Saldo awal' || $transaction->nama_transaksi === 'Initial balance') ? 'Initial balance' : 'Without category')),
-                'wallet' => $transaction->dompet->nama_dompet,
-                'to' => $transaction->id_transfer !== null
-                    ? $transaction->displayLawan()
-                    : null,
-                'amount' => (string) $transaction->jumlah,
-                'date' => $transaction->tanggal->toDateString(),
-                'jenis' => $transaction->jenis,
-                'icon' => $transaction->id_transfer !== null
-                    ? 'transfer'
-                    : ($transaction->kategori?->icon ?: ($icons[strtolower($transaction->kategori?->nama_kategori ?? '')] ?? ($transaction->jenis === 'pemasukan' ? 'landmark' : 'utensils'))),
-            ]);
+            ->map(fn (Transaksi $transaction): array => $this->mapTransaction($transaction));
+
+        if ($request->expectsJson()) {
+            return response()->json($transactions);
+        }
 
         return view('transactions.index', [
             'transactions' => $transactions,
             ...$this->frontendOptions($userId),
         ]);
+    }
+
+    /**
+     * Versi API untuk mobile/SPA: mendukung filter + pagination.
+     * Query param: page, per_page (1-100), q, jenis, id_dompet, id_kategori,
+     * tanggal_mulai, tanggal_selesai.
+     */
+    public function apiIndex(FilterTransaksiRequest $request): JsonResponse
+    {
+        $userId = (int) Auth::id();
+        $filters = $request->validated();
+        $perPage = min(max($request->integer('per_page', 15), 1), 100);
+
+        $transactions = $this->baseQuery($userId)
+            ->when($filters['q'] ?? null, fn ($query, $value) => $query->where('nama_transaksi', 'like', '%'.$value.'%'))
+            ->when($filters['jenis'] ?? null, fn ($query, $value) => $query->where('jenis', $value))
+            ->when($filters['id_dompet'] ?? null, fn ($query, $value) => $query->where('id_dompet', $value))
+            ->when($filters['id_kategori'] ?? null, fn ($query, $value) => $query->where('id_kategori', $value))
+            ->when($filters['tanggal_mulai'] ?? null, fn ($query, $value) => $query->whereDate('tanggal', '>=', $value))
+            ->when($filters['tanggal_selesai'] ?? null, fn ($query, $value) => $query->whereDate('tanggal', '<=', $value))
+            ->latest('tanggal')
+            ->paginate($perPage)
+            ->withQueryString()
+            ->through(fn (Transaksi $transaction): array => $this->mapTransaction($transaction));
+
+        return response()->json($transactions);
     }
 
     public function frontendCreate(): View
@@ -85,7 +96,7 @@ class TransaksiController extends Controller
 
         return view('transaksi.index', [
             'transaksi' => $query->latest('tanggal')->paginate(10)->withQueryString(),
-            'dompet' => Dompet::where('id_user', $userId)->orderBy('id_dompet')->get(),
+            'dompet' => Dompet::where('id_user', $userId)->orderBy('nama_dompet')->get(),
             'kategori' => Kategori::where('id_user', $userId)->orderBy('nama_kategori')->get(),
             'filters' => $filters,
         ]);
@@ -94,16 +105,12 @@ class TransaksiController extends Controller
     public function create(): View
     {
         return view('transaksi.create', [
-            'dompet' => Dompet::where('id_user', Auth::id())->orderBy('id_dompet')->get(),
+            'dompet' => Dompet::where('id_user', Auth::id())->orderBy('nama_dompet')->get(),
             'kategori' => Kategori::where('id_user', Auth::id())->orderBy('nama_kategori')->get(),
         ]);
     }
 
-    public function store(
-        StoreTransaksiRequest $request,
-        NotifikasiService $notifikasiService,
-        DuplicateSubmissionGuard $duplicateGuard
-    ): RedirectResponse
+    public function store(StoreTransaksiRequest $request, NotifikasiService $notifikasiService): RedirectResponse|JsonResponse
     {
         $data = $request->validated();
         $userId = (int) Auth::id();
@@ -114,44 +121,44 @@ class TransaksiController extends Controller
             $data['id_dompet'],
             $data['id_kategori'],
             $data['nama_transaksi'],
-            bcadd((string) $data['jumlah'], '0', 2),
+            (float) $data['jumlah'],
             $data['jenis'],
             $data['tanggal'],
         ]));
 
-        if (! $duplicateGuard->reserve($dupKey, self::DUPLICATE_GUARD_SECONDS)) {
+        if (RateLimiter::tooManyAttempts($dupKey, 1)) {
             throw ValidationException::withMessages([
-                'nama_transaksi' => 'This transaction was just recorded — only one was saved. '
-                    .'If you want to record a similar transaction, change its name or amount slightly, '
-                    .'or wait '.self::DUPLICATE_GUARD_SECONDS.' seconds.',
+                'nama_transaksi' => 'Transaksi ini baru saja dicatat — hanya satu yang tersimpan. '
+                    .'Jika memang ingin membuat transaksi serupa, ubah sedikit nama atau jumlahnya, '
+                    .'atau tunggu '.self::DUPLICATE_GUARD_SECONDS.' detik.',
             ]);
         }
 
+        RateLimiter::hit($dupKey, self::DUPLICATE_GUARD_SECONDS);
+
+        $data['jumlah'] = CurrencyService::toBase((float) $data['jumlah']);
+
         try {
-            $data['jumlah'] = CurrencyService::toBaseExact((string) $data['jumlah']);
-
-            if (! CurrencyService::baseAmountWithinStorageLimit($data['jumlah'])) {
-                throw ValidationException::withMessages([
-                    'jumlah' => 'The amount after conversion exceeds the supported limit.',
-                ]);
-            }
-
             DB::transaction(function () use ($data, $userId, $notifikasiService): void {
                 $dompet = Dompet::where('id_user', $userId)
                     ->whereKey($data['id_dompet'])
                     ->lockForUpdate()
                     ->firstOrFail();
-                $saldoSebelumnya = (string) $dompet->saldo;
+                $saldoSebelumnya = (float) $dompet->saldo;
 
-                $this->applyBalanceChange($dompet, $data['jenis'], (string) $data['jumlah']);
+                $this->applyBalanceChange($dompet, $data['jenis'], (float) $data['jumlah']);
                 $transaksi = Transaksi::create($data);
                 $this->notifyReachedTargets($dompet, $saldoSebelumnya, $notifikasiService);
                 $notifikasiService->transaksiDicatat($transaksi, $userId);
             });
         } catch (Throwable $e) {
             /* Proses gagal (mis. saldo kurang) — buka lagi pintu retry-nya. */
-            $duplicateGuard->release($dupKey);
+            RateLimiter::clear($dupKey);
             throw $e;
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Transaksi berhasil dicatat.'], 201);
         }
 
         return redirect()->route('transaksi.index');
@@ -171,22 +178,16 @@ class TransaksiController extends Controller
 
         return view('transaksi.edit', [
             'transaksi' => $transaksi,
-            'dompet' => Dompet::where('id_user', Auth::id())->orderBy('id_dompet')->get(),
+            'dompet' => Dompet::where('id_user', Auth::id())->orderBy('nama_dompet')->get(),
             'kategori' => Kategori::where('id_user', Auth::id())->orderBy('nama_kategori')->get(),
         ]);
     }
 
-    public function update(UpdateTransaksiRequest $request, Transaksi $transaksi, NotifikasiService $notifikasiService): RedirectResponse
+    public function update(UpdateTransaksiRequest $request, Transaksi $transaksi, NotifikasiService $notifikasiService): RedirectResponse|JsonResponse
     {
         $data = $request->validated();
         $userId = (int) Auth::id();
-        $data['jumlah'] = CurrencyService::toBaseExact((string) $data['jumlah']);
-
-        if (! CurrencyService::baseAmountWithinStorageLimit($data['jumlah'])) {
-            throw ValidationException::withMessages([
-                'jumlah' => 'The amount after conversion exceeds the supported limit.',
-            ]);
-        }
+        $data['jumlah'] = CurrencyService::toBase((float) $data['jumlah']);
 
         DB::transaction(function () use ($data, $transaksi, $userId, $notifikasiService): void {
             $current = Transaksi::whereHas('dompet', fn ($query) => $query->where('id_user', $userId))
@@ -198,17 +199,17 @@ class TransaksiController extends Controller
                 ->whereKey($current->id_dompet)
                 ->lockForUpdate()
                 ->firstOrFail();
-            $saldoLama = (string) $oldDompet->saldo;
+            $saldoLama = (float) $oldDompet->saldo;
             $newDompet = $current->id_dompet === (int) $data['id_dompet']
                 ? $oldDompet
                 : Dompet::where('id_user', $userId)
                     ->whereKey($data['id_dompet'])
                     ->lockForUpdate()
                     ->firstOrFail();
-            $saldoDompetBaru = (string) $newDompet->saldo;
+            $saldoDompetBaru = (float) $newDompet->saldo;
 
-            $this->applyBalanceChange($oldDompet, $current->jenis === 'pemasukan' ? 'pengeluaran' : 'pemasukan', (string) $current->jumlah);
-            $this->applyBalanceChange($newDompet, $data['jenis'], (string) $data['jumlah']);
+            $this->applyBalanceChange($oldDompet, $current->jenis === 'pemasukan' ? 'pengeluaran' : 'pemasukan', (float) $current->jumlah);
+            $this->applyBalanceChange($newDompet, $data['jenis'], (float) $data['jumlah']);
             $current->update($data);
             $this->notifyReachedTargets($oldDompet, $saldoLama, $notifikasiService);
             if ($newDompet->id_dompet !== $oldDompet->id_dompet) {
@@ -217,10 +218,14 @@ class TransaksiController extends Controller
             $notifikasiService->transaksiDiubah($current->fresh(), $userId);
         });
 
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Transaksi berhasil diubah.']);
+        }
+
         return redirect()->route('transaksi.index');
     }
 
-    public function destroy(Transaksi $transaksi, NotifikasiService $notifikasiService): RedirectResponse
+    public function destroy(Transaksi $transaksi, NotifikasiService $notifikasiService): RedirectResponse|JsonResponse
     {
         $userId = (int) Auth::id();
 
@@ -234,15 +239,19 @@ class TransaksiController extends Controller
                 ->whereKey($current->id_dompet)
                 ->lockForUpdate()
                 ->firstOrFail();
-            $saldoSebelumnya = (string) $dompet->saldo;
+            $saldoSebelumnya = (float) $dompet->saldo;
 
-            $this->applyBalanceChange($dompet, $current->jenis === 'pemasukan' ? 'pengeluaran' : 'pemasukan', (string) $current->jumlah);
+            $this->applyBalanceChange($dompet, $current->jenis === 'pemasukan' ? 'pengeluaran' : 'pemasukan', (float) $current->jumlah);
             $namaTransaksi = $current->nama_transaksi;
-            $jumlahTransaksi = (string) $current->jumlah;
+            $jumlahTransaksi = (float) $current->jumlah;
             $current->delete();
             $this->notifyReachedTargets($dompet, $saldoSebelumnya, $notifikasiService);
             $notifikasiService->transaksiDihapus($namaTransaksi, $jumlahTransaksi, $userId);
         });
+
+        if (request()->expectsJson()) {
+            return response()->json(['message' => 'Transaksi berhasil dihapus.']);
+        }
 
         return redirect()->route('transaksi.index');
     }
@@ -257,22 +266,61 @@ class TransaksiController extends Controller
         return $transaksi->load(['dompet', 'kategori', 'transfer.dompetAsal.user', 'transfer.dompetTujuan.user']);
     }
 
-    private function applyBalanceChange(Dompet $dompet, string $jenis, string $amount): void
+    /**
+     * Dasar query transaksi milik user, sudah eager-load relasi yang dipakai
+     * mapTransaction(). Dipakai oleh versi web (frontendIndex) dan API (apiIndex).
+     */
+    private function baseQuery(int $userId): \Illuminate\Database\Eloquent\Builder
     {
-        $newBalance = $jenis === 'pemasukan'
-            ? bcadd((string) $dompet->saldo, $amount, 2)
-            : bcsub((string) $dompet->saldo, $amount, 2);
+        return Transaksi::with(['dompet', 'kategori', 'transfer.dompetAsal.user', 'transfer.dompetTujuan.user'])
+            ->whereHas('dompet', fn ($query) => $query->where('id_user', $userId));
+    }
 
-        if (bccomp($newBalance, '0.00', 2) < 0) {
+    /**
+     * Bentuk satu baris transaksi untuk respons API maupun view.
+     * Bentuk key-nya identik di kedua versi supaya klien tidak perlu bercabang.
+     */
+    private function mapTransaction(Transaksi $transaction): array
+    {
+        $icons = ['makanan' => 'utensils', 'transport' => 'car', 'hiburan' => 'film', 'tagihan' => 'landmark', 'gaji' => 'landmark'];
+
+        return [
+            'id' => $transaction->id_transaksi,
+            'name' => $transaction->displayNama(),
+            'type' => $transaction->id_transfer !== null
+                ? 'transfer'
+                : ($transaction->jenis === 'pemasukan' ? 'income' : 'expense'),
+            'category' => $transaction->id_transfer !== null
+                ? 'Transfer'
+                : ($transaction->kategori?->nama_kategori ?? ($transaction->nama_transaksi === 'Saldo awal' ? 'Saldo awal' : 'Without category')),
+            'wallet' => $transaction->dompet->nama_dompet,
+            'to' => $transaction->id_transfer !== null
+                ? $transaction->displayLawan()
+                : null,
+            'amount' => (float) $transaction->jumlah,
+            'date' => $transaction->tanggal->toDateString(),
+            'jenis' => $transaction->jenis,
+            'icon' => $transaction->id_transfer !== null
+                ? 'transfer'
+                : ($transaction->kategori?->icon ?: ($icons[strtolower($transaction->kategori?->nama_kategori ?? '')] ?? ($transaction->jenis === 'pemasukan' ? 'landmark' : 'utensils'))),
+        ];
+    }
+
+    private function applyBalanceChange(Dompet $dompet, string $jenis, float $amount): void
+    {
+        $change = $jenis === 'pemasukan' ? $amount : -$amount;
+        $newBalance = (float) $dompet->saldo + $change;
+
+        if ($newBalance < 0) {
             throw ValidationException::withMessages([
-                'jumlah' => 'Wallet balance is not enough for this transaction.',
+                'jumlah' => 'Saldo dompet tidak mencukupi untuk transaksi ini.',
             ]);
         }
 
         $dompet->update(['saldo' => $newBalance]);
     }
 
-    private function notifyReachedTargets(Dompet $dompet, string $saldoSebelumnya, NotifikasiService $notifikasiService): void
+    private function notifyReachedTargets(Dompet $dompet, float $saldoSebelumnya, NotifikasiService $notifikasiService): void
     {
         TargetTabungan::where('id_user', $dompet->id_user)
             ->where('id_dompet', $dompet->id_dompet)
@@ -295,12 +343,12 @@ class TransaksiController extends Controller
                     'icon' => $category->icon ?: ($icons[strtolower($category->nama_kategori)] ?? 'landmark'),
                 ]),
             'wallets' => Dompet::where('id_user', $userId)
-                ->orderBy('id_dompet')
+                ->orderBy('nama_dompet')
                 ->get()
                 ->map(fn (Dompet $wallet): array => [
                     'id' => $wallet->id_dompet,
                     'name' => $wallet->nama_dompet,
-                    'balance' => (string) $wallet->saldo,
+                    'balance' => (float) $wallet->saldo,
                 ]),
         ];
     }

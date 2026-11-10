@@ -54,25 +54,15 @@ class TargetTabungan extends Model
     {
         return Attribute::make(
             get: function () {
-                if (bccomp((string) $this->nominal_target, '0.00', 2) <= 0) {
+                $target = (float) $this->nominal_target;
+                if ($target <= 0) {
                     return 0.0;
                 }
 
-                if (bccomp((string) $this->jumlah_terkumpul, '0.00', 2) <= 0) {
-                    return 0.0;
-                }
+                $terkumpul = (float) $this->jumlah_terkumpul;
+                $persen = ($terkumpul / $target) * 100;
 
-                if (bccomp((string) $this->jumlah_terkumpul, (string) $this->nominal_target, 2) >= 0) {
-                    return 100.0;
-                }
-
-                $terkumpul = (float) bcdiv(
-                    bcmul((string) $this->jumlah_terkumpul, '100', 4),
-                    (string) $this->nominal_target,
-                    4
-                );
-
-                return round($terkumpul, 2);
+                return round(min(max($persen, 0.0), 100.0), 2);
             }
         );
     }
@@ -83,22 +73,19 @@ class TargetTabungan extends Model
     public function tercapai(): Attribute
     {
         return Attribute::make(
-            get: fn () => bccomp((string) $this->jumlah_terkumpul, (string) $this->nominal_target, 2) >= 0
+            get: fn () => (float) $this->jumlah_terkumpul >= (float) $this->nominal_target
         );
     }
 
     protected function jumlahTerkumpul(): Attribute
     {
         return Attribute::make(
-            get: function (): string {
-                $amount = bcadd(
-                    (string) $this->nominal_terkumpul,
-                    bcsub((string) $this->dompet->saldo, (string) $this->saldo_awal_dompet, 2),
-                    2
-                );
-
-                return bccomp($amount, '0.00', 2) < 0 ? '0.00' : $amount;
-            }
+            get: fn () => max(
+                0,
+                (float) $this->nominal_terkumpul
+                    + (float) $this->dompet->saldo
+                    - (float) $this->saldo_awal_dompet
+            )
         );
     }
 }

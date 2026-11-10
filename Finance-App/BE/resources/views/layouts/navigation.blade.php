@@ -27,6 +27,9 @@
                             @php($unreadNotificationCount = Auth::user()->notifikasi()->where('sudah_dibaca', false)->count())
                             @if ($unreadNotificationCount > 0)<span class="ms-1 rounded-full bg-red-600 px-2 py-0.5 text-xs text-white">{{ $unreadNotificationCount }}</span>@endif
                         </x-nav-link>
+                        <x-nav-link :href="route('profile.edit')" :active="request()->routeIs('profile.*') || request()->routeIs('account')">
+                            {{ __('Profile') }}
+                        </x-nav-link>
                     @endif
                 </div>
             </div>

@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Laravel\Socialite\Facades\Socialite;
 use Throwable;
 
@@ -146,30 +147,29 @@ class GoogleAuthController extends Controller
     }
 
     /**
-     * API Login/Register via Google untuk aplikasi Mobile / API Client
+     * API endpoint untuk login/register Google dari aplikasi Mobile (Flutter).
+     * Klien (Flutter) mengirim data profil Google hasil sign-in di HP,
+     * backend mengembalikan Sanctum Bearer Token dan data user.
      */
     public function apiGoogleLogin(Request $request): JsonResponse
     {
         $request->validate([
-            'email' => ['required', 'email'],
-            'google_id' => ['nullable', 'string'],
-            'nama' => ['nullable', 'string'],
-            'avatar_path' => ['nullable', 'string'],
+            'email' => 'required|email',
+            'google_id' => 'required|string',
+            'nama' => 'nullable|string',
+            'avatar_path' => 'nullable|string',
         ]);
 
-        $email = $request->input('email');
-        $googleId = $request->input('google_id');
-        $nama = $request->input('nama') ?: 'Google User';
+        $email = strtolower(trim($request->email));
+        $googleId = $request->google_id;
+        $nama = $request->nama ?: 'Google User';
+        $avatarPath = $request->avatar_path;
 
-        $user = null;
-        if (! empty($googleId)) {
-            $user = User::where('google_id', $googleId)->first();
-        }
-        if (! $user && ! empty($email)) {
-            $user = User::where('email', $email)->first();
-        }
+        // Cari user berdasarkan google_id atau email
+        $user = User::where('google_id', $googleId)->orWhere('email', $email)->first();
 
         if (! $user) {
+            // Jika belum ada, buat akun baru otomatis terverifikasi untuk mobile
             $user = User::create([
                 'nama' => $nama,
                 'email' => $email,
@@ -179,38 +179,56 @@ class GoogleAuthController extends Controller
                 'status' => true,
                 'email_verified_at' => now(),
                 'otp_verified_at' => now(),
+                'avatar_path' => $avatarPath,
                 'mata_uang' => 'IDR',
             ]);
         } else {
-            if ($googleId && ! $user->google_id) {
-                $user->google_id = $googleId;
+            // Perbarui data jika belum sinkron
+            $updates = [];
+            if (! $user->google_id) {
+                $updates['google_id'] = $googleId;
             }
             if (! $user->email_verified_at) {
-                $user->email_verified_at = now();
-                $user->status = true;
+                $updates['email_verified_at'] = now();
+                $updates['status'] = true;
             }
-            $user->save();
+            if ($avatarPath && ! $user->avatar_path) {
+                $updates['avatar_path'] = $avatarPath;
+            }
+            if (! empty($updates)) {
+                $user->update($updates);
+            }
         }
 
+        // Cek status banned
         if ($user->isBanned()) {
-            $banReason = $user->ban_reason ?: 'Melanggar ketentuan layanan';
-            return response()->json([
-                'message' => 'Akun Anda ditangguhkan: ' . $banReason,
-            ], 403);
+            if ($user->banned_at && $user->banned_at->addDays(30)->isPast()) {
+                $user->update([
+                    'status' => true,
+                    'banned_at' => null,
+                    'ban_reason' => null,
+                ]);
+            } else {
+                $banReason = $user->ban_reason ?: 'Melanggar ketentuan layanan';
+                throw ValidationException::withMessages([
+                    'email' => 'Akun Anda ditangguhkan: '.$banReason,
+                ]);
+            }
         }
 
         if (! $user->status) {
-            return response()->json([
-                'message' => 'Akun Anda sedang tidak aktif. Silakan hubungi admin.',
-            ], 403);
+            throw ValidationException::withMessages([
+                'email' => 'Akun Anda sedang tidak aktif. Silakan hubungi admin.',
+            ]);
         }
 
+        // Buat Sanctum token untuk mobile
         $token = $user->createToken('mobile-google-token')->plainTextToken;
 
         return response()->json([
             'message' => 'Login Google berhasil',
             'token' => $token,
-            'user' => $user,
+            'user' => $user
         ]);
     }
 }

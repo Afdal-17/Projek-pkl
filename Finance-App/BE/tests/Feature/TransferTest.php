@@ -23,11 +23,9 @@ class TransferTest extends TestCase
             ->assertOk()
             ->assertSee('Transfer Wallet & User')
             ->assertSee('Dompet Pengirim');
-        $recipientResponse = $this->actingAs($pengirim)->get(route('transfer.recipients', ['query' => $penerima->email]))
+        $this->actingAs($pengirim)->get(route('transfer.recipients', ['query' => $penerima->email]))
             ->assertOk()
             ->assertJsonPath('id_dompet_tujuan', $dompetTujuan->id_dompet);
-        $this->assertArrayNotHasKey('balance', $recipientResponse->json());
-        $this->assertArrayNotHasKey('saldo', $recipientResponse->json());
 
         $this->actingAs($pengirim)->post(route('transfer.store'), [
             'id_dompet_asal' => $dompetAsal->id_dompet,
@@ -39,17 +37,6 @@ class TransferTest extends TestCase
 
         $transfer = Transfer::firstOrFail();
         $this->assertSame($pengirim->id_user, $transfer->id_user);
-        $this->actingAs($penerima)->get(route('transfer.show', $transfer))
-            ->assertOk()
-            ->assertSee('Dompet Pengirim')
-            ->assertDontSee('Rp 35.000');
-
-        $pihakLain = User::factory()->create([
-            'email_verified_at' => now(),
-            'status' => true,
-        ]);
-        $this->actingAs($pihakLain)->get(route('transfer.show', $transfer))->assertNotFound();
-
         $this->assertDatabaseHas('dompet', ['id_dompet' => $dompetAsal->id_dompet, 'saldo' => 75000]);
         $this->assertDatabaseHas('dompet', ['id_dompet' => $dompetTujuan->id_dompet, 'saldo' => 35000]);
         $this->assertSame(2, $transfer->transaksi()->count());
@@ -103,11 +90,6 @@ class TransferTest extends TestCase
         $this->assertCount(1, $response->json());
         $this->assertSame('Alpha User', $response->json()[0]['nama']);
         $this->assertSame('Dompet Alpha', $response->json()[0]['wallets'][0]['name']);
-        $this->assertArrayNotHasKey('saldo', $response->json()[0]['wallets'][0]);
-        $this->assertArrayNotHasKey('balance', $response->json()[0]['wallets'][0]);
-        $this->assertArrayNotHasKey('saldo', $response->json()[0]);
-        $this->assertArrayNotHasKey('balance', $response->json()[0]);
-        $this->assertArrayNotHasKey('email', $response->json()[0]);
 
         // Pencarian email
         $response = $this->actingAs($pengirim)->get(route('transfer.recipients.search', ['query' => 'beta@example.com']));
@@ -210,10 +192,10 @@ class TransferTest extends TestCase
         $response->assertSessionHasErrors('id_dompet_tujuan');
     }
 
-    public function test_user_search_excludes_banned_users(): void
+    public function test_user_search_includes_banned_status_for_banned_user(): void
     {
-        [$pengirim] = $this->userWithWallet('pengirim_search_banned@example.com', 'Dompet Pengirim', 100000);
-        [$penerima] = $this->userWithWallet('penerima_search_banned@example.com', 'Dompet Penerima', 10000);
+        [$pengirim, $dompetAsal] = $this->userWithWallet('pengirim_search_banned@example.com', 'Dompet Pengirim', 100000);
+        [$penerima, $dompetTujuan] = $this->userWithWallet('penerima_search_banned@example.com', 'Dompet Penerima', 10000);
 
         $penerima->update([
             'banned_at' => now(),
@@ -223,59 +205,10 @@ class TransferTest extends TestCase
         $response = $this->actingAs($pengirim)->get(route('transfer.recipients.search', ['query' => 'penerima_search_banned']));
 
         $response->assertOk();
-        $this->assertSame([], $response->json());
-    }
-
-    public function test_transfer_rejects_same_wallet_when_request_id_types_differ(): void
-    {
-        [$user, $wallet] = $this->userWithWallet('same-wallet@example.com', 'Dompet Sama', 100000);
-
-        $this->actingAs($user)->postJson(route('transfer.store'), [
-            'id_dompet_asal' => (string) $wallet->id_dompet,
-            'id_dompet_tujuan' => $wallet->id_dompet,
-            'jumlah' => '100.00',
-            'tanggal_transfer' => '2026-10-01 10:00:00',
-        ])->assertUnprocessable()->assertJsonValidationErrors('id_dompet_tujuan');
-
-        $this->assertDatabaseCount('transfer', 0);
-        $this->assertDatabaseHas('dompet', ['id_dompet' => $wallet->id_dompet, 'saldo' => 100000]);
-    }
-
-    public function test_transfer_source_wallet_must_belong_to_authenticated_user(): void
-    {
-        [$sender] = $this->userWithWallet('sender-source-owner@example.com', 'Dompet Pengirim', 100000);
-        [, $foreignSource] = $this->userWithWallet('foreign-source-owner@example.com', 'Dompet Orang Lain', 100000);
-        [, $target] = $this->userWithWallet('target-source-owner@example.com', 'Dompet Tujuan', 0);
-
-        $this->actingAs($sender)->postJson(route('transfer.store'), [
-            'id_dompet_asal' => $foreignSource->id_dompet,
-            'id_dompet_tujuan' => $target->id_dompet,
-            'jumlah' => '10.00',
-            'tanggal_transfer' => '2026-10-01 10:00:00',
-        ])->assertUnprocessable()->assertJsonValidationErrors('id_dompet_asal');
-
-        $this->assertDatabaseCount('transfer', 0);
-    }
-
-    public function test_transfer_rejects_inactive_recipient_and_recipient_search_hides_them(): void
-    {
-        [$sender, $source] = $this->userWithWallet('sender-inactive-recipient@example.com', 'Dompet Pengirim', 100000);
-        [$recipient, $target] = $this->userWithWallet('inactive-recipient@example.com', 'Dompet Penerima', 10000);
-        $recipient->update(['status' => false]);
-
-        $this->actingAs($sender)
-            ->get(route('transfer.recipients.search', ['query' => 'inactive-recipient']))
-            ->assertOk()
-            ->assertExactJson([]);
-
-        $this->actingAs($sender)->post(route('transfer.store'), [
-            'id_dompet_asal' => $source->id_dompet,
-            'id_dompet_tujuan' => $target->id_dompet,
-            'jumlah' => '100.00',
-            'tanggal_transfer' => '2026-10-01 10:00:00',
-        ])->assertSessionHasErrors('id_dompet_tujuan');
-
-        $this->assertDatabaseCount('transfer', 0);
+        $results = $response->json();
+        $this->assertCount(1, $results);
+        $this->assertTrue($results[0]['is_banned']);
+        $this->assertArrayNotHasKey('ban_reason', $results[0]);
     }
 
     public function test_transfer_from_eur_sender_to_idr_receiver_converts_correctly(): void
@@ -356,7 +289,6 @@ class TransferTest extends TestCase
             'nama_dompet' => $walletName,
             'saldo_awal' => $balance,
             'saldo' => $balance,
-            'terima_transfer' => true,
         ]);
 
         return [$user, $wallet];

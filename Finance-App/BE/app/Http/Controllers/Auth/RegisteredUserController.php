@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\FonnteService;
 use App\Services\OtpService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -22,6 +23,100 @@ class RegisteredUserController extends Controller
     public function create(): View
     {
         return view('auth.register');
+    }
+
+    /**
+     * API Endpoint untuk registrasi user via email dari Mobile / Frontend.
+     */
+    public function apiStore(Request $request): JsonResponse
+    {
+        $request->merge(['nama' => $request->input('nama', $request->input('name'))]);
+
+        $request->validate([
+            'nama' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'string', 'lowercase', 'email:rfc,dns', 'max:255', 'unique:'.User::class],
+            'password' => ['required', 'string', Rules\Password::defaults()],
+        ]);
+
+        $user = User::create([
+            'nama' => $request->nama,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
+            'role' => 'user',
+            'status' => false,
+            'email_verified_at' => null,
+        ]);
+
+        try {
+            app(OtpService::class)->kirim($user);
+        } catch (Throwable $e) {
+            report($e);
+            return response()->json([
+                'message' => 'Akun berhasil dibuat, namun gagal mengirim kode OTP ke email Anda.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+
+        return response()->json([
+            'message' => 'Registrasi berhasil. Kode OTP telah dikirim ke email Anda.',
+            'user_id' => $user->id_user,
+            'email' => $user->email,
+        ], 201);
+    }
+
+    /**
+     * API Endpoint untuk verifikasi kode OTP user dari Mobile / Frontend.
+     */
+    public function apiVerifyOtp(Request $request): JsonResponse
+    {
+        $request->validate([
+            'user_id' => ['required', 'exists:users,id_user'],
+            'kode' => ['required', 'string', 'digits:6'],
+        ]);
+
+        $user = User::where('id_user', $request->user_id)->first();
+
+        if (! $user) {
+            return response()->json(['message' => 'User tidak ditemukan.'], 404);
+        }
+
+        if ($user->email_verified_at !== null) {
+            return response()->json(['message' => 'Email sudah terverifikasi sebelumnya.'], 400);
+        }
+
+        if (blank($user->otp_kode) || ! $user->otp_expires_at || $user->otp_expires_at->isPast()) {
+            return response()->json(['message' => 'Kode OTP telah kedaluwarsa. Silakan minta kode baru.'], 422);
+        }
+
+        if ($user->otp_attempts >= OtpService::MAKS_PERCOBAAN) {
+            return response()->json(['message' => 'Terlalu banyak percobaan salah. Silakan minta kode baru.'], 422);
+        }
+
+        if (! Hash::check($request->kode, $user->otp_kode)) {
+            $user->increment('otp_attempts');
+            $sisa = max(0, OtpService::MAKS_PERCOBAAN - $user->otp_attempts);
+            return response()->json([
+                'message' => "Kode OTP salah. Sisa percobaan {$sisa} kali."
+            ], 422);
+        }
+
+        // OTP benar -> Verifikasi sukses
+        $user->forceFill([
+            'email_verified_at' => now(),
+            'status' => true,
+            'otp_kode' => null,
+            'otp_expires_at' => null,
+            'otp_attempts' => 0,
+        ])->save();
+
+        // Buat Sanctum token agar langsung bisa login otomatis setelah verifikasi
+        $token = $user->createToken('mobile-register-token')->plainTextToken;
+
+        return response()->json([
+            'message' => 'Verifikasi OTP berhasil. Akun Anda aktif.',
+            'token' => $token,
+            'user' => $user
+        ], 200);
     }
 
     /**

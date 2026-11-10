@@ -1,392 +1,118 @@
-
 import './bootstrap';
 import Alpine from 'alpinejs';
 
-const currency =
-    document.querySelector('meta[name="finance-currency"]')?.content ?? 'IDR';
-
-const FALLBACK_RATES = {
-    IDR: 1,
-    USD: 16000,
-    EUR: 17500,
-};
-
-let RATES = { ...FALLBACK_RATES };
-
+const currency = document.querySelector('meta[name="finance-currency"]')?.content ?? 'IDR';
+/* Kurs live dari backend (meta finance-rates, sumber: Frankfurter + cache);
+   fallback statis bila meta tidak tersedia */
+const FALLBACK_RATES = { IDR: 1, USD: 16000, EUR: 17500 };
+let RATES = FALLBACK_RATES;
 try {
-    const meta = document.querySelector(
-        'meta[name="finance-rates"]'
-    )?.content;
-
-    const parsed = meta ? JSON.parse(meta) : null;
-
-    if (parsed && typeof parsed === 'object') {
-        RATES = { ...FALLBACK_RATES, ...parsed };
-    }
-} catch {
-    // Gunakan kurs fallback jika metadata tidak valid.
-}
-
+	const meta = document.querySelector('meta[name="finance-rates"]')?.content;
+	const parsed = meta ? JSON.parse(meta) : null;
+	if (parsed && typeof parsed === 'object' && Object.keys(parsed).length) {
+		RATES = { ...FALLBACK_RATES, ...parsed };
+	}
+} catch (e) { /* pakai kurs fallback */ }
 const rate = RATES[currency] ?? 1;
-
-const locale =
-    currency === 'USD'
-        ? 'en-US'
-        : currency === 'EUR'
-            ? 'de-DE'
-            : 'id-ID';
-
+const locale = currency === 'USD' ? 'en-US' : (currency === 'EUR' ? 'de-DE' : 'id-ID');
 const formatter = new Intl.NumberFormat(locale, {
-    style: 'currency',
-    currency,
-    maximumFractionDigits: currency === 'IDR' ? 0 : 2,
+	style: 'currency',
+	currency,
+	/* Desimal mengikuti ketikan user (0.1 tampil 0.1, bukan dipaksa 0.10).
+	   IDR tetap tanpa desimal; USD/EUR maksimal 2. */
+	minimumFractionDigits: 0,
+	maximumFractionDigits: currency === 'IDR' ? 0 : 2,
 });
 
+/* Pemisah locale via Intl (id-ID: ribuan ".", desimal ","; en-US: ribuan ",",
+   desimal "."; de-DE: ribuan ".", desimal ","). formatToParts(1234.5) — angka
+   >= 1000 agar bagian "group" SELALU muncul; dengan 1.1 bagian itu kosong dan
+   pemisah ribuan jatuh ke default yang salah untuk en-US. */
 const localeParts = new Intl.NumberFormat(locale).formatToParts(1234.5);
-
-const decimalSep =
-    localeParts.find((part) => part.type === 'decimal')?.value ?? ',';
-
-const groupSep =
-    localeParts.find((part) => part.type === 'group')?.value ?? '.';
-
-function formatLargeAmount(value, currencyCode = 'IDR') {
-    const raw = String(value ?? '0').trim();
-    const match = raw.match(/^(-?)(\d+)(?:\.(\d+))?$/);
-
-    if (!match) {
-        return raw;
-    }
-
-    const sign = match[1];
-    const integerPart = match[2];
-    const decimalPart = match[3] ?? '';
-
-    const groupedInteger = integerPart.replace(
-        /\B(?=(\d{3})+(?!\d))/g,
-        groupSep
-    );
-
-    if (currencyCode === 'IDR') {
-        return `Rp ${sign}${groupedInteger}`;
-    }
-
-    const decimals = decimalPart.slice(0, 2).padEnd(2, '0');
-
-    if (currencyCode === 'USD') {
-        return `$${sign}${groupedInteger}.${decimals}`;
-    }
-
-    return `${sign}${groupedInteger}${decimalSep}${decimals} €`;
-}
-
-// Ubah angka desimal menjadi satuan sen tanpa Number().
-function decimalToCents(value) {
-    let raw = String(value ?? '0').trim();
-
-    if (!/^-?\d+(?:\.\d*)?$/.test(raw)) {
-        return 0n;
-    }
-
-    const negative = raw.startsWith('-');
-
-    if (negative) {
-        raw = raw.slice(1);
-    }
-
-    const [whole, fraction = ''] = raw.split('.');
-
-    let cents =
-        BigInt(whole) * 100n +
-        BigInt((fraction + '00').slice(0, 2));
-
-    if (fraction.length > 2 && fraction[2] >= '5') {
-        cents += 1n;
-    }
-
-    return negative ? -cents : cents;
-}
-
-function centsToDecimal(cents) {
-    const negative = cents < 0n;
-
-    if (negative) {
-        cents = -cents;
-    }
-
-    return `${negative ? '-' : ''}${cents / 100n}.${String(
-        cents % 100n
-    ).padStart(2, '0')}`;
-}
-
-function roundedDivide(numerator, denominator) {
-    if (denominator === 0n) {
-        return 0n;
-    }
-
-    const negative =
-        (numerator < 0n) !== (denominator < 0n);
-
-    if (numerator < 0n) numerator = -numerator;
-    if (denominator < 0n) denominator = -denominator;
-
-    const result =
-        (numerator + denominator / 2n) / denominator;
-
-    return negative ? -result : result;
-}
-
-// Representasikan kurs desimal sebagai pecahan bilangan bulat.
-function getRateFraction(value) {
-    const raw = String(value ?? '1');
-
-    if (!/^\d+(?:\.\d+)?$/.test(raw)) {
-        return { numerator: 1n, scale: 1n };
-    }
-
-    const [whole, fraction = ''] = raw.split('.');
-
-    return {
-        numerator: BigInt(whole + fraction),
-        scale: 10n ** BigInt(fraction.length),
-    };
-}
-
-function convertBaseToDisplay(amount) {
-    const { numerator, scale } = getRateFraction(rate);
-
-    return centsToDecimal(
-        roundedDivide(
-            decimalToCents(amount) * scale,
-            numerator
-        )
-    );
-}
-
-function convertDisplayToBase(amount) {
-    const { numerator, scale } = getRateFraction(rate);
-
-    return centsToDecimal(
-        roundedDivide(
-            decimalToCents(amount) * numerator,
-            scale
-        )
-    );
-}
-
-function formatTyped(raw) {
-    let cleaned = String(raw ?? '').trim().replace(/\s/g, '');
-
-    if (groupSep) {
-        cleaned = cleaned.split(groupSep).join('');
-    }
-
-    cleaned = cleaned.split(decimalSep).join('.');
-
-    const trailingDecimal = cleaned.endsWith('.');
-    const segments = cleaned.split('.');
-    const integer = segments[0].replace(/\D/g, '') || '0';
-    const decimal = (segments.slice(1).join('').replace(/\D/g, '')).slice(0, 2);
-
-    const exactValue = decimal
-        ? `${integer}.${decimal}`
-        : integer;
-
-    const groupedInteger = integer.replace(
-        /\B(?=(\d{3})+(?!\d))/g,
-        groupSep
-    );
-
-    const display = decimal
-        ? `${groupedInteger}${decimalSep}${decimal}`
-        : `${groupedInteger}${trailingDecimal ? decimalSep : ''}`;
-
-    if (/^0(?:\.0*)?$/.test(exactValue) && !trailingDecimal) {
-        return { value: '0', display: '' };
-    }
-
-    return {
-        value: exactValue,
-        display,
-    };
-}
+const decimalSep = localeParts.find((p) => p.type === 'decimal')?.value ?? ',';
+const groupSep = localeParts.find((p) => p.type === 'group')?.value ?? '';
 
 window.financeMoney = {
-    currency,
-    rate,
+	currency,
+	rate,
+	symbol: formatter.formatToParts(0).find((part) => part.type === 'currency')?.value ?? 'Rp',
+	/* Nilai tersimpan dalam IDR (base); konversi ke mata uang aktif saat menampilkan */
+	format(idrAmount) {
+		return formatter.format((Number(idrAmount) || 0) / rate);
+	},
+	/* Format nilai yang sudah dalam mata uang aktif (input user) */
+	formatNative(displayAmount) {
+		return formatter.format(Number(displayAmount) || 0);
+	},
+	/* Konversi nilai input (mata uang aktif) ke IDR base */
+	toBase(displayAmount) {
+		return (Number(displayAmount) || 0) * rate;
+	},
+	/* Konversi nilai IDR base ke mata uang aktif */
+	fromBase(idrAmount) {
+		return (Number(idrAmount) || 0) / rate;
+	},
+	/* Format nilai NUMERIK menjadi teks tampilan berpemisah ribuan (tanpa
+	   simbol mata uang). Berbeda dari formatTyped/formatNative: fungsi ini
+	   menerima angka (mis. 1234567.89) dan menghasilkan teks sesuai locale
+	   ("1.234.567,89" di id-ID). Aman dipakai untuk nilai dari backend. */
+	formatNumber(numericValue, { minDecimals = 0, maxDecimals = 2 } = {}) {
+		const num = Number(numericValue) || 0;
+		return new Intl.NumberFormat(locale, {
+			minimumFractionDigits: minDecimals,
+			maximumFractionDigits: maxDecimals,
+		}).format(num);
+	},
+	/* Parse string tampilan (berpemisah ribuan sesuai locale) menjadi angka.
+	   Pemisah ribuan dibuang, pemisah desimal dijadikan "." — aman untuk
+	   id-ID ("1.234,5" -> 1234.5) maupun en-US ("1,234.5" -> 1234.5). */
+	parseFormatted(display) {
+		let cleaned = String(display ?? '').trim().replace(/\s/g, '');
+		if (groupSep) cleaned = cleaned.split(groupSep).join('');
+		cleaned = cleaned.split(decimalSep).join('.');
+		const value = parseFloat(cleaned);
+		return Number.isFinite(value) ? value : 0;
+	},
+	/* Format nilai yang sedang diketik menjadi string tampilan berpemisah
+	   ribuan, sambil mempertahankan pemisah desimal yang belum diisi angka
+	   ("12," / "12.") agar user bisa lanjut mengetik desimal. Mengembalikan
+	   { value, display } — value angka hasil parse, display string tampilan. */
+	formatTyped(raw) {
+		let cleaned = String(raw ?? '').replace(/\s/g, '');
+		if (groupSep) cleaned = cleaned.split(groupSep).join('');
+		cleaned = cleaned.split(decimalSep).join('.');
 
-    symbol:
-        formatter.formatToParts(0).find(
-            (part) => part.type === 'currency'
-        )?.value ?? 'Rp',
+		const trailingDecimal = cleaned.endsWith('.') ? '.' : '';
 
-    // Saldo dari database selalu disimpan dalam IDR.
-    format(idrAmount) {
-        if (currency === 'IDR') {
-            return formatLargeAmount(idrAmount, 'IDR');
-        }
+		const segments = cleaned.split('.');
+		const integerStr = segments[0].replace(/\D/g, '') || '0';
+		const integerClean = integerStr.length > 1 ? integerStr.replace(/^0+/, '') || '0' : integerStr;
+		const decimal = segments.slice(1).join('').replace(/\D/g, '').slice(0, 2);
 
-        return formatLargeAmount(
-            convertBaseToDisplay(idrAmount),
-            currency
-        );
-    },
+		let formattedInteger = integerClean;
+		if (groupSep) {
+			formattedInteger = integerClean.replace(/\B(?=(\d{3})+(?!\d))/g, groupSep);
+		}
 
-    // Konversi nilai input dari mata uang aktif ke IDR.
-    toBase(displayAmount) {
-        return convertDisplayToBase(displayAmount);
-    },
+		let display = formattedInteger;
+		if (decimal) {
+			display += decimalSep + decimal;
+		} else if (trailingDecimal) {
+			display += decimalSep;
+		}
 
-    // Konversi saldo IDR ke mata uang aktif.
-    fromBase(idrAmount) {
-        if (currency === 'IDR') {
-            return String(idrAmount ?? '0');
-        }
+		const num = parseFloat(decimal ? `${integerClean}.${decimal}` : integerClean) || 0;
 
-        return convertBaseToDisplay(idrAmount);
-    },
+		if (num === 0 && !trailingDecimal && integerClean === '0') {
+			return { value: 0, display: '' };
+		}
 
-    formatNative(displayAmount) {
-        return formatLargeAmount(displayAmount, currency);
-    },
-
-    parseFormatted(display) {
-        let cleaned = String(display ?? '').trim().replace(/\s/g, '');
-
-        if (groupSep) {
-            cleaned = cleaned.split(groupSep).join('');
-        }
-
-        cleaned = cleaned.split(decimalSep).join('.');
-
-        if (!/^\d+(?:\.\d{0,2})?$/.test(cleaned)) {
-            return '0';
-        }
-
-        return cleaned;
-    },
-
-    compare(left, right) {
-        const a = decimalToCents(left);
-        const b = decimalToCents(right);
-
-        return a > b ? 1 : a < b ? -1 : 0;
-    },
-
-    add(...values) {
-        return centsToDecimal(
-            values.reduce((sum, value) => sum + decimalToCents(value), 0n)
-        );
-    },
-
-    subtract(left, right) {
-        return centsToDecimal(decimalToCents(left) - decimalToCents(right));
-    },
-
-    min(left, right) {
-        return this.compare(left, right) <= 0 ? String(left) : String(right);
-    },
-
-    percent(amount, total) {
-        const totalCents = decimalToCents(total);
-
-        if (totalCents <= 0n) {
-            return 0;
-        }
-
-        return Number(
-            roundedDivide(decimalToCents(amount) * 100n, totalCents)
-        );
-    },
-
-    formatTyped,
-
-    formatNumber(
-        numericValue,
-        { minDecimals = 0, maxDecimals = 2 } = {}
-    ) {
-        const raw = String(numericValue ?? '0').trim();
-
-        const match = raw.match(/^(-?)(\d+)(?:\.(\d+))?$/);
-
-        if (!match) {
-            return raw;
-        }
-
-        const sign = match[1];
-        const integer = match[2].replace(/\B(?=(\d{3})+(?!\d))/g, groupSep);
-        let fraction = (match[3] ?? '').slice(0, maxDecimals);
-
-        while (fraction.length > minDecimals && fraction.endsWith('0')) {
-            fraction = fraction.slice(0, -1);
-        }
-
-        fraction = fraction.padEnd(minDecimals, '0');
-
-        return `${sign}${integer}${fraction ? decimalSep + fraction : ''}`;
-    },
+		return {
+			value: num,
+			display: display,
+		};
+	},
 };
-
-function formatMoneyInput(input) {
-    const initialValue = input.value.trim();
-    const canonicalValue = initialValue === ''
-        ? ''
-        : /^\d+(?:\.\d{1,2})?$/.test(initialValue)
-            ? initialValue
-            : window.financeMoney.parseFormatted(initialValue);
-
-    input.dataset.moneyValue = canonicalValue;
-    input.value = canonicalValue === '' || canonicalValue === '0'
-        ? ''
-        : window.financeMoney.formatNumber(canonicalValue);
-}
-
-document.querySelectorAll('input[data-money-input]').forEach(formatMoneyInput);
-
-document.addEventListener('input', (event) => {
-    const input = event.target;
-
-    if (!(input instanceof HTMLInputElement) || !input.matches('input[data-money-input]')) {
-        return;
-    }
-
-    const cursor = input.selectionStart ?? input.value.length;
-    const digitsBeforeCursor = input.value.slice(0, cursor).replace(/\D/g, '').length;
-    const result = window.financeMoney.formatTyped(input.value);
-    input.dataset.moneyValue = result.value;
-    input.value = result.display;
-
-    let nextCursor = 0;
-    let digitsSeen = 0;
-
-    while (nextCursor < input.value.length && digitsSeen < digitsBeforeCursor) {
-        if (/\d/.test(input.value[nextCursor])) {
-            digitsSeen += 1;
-        }
-        nextCursor += 1;
-    }
-
-    input.setSelectionRange(nextCursor, nextCursor);
-
-    if (input.id === 'saldo' || input.id === 'saldo_awal') {
-        const otherInput = document.getElementById(input.id === 'saldo' ? 'saldo_awal' : 'saldo');
-
-        if (input.value && otherInput instanceof HTMLInputElement) {
-            otherInput.value = '';
-            otherInput.dataset.moneyValue = '';
-        }
-    }
-});
-
-document.addEventListener('submit', (event) => {
-    if (!(event.target instanceof HTMLFormElement)) {
-        return;
-    }
-
-    event.target.querySelectorAll('input[data-money-input][name]').forEach((input) => {
-        input.value = input.dataset.moneyValue ?? window.financeMoney.parseFormatted(input.value);
-    });
-}, true);
 
 window.Alpine = Alpine;
 Alpine.start();

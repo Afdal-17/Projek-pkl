@@ -9,11 +9,9 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\Rules\Password;
 use Illuminate\View\View;
 
 class ProfileController extends Controller
@@ -24,38 +22,24 @@ class ProfileController extends Controller
 
         return view('admin.profile', [
             'user' => $user,
-            'avatarUrl' => $user->avatar_url,
+            'avatarUrl' => $user->avatar_path ? asset('storage/' . $user->avatar_path) : null,
         ]);
     }
 
-    public function adminUpdatePassword(Request $request): RedirectResponse|JsonResponse
-    {
-        $validated = $request->validateWithBag('updatePassword', [
-            'current_password' => ['required', 'current_password'],
-            'password' => ['required', Password::defaults(), 'confirmed'],
-        ]);
-
-        $request->user()->update([
-            'password' => Hash::make($validated['password']),
-        ]);
-
-        if ($request->expectsJson()) {
-            return response()->json([
-                'status' => 'password-updated',
-                'message' => 'Password berhasil diperbarui.',
-            ]);
-        }
-
-        return back()->with('status', 'password-updated');
-    }
-
-    public function frontendEdit(Request $request): View
+    public function frontendEdit(Request $request): View|JsonResponse
     {
         $user = $request->user();
 
+        if ($request->expectsJson()) {
+            return response()->json([
+                'user' => $user,
+                'avatar_url' => $user->avatar_path ? asset('storage/'.$user->avatar_path) : null,
+            ]);
+        }
+
         return view('account', [
             'user' => $user,
-            'avatarUrl' => $user->avatar_url,
+            'avatarUrl' => $user->avatar_path ? asset('storage/'.$user->avatar_path) : null,
         ]);
     }
 
@@ -107,37 +91,17 @@ class ProfileController extends Controller
 
     public function updateAvatar(Request $request): JsonResponse
     {
-        $validated = $request->validate(
-            ['avatar' => ['bail', 'required', 'image', 'mimes:jpg,jpeg,png', 'max:2048']],
-            [
-                'avatar.required' => 'Choose a JPG or PNG photo to upload.',
-                'avatar.image' => 'The selected file must be a valid image.',
-                'avatar.mimes' => 'The photo must be a JPG or PNG file.',
-                'avatar.max' => 'The photo must not be larger than 2 MB.',
-            ]
-        );
+        $request->validate(['avatar' => ['required', 'image', 'mimes:jpg,jpeg,png', 'max:2048']]);
         $user = $request->user();
-        $path = Storage::disk('public')->putFile('avatars', $validated['avatar']);
+        $path = $request->file('avatar')->store('avatars', 'public');
 
-        if (! is_string($path) || $path === '') {
-            return response()->json([
-                'message' => 'The photo could not be saved. Check that profile photo storage is writable.',
-            ], 500);
+        if ($user->avatar_path) {
+            Storage::disk('public')->delete($user->avatar_path);
         }
 
-        $previousPath = $user->avatar_path;
-        try {
-            $user->update(['avatar_path' => $path]);
-        } catch (\Throwable $exception) {
-            Storage::disk('public')->delete($path);
-            throw $exception;
-        }
+        $user->update(['avatar_path' => $path]);
 
-        if ($previousPath && $previousPath !== $path) {
-            Storage::disk('public')->delete($previousPath);
-        }
-
-        return response()->json(['avatar_url' => $user->avatar_url]);
+        return response()->json(['avatar_url' => asset('storage/'.$path)]);
     }
 
     public function deleteAvatar(Request $request): JsonResponse

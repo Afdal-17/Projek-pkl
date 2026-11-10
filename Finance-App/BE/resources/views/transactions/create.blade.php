@@ -11,7 +11,7 @@
         amountDisplay: '',
         transactionName: 'Grocery shopping',
         category: '',
-        wallet: @js((string) ($wallets->first()['id'] ?? '')),
+        wallet: @js($wallets->first()['name'] ?? ''),
         date: new Date().toLocaleDateString('en-CA'),
         error: '',
         submitting: false,
@@ -45,24 +45,25 @@
         },
 
         get selectedWallet() {
-            return this.wallets.find(w => String(w.id) === String(this.wallet)) ?? { balance: 0 };
+            return this.wallets.find(w => w.name === this.wallet) ?? { balance: 0 };
         },
 
         get amountInBase() {
             // Input user dalam mata uang aktif, dikonversi ke IDR base
-            return window.financeMoney.toBase(this.amount || '0');
+            return window.financeMoney.toBase(Number(this.amount) || 0);
         },
 
         get newBalance() {
+            const balance = Number(this.selectedWallet.balance);
             const amount = this.amountInBase;
 
-            return this.type === 'income'
-                ? window.financeMoney.add(this.selectedWallet.balance, amount)
-                : window.financeMoney.subtract(this.selectedWallet.balance, amount);
+            return this.type === 'income' ? balance + amount : balance - amount;
         },
 
         get formattedBalance() {
-            return window.financeMoney.format(this.newBalance);
+            const n = this.newBalance;
+
+            return (n < 0 ? '-' : '') + window.financeMoney.format(Math.abs(n));
         },
 
         async saveTransaction() {
@@ -70,7 +71,7 @@
 
             this.error = '';
 
-            if (!this.amount || window.financeMoney.compare(this.amount, '0') <= 0) {
+            if (!this.amount || Number(this.amount) <= 0) {
                 this.error = 'Amount must be greater than 0.';
                 return;
             }
@@ -86,13 +87,13 @@
             }
 
             /* Sama seperti aturan backend: saldo dompet tidak boleh minus */
-            if (this.type === 'expense' && window.financeMoney.compare(this.newBalance, '0') < 0) {
+            if (this.type === 'expense' && this.newBalance < 0) {
                 this.error = 'Wallet balance is not enough.';
                 return;
             }
 
             const selectedCategory = this.allCategories.find(item => item.name === this.category);
-            const selectedWallet = this.wallets.find(item => String(item.id) === String(this.wallet));
+            const selectedWallet = this.wallets.find(item => item.name === this.wallet);
 
             if (!selectedCategory || !selectedWallet) {
                 this.error = 'Choose a valid category and wallet.';
@@ -104,7 +105,7 @@
                 id_dompet: String(selectedWallet.id),
                 id_kategori: String(selectedCategory.id),
                 nama_transaksi: this.transactionName.trim(),
-                jumlah: String(this.amount),
+                jumlah: String(Number(this.amount)),
                 jenis: this.type === 'income' ? 'pemasukan' : 'pengeluaran',
                 tanggal: this.date,
             });
@@ -240,7 +241,7 @@
                 <div>
 
                     <div class="mb-2 flex items-center justify-between">
-                        <label class="text-sm font-medium">
+                        <label for="category" class="text-sm font-medium">
                             {{ __('transactions.category') }}
                         </label>
 
@@ -249,84 +250,32 @@
                         </a>
                     </div>
 
-                    <div
-                        class="relative"
-                        x-data="{
-                            open: false,
-                            dropUp: false,
-                            toggle(el) {
-                                this.open = !this.open;
-                                if (this.open) {
-                                    const rect = el.getBoundingClientRect();
-                                    this.dropUp = (window.innerHeight - rect.bottom) < 260;
-                                }
-                            }
-                        }"
-                        @click.outside="open = false"
-                        @keydown.escape.window="open = false"
-                    >
-                        {{-- Trigger --}}
-                        <button
-                            id="category"
-                            type="button"
-                            @click="toggle($el)"
-                            class="flex w-full items-center justify-between rounded-lg border border-line bg-white px-3.5 py-3 text-sm font-medium text-ink shadow-sm transition hover:border-brand/40 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 cursor-pointer"
-                            :class="open ? 'border-brand ring-2 ring-brand/20' : ''"
-                        >
-                            <span x-text="category || 'Select category'" class="truncate"></span>
-                            <x-icon
-                                name="chevron-down"
-                                size="h-4 w-4"
-                                class="text-muted shrink-0 transition-transform duration-200"
-                                x-bind:class="open ? 'rotate-180' : ''"
-                            />
-                        </button>
+                    <div class="relative">
 
-                        {{-- Dropdown Popover --}}
-                        <div
-                            x-show="open"
-                            x-cloak
-                            x-transition:enter="transition ease-out duration-150"
-                            x-transition:enter-start="opacity-0 scale-95"
-                            x-transition:enter-end="opacity-100 scale-100"
-                            x-transition:leave="transition ease-in duration-100"
-                            x-transition:leave-start="opacity-100 scale-100"
-                            x-transition:leave-end="opacity-0 scale-95"
-                            class="absolute left-0 right-0 z-50 max-h-60 overflow-y-auto rounded-2xl border border-line bg-white p-1.5 shadow-2xl ring-1 ring-black/5"
-                            :class="dropUp ? 'bottom-full mb-2 origin-bottom' : 'top-full mt-2 origin-top'"
+                        <select
+                            id="category"
+                            x-model="category"
+                            class="w-full appearance-none rounded-lg border border-line bg-white px-3 py-3 pr-10 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
                         >
                             <template x-if="categories.length === 0">
-                                <div class="px-3 py-2.5 text-xs text-muted text-center">
-                                    {{ __('transactions.no_category') }}
-                                </div>
+                                <option value="" disabled>{{ __('transactions.no_category') }}</option>
                             </template>
 
-                            <div class="space-y-0.5">
-                                <template x-for="item in categories" :key="item.id">
-                                    <button
-                                        type="button"
-                                        @click="category = item.name; open = false"
-                                        class="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm transition text-left cursor-pointer"
-                                        :class="category === item.name ? 'bg-brand-soft text-brand font-semibold' : 'text-ink hover:bg-page font-medium'"
-                                    >
-                                        <span x-text="item.name" class="truncate"></span>
-                                        <x-icon
-                                            x-show="category === item.name"
-                                            name="check"
-                                            size="h-4 w-4"
-                                            class="text-brand shrink-0"
-                                        />
-                                    </button>
-                                </template>
-                            </div>
-                        </div>
-
-                        {{-- Hidden Native Select --}}
-                        <select id="category_native" x-model="category" class="sr-only" tabindex="-1" aria-hidden="true">
                             <template x-for="item in categories" :key="item.id">
-                                <option :value="item.name" :selected="item.name === category" x-text="item.name"></option>
+                                <option
+                                    :value="item.name"
+                                    :selected="item.name === category"
+                                    x-text="item.name"
+                                ></option>
                             </template>
                         </select>
+
+                        <x-icon
+                            name="chevron-down"
+                            size="h-4 w-4"
+                            class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted"
+                        />
+
                     </div>
 
                 </div>
@@ -335,96 +284,32 @@
                 {{-- Wallet --}}
                 <div>
 
-                    <label class="mb-2 block text-sm font-medium">
+                    <label for="wallet" class="mb-2 block text-sm font-medium">
                         {{ __('transactions.wallet') }}
                     </label>
 
-                    <div
-                        class="relative"
-                        x-data="{
-                            open: false,
-                            dropUp: false,
-                            toggle(el) {
-                                this.open = !this.open;
-                                if (this.open) {
-                                    const rect = el.getBoundingClientRect();
-                                    this.dropUp = (window.innerHeight - rect.bottom) < 260;
-                                }
-                            }
-                        }"
-                        @click.outside="open = false"
-                        @keydown.escape.window="open = false"
-                    >
-                        {{-- Trigger --}}
-                        <button
+                    <div class="relative">
+
+                        <select
                             id="wallet"
-                            type="button"
-                            @click="toggle($el)"
-                            class="flex w-full items-center justify-between rounded-lg border border-line bg-white px-3.5 py-3 text-sm font-medium text-ink shadow-sm transition hover:border-brand/40 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 cursor-pointer"
-                            :class="open ? 'border-brand ring-2 ring-brand/20' : ''"
+                            x-model="wallet"
+                            class="w-full appearance-none rounded-lg border border-line bg-white px-3 py-3 pr-10 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
                         >
-                            <div class="flex items-center gap-2.5 truncate min-w-0">
-                                <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-brand-soft text-brand">
-                                    <x-icon name="wallet" size="h-3.5 w-3.5" />
-                                </span>
-                                <span x-text="selectedWallet.name || 'Select wallet'" class="truncate"></span>
-                            </div>
-                            <x-icon
-                                name="chevron-down"
-                                size="h-4 w-4"
-                                class="text-muted shrink-0 transition-transform duration-200"
-                                x-bind:class="open ? 'rotate-180' : ''"
-                            />
-                        </button>
-
-                        {{-- Dropdown Popover --}}
-                        <div
-                            x-show="open"
-                            x-cloak
-                            x-transition:enter="transition ease-out duration-150"
-                            x-transition:enter-start="opacity-0 scale-95"
-                            x-transition:enter-end="opacity-100 scale-100"
-                            x-transition:leave="transition ease-in duration-100"
-                            x-transition:leave-start="opacity-100 scale-100"
-                            x-transition:leave-end="opacity-0 scale-95"
-                            class="absolute left-0 right-0 z-50 max-h-60 overflow-y-auto rounded-2xl border border-line bg-white p-1.5 shadow-2xl ring-1 ring-black/5"
-                            :class="dropUp ? 'bottom-full mb-2 origin-bottom' : 'top-full mt-2 origin-top'"
-                        >
-                            <div class="space-y-0.5">
-                                <template x-for="item in wallets" :key="item.id">
-                                    <button
-                                        type="button"
-                                        @click="wallet = String(item.id); open = false"
-                                        class="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm transition text-left cursor-pointer"
-                                        :class="String(wallet) === String(item.id) ? 'bg-brand-soft text-brand font-semibold' : 'text-ink hover:bg-page font-medium'"
-                                    >
-                                        <div class="flex items-center gap-2.5 min-w-0">
-                                            <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-page text-muted">
-                                                <x-icon name="wallet" size="h-3.5 w-3.5" />
-                                            </span>
-                                            <span x-text="item.name" class="truncate font-medium"></span>
-                                        </div>
-
-                                        <div class="flex items-center gap-2 shrink-0">
-                                            <span class="text-xs font-semibold text-muted" x-text="window.financeMoney.format(item.balance)"></span>
-                                            <x-icon
-                                                x-show="String(wallet) === String(item.id)"
-                                                name="check"
-                                                size="h-4 w-4"
-                                                class="text-brand"
-                                            />
-                                        </div>
-                                    </button>
-                                </template>
-                            </div>
-                        </div>
-
-                        {{-- Hidden Native Select --}}
-                        <select id="wallet_native" x-model="wallet" class="sr-only" tabindex="-1" aria-hidden="true">
-                            <template x-for="item in wallets" :key="item.id">
-                                <option :value="String(item.id)" :selected="String(item.id) === String(wallet)" x-text="item.name"></option>
+                            <template x-for="item in wallets" :key="item.name">
+                                <option
+                                    :value="item.name"
+                                    :selected="item.name === wallet"
+                                    x-text="item.name"
+                                ></option>
                             </template>
                         </select>
+
+                        <x-icon
+                            name="chevron-down"
+                            size="h-4 w-4"
+                            class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted"
+                        />
+
                     </div>
 
                 </div>
@@ -434,13 +319,18 @@
 
             {{-- Date --}}
             <div class="mt-6">
-                <x-date-picker
+
+                <label for="date" class="mb-2 block text-sm font-medium">
+                    {{ __('transactions.date') }}
+                </label>
+
+                <input
                     id="date"
-                    name="date"
-                    :label="__('transactions.date')"
-                    model="date"
-                    :required="true"
-                />
+                    type="date"
+                    x-model="date"
+                    class="w-full rounded-lg border border-line bg-white px-3 py-3 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+                >
+
             </div>
 
 
@@ -489,7 +379,7 @@
                     {{-- Wallet --}}
                     <div class="flex items-center justify-between">
                         <span class="text-muted">{{ __('transactions.wallet') }}</span>
-                        <span class="font-semibold" x-text="selectedWallet.name"></span>
+                        <span class="font-semibold" x-text="wallet"></span>
                     </div>
 
                     {{-- New Balance --}}

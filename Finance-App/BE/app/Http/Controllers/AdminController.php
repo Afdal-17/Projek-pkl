@@ -66,10 +66,76 @@ class AdminController extends Controller
         ]);
     }
 
-    public function toggleStatus(Request $request, User $user): \Illuminate\Http\JsonResponse|RedirectResponse
+
+    public function apiDashboard(): JsonResponse
     {
-        abort_if($user->is($request->user()), 422, 'Admins cannot deactivate their own account.');
-        abort_if($user->isAdmin(), 403, 'Admin account status cannot be modified from this page.');
+        $today = now()->startOfDay();
+        $days = [];
+        $totalUsersByDay = [];
+        $newUsersByDay = [];
+
+        foreach (range(6, 0) as $daysAgo) {
+            $date = $today->copy()->subDays($daysAgo);
+            $days[] = $date->format('D');
+            $newUsersByDay[] = User::whereDate('created_at', $date)->count();
+            $totalUsersByDay[] = User::where('created_at', '<', $date->copy()->addDay())->count();
+        }
+
+        return response()->json([
+            'summary' => [
+                'total_user' => User::where('role', 'user')->count(),
+                'user_aktif' => User::where('role', 'user')->where('status', true)->count(),
+                'user_online' => User::where('role', 'user')
+                    ->where('status', true)
+                    ->where('last_seen_at', '>=', now()->subMinutes(5))
+                    ->count(),
+                'user_baru_minggu_ini' => User::where('role', 'user')->whereBetween('created_at', [$today->copy()->subDays(6), now()])->count(),
+                'total_transaksi' => Transaksi::count(),
+            ],
+            'users' => User::where('role', 'user')->orderByDesc('id_user')->limit(5)->get(),
+            'days' => $days,
+            'chart' => [
+                'total' => $totalUsersByDay,
+                'fresh' => $newUsersByDay,
+            ],
+        ]);
+    }
+
+    public function apiUsers(Request $request): JsonResponse
+    {
+        $q = $request->input('q');
+        $query = User::where('role', 'user')
+            ->whereNotNull('email_verified_at')
+            ->when($q, function ($query, $q) {
+                return $query->where(function ($sub) use ($q) {
+                    $sub->where('nama', 'like', "%{$q}%")
+                        ->orWhere('email', 'like', "%{$q}%");
+                });
+            })
+            ->orderBy('nama');
+
+        return response()->json($query->paginate(20));
+    }
+
+    public function apiVerifyUsers(Request $request): JsonResponse
+    {
+        $q = $request->input('q');
+        $query = User::where('role', 'user')
+            ->whereNull('email_verified_at')
+            ->when($q, function ($query, $q) {
+                return $query->where(function ($sub) use ($q) {
+                    $sub->where('nama', 'like', "%{$q}%")
+                        ->orWhere('email', 'like', "%{$q}%");
+                });
+            })
+            ->orderByDesc('created_at');
+
+        return response()->json($query->paginate(20));
+    }
+public function toggleStatus(Request $request, User $user): \Illuminate\Http\JsonResponse|RedirectResponse
+    {
+        abort_if($user->is($request->user()), 422, 'Admin tidak dapat menonaktifkan akunnya sendiri.');
+        abort_if($user->isAdmin(), 403, 'Status akun admin tidak dapat diubah dari halaman ini.');
 
         // Hanya untuk mengaktifkan kembali akun yang dibanned (unban)
         if ($user->banned_at !== null) {
@@ -82,18 +148,18 @@ class AdminController extends Controller
             if ($request->expectsJson()) {
                 return response()->json([
                     'status' => 'active',
-                    'message' => 'User account has been reactivated.',
+                    'message' => 'Akun user telah diaktifkan kembali.',
                 ]);
             }
 
-            return back()->with('status', 'User account has been reactivated.');
+            return back()->with('status', 'Akun user telah diaktifkan kembali.');
         }
 
         // User tidak dibanned, tidak ada aksi yang diizinkan
         if ($request->expectsJson()) {
             return response()->json([
                 'status' => 'no_change',
-                'message' => 'No status change.',
+                'message' => 'Tidak ada perubahan status.',
             ]);
         }
 
@@ -102,8 +168,8 @@ class AdminController extends Controller
 
     public function banUser(Request $request, User $user): \Illuminate\Http\JsonResponse|RedirectResponse
     {
-        abort_if($user->isAdmin(), 403, 'Admin accounts cannot be suspended from this page.');
-        abort_if($user->is($request->user()), 422, 'Admins cannot suspend their own account.');
+        abort_if($user->isAdmin(), 403, 'Akun admin tidak dapat diblokir dari halaman ini.');
+        abort_if($user->is($request->user()), 422, 'Admin tidak dapat memblokir akunnya sendiri.');
 
         $banning = $user->banned_at === null;
 
@@ -128,26 +194,26 @@ class AdminController extends Controller
         if ($request->expectsJson()) {
             return response()->json([
                 'status' => $banning ? 'banned' : 'active',
-                'message' => $banning ? 'User account has been suspended.' : 'User account has been reactivated.',
+                'message' => $banning ? 'Akun user telah diblokir.' : 'Akun user telah diaktifkan kembali.',
             ]);
         }
 
-        return back()->with('status', $banning ? 'User account has been suspended.' : 'User account has been reactivated.');
+        return back()->with('status', $banning ? 'Akun user telah diblokir.' : 'Akun user telah diaktifkan kembali.');
     }
 
     public function verifyUser(Request $request, User $user): \Illuminate\Http\JsonResponse|RedirectResponse
     {
-        abort_if($user->isAdmin(), 403, 'Admin accounts cannot be verified from this page.');
-        abort_if($user->is($request->user()), 422, 'Admins cannot verify their own account.');
+        abort_if($user->isAdmin(), 403, 'Akun admin tidak dapat diverifikasi dari halaman ini.');
+        abort_if($user->is($request->user()), 422, 'Admin tidak dapat memverifikasi akunnya sendiri.');
 
         if ($user->email_verified_at !== null) {
             if ($request->expectsJson()) {
                 return response()->json([
-                    'message' => 'User has already been verified.',
+                    'message' => 'User sudah diverifikasi sebelumnya.',
                 ], 409);
             }
 
-            return back()->with('status', 'User has already been verified.');
+            return back()->with('status', 'User sudah diverifikasi sebelumnya.');
         }
 
         $user->update([
@@ -159,16 +225,16 @@ class AdminController extends Controller
         if ($request->expectsJson()) {
             return response()->json([
                 'status' => 'verified',
-                'message' => 'User account has been verified and can now log in.',
+                'message' => 'Akun user telah diverifikasi dan dapat login.',
             ]);
         }
 
-        return back()->with('status', 'User account has been verified and can now log in.');
+        return back()->with('status', 'Akun user telah diverifikasi dan dapat login.');
     }
 
     public function updateUser(Request $request, User $user): JsonResponse
     {
-        abort_if($user->isAdmin(), 403, 'Admin accounts cannot be modified from this page.');
+        abort_if($user->isAdmin(), 403, 'Akun admin tidak dapat diubah dari halaman ini.');
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
@@ -189,8 +255,8 @@ class AdminController extends Controller
 
     public function deleteUser(Request $request, User $user): JsonResponse|RedirectResponse
     {
-        abort_if($user->isAdmin(), 403, 'Admin accounts cannot be deleted from this page.');
-        abort_if($user->is($request->user()), 422, 'Admins cannot delete their own account.');
+        abort_if($user->isAdmin(), 403, 'Akun admin tidak dapat dihapus dari halaman ini.');
+        abort_if($user->is($request->user()), 422, 'Admin tidak dapat menghapus akunnya sendiri.');
 
         // User inactive atau banned bisa dihapus (termasuk yang sudah tidak aktif 1 tahun)
         $isInactive = ! $user->status;
@@ -201,7 +267,7 @@ class AdminController extends Controller
 
         if (! $isInactive && ! $isBanned && ! $longInactive) {
             return response()->json([
-                'message' => 'Users can only be deleted if their status is Inactive or Banned.',
+                'message' => 'User hanya bisa dihapus jika statusnya Inactive atau Banned.',
             ], 409);
         }
 
@@ -212,7 +278,7 @@ class AdminController extends Controller
 
         if ($hasTransferHistory) {
             return response()->json([
-                'message' => 'User cannot be deleted because their wallet has existing transfer history.',
+                'message' => 'User tidak dapat dihapus karena wallet-nya memiliki riwayat transfer.',
             ], 409);
         }
 

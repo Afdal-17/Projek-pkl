@@ -1,4 +1,4 @@
-@extends('layouts.main')
+﻿@extends('layouts.main')
 
 @section('title', __('transactions.title'))
 
@@ -113,12 +113,12 @@
                 const key = t.date || 'unknown';
 
                 if (!map[key]) {
-                    map[key] = { date: key, label: this.labelFor(t.date), total: '0.00', items: [] };
+                    map[key] = { date: key, label: this.labelFor(t.date), total: 0, items: [] };
                     order.push(key);
                 }
 
                 map[key].items.push(t);
-                map[key].total = window.financeMoney.add(map[key].total, this.signed(t));
+                map[key].total += this.signed(t);
             });
 
             return order.map(key => map[key]);
@@ -142,19 +142,12 @@
         /* ---------- Helper tampilan ---------- */
 
         rp(n) {
-            const amount = String(n);
-            return window.financeMoney.format(
-                amount.startsWith('-')
-                    ? window.financeMoney.subtract('0', amount)
-                    : amount
-            );
+            return window.financeMoney.format(Math.abs(n));
         },
 
         /* Income positif; expense dan transfer dihitung uang keluar (sama seperti Figma) */
         signed(t) {
-            return t.type === 'income'
-                ? String(t.amount)
-                : window.financeMoney.subtract('0', t.amount);
+            return t.type === 'income' ? Number(t.amount) : -Number(t.amount);
         },
 
         sign(type, Jenis) {
@@ -191,7 +184,7 @@
 
 
     {{-- Judul + 3 tombol --}}
-    <div class="flex flex-col items-start justify-between gap-4 sm:flex-row">
+    <div class="flex flex-wrap items-start justify-between gap-4">
 
         <div>
             <h1 class="text-3xl font-bold">{{ __('transactions.title') }}</h1>
@@ -201,22 +194,22 @@
             </p>
         </div>
 
-        <div class="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-row sm:items-center sm:gap-3">
+        <div class="flex flex-wrap items-center gap-3">
 
             {{-- Membuka halaman Manage Kategori (tombol Add Category ada di sana) --}}
             <a
                 href="/transactions/categories"
-                class="col-span-1 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-slate-500 px-2 py-2.5 text-xs font-semibold text-white transition hover:bg-slate-600 sm:w-auto sm:gap-2 sm:px-4 sm:text-sm"
+                class="inline-flex items-center gap-2 rounded-lg bg-slate-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-600"
             >
                 {{ __('transactions.manage_category') }}
             </a>
 
-            <x-button href="/transfer" variant="brand" class="col-span-1 w-full justify-center gap-1.5 px-2 text-xs sm:w-auto sm:gap-2 sm:px-4 sm:text-sm">
-                <x-icon name="arrow-right" size="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <x-button href="/transfer" variant="brand">
+                <x-icon name="arrow-right" size="h-4 w-4" />
                 {{ __('transactions.transfer') }}
             </x-button>
 
-            <x-button href="/transactions/create" class="col-span-2 w-full justify-center sm:w-auto">
+            <x-button href="/transactions/create">
                 <x-icon name="plus" size="h-4 w-4" />
                 {{ __('transactions.add_transaction') }}
             </x-button>
@@ -229,9 +222,9 @@
     {{-- Pencarian + filter --}}
     <x-card class="mt-6 p-4">
 
-        <div class="flex items-center justify-between gap-4">
+        <div class="flex flex-wrap items-center gap-4">
 
-            <div class="relative flex-1 min-w-0">
+            <div class="relative min-w-0 flex-1">
 
                 <x-icon
                     name="search"
@@ -243,177 +236,159 @@
                     type="text"
                     x-model="search"
                     placeholder="{{ __('transactions.search_placeholder') }}"
-                    class="w-full rounded-lg border border-line bg-white py-2.5 pl-9 pr-8 text-sm placeholder:text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+                    class="w-full rounded-lg border border-line bg-white py-2.5 pl-9 pr-3 text-sm placeholder:text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
                 >
-
-                <button
-                    type="button"
-                    x-show="search"
-                    x-cloak
-                    x-on:click="search = ''"
-                    class="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-dark p-1"
-                >
-                    <x-icon name="x" size="h-3.5 w-3.5" />
-                </button>
 
             </div>
 
-            <span class="hidden sm:inline-block text-xs text-muted shrink-0" x-text="filtered.length + ' ' + @js(__('transactions.results_count'))"></span>
+            <span class="shrink-0 text-xs text-muted" x-text="filtered.length + ' ' + @js(__('transactions.results_count'))"></span>
 
         </div>
 
-        {{-- Indikator hasil filter/search di mobile hanya muncul jika ada filter aktif --}}
-        <div x-show="hasFilter" x-cloak class="mt-2.5 flex items-center justify-between text-xs text-muted sm:hidden">
-            <span x-text="filtered.length + ' ' + @js(__('transactions.results_count'))"></span>
-            <button type="button" x-on:click="clearFilters()" class="text-brand font-medium">
-                Reset
+
+        <div class="mt-3 flex flex-wrap items-center gap-2 text-sm">
+
+            {{-- All: aktif kalau tidak ada filter, klik untuk reset --}}
+            <button
+                type="button"
+                x-on:click="clearFilters()"
+                class="rounded-lg px-4 py-2 font-medium transition"
+                :class="!hasFilter ? 'bg-dark text-white' : 'border border-line bg-white text-muted hover:bg-page'"
+            >
+                {{ __('transactions.all') }}
             </button>
-        </div>
 
 
-        <div class="mt-4 flex flex-wrap items-center gap-2 text-sm">
+            {{-- Filter Category --}}
+            <div class="relative" x-on:click.outside="open === 'category' && (open = null)">
 
-                {{-- All: aktif kalau tidak ada filter, klik untuk reset --}}
                 <button
                     type="button"
-                    x-on:click="clearFilters()"
-                    class="shrink-0 rounded-lg px-4 py-2 font-medium transition"
-                    :class="!hasFilter ? 'bg-dark text-white' : 'border border-line bg-white text-muted hover:bg-page'"
+                    x-on:click="toggle('category')"
+                    class="flex items-center gap-2 rounded-lg border px-3 py-2 transition"
+                    :class="category ? 'border-brand bg-brand-soft text-brand' : 'border-line bg-white text-muted hover:bg-page'"
                 >
-                    {{ __('transactions.all') }}
+                    <span x-text="category || @js(__('transactions.category'))"></span>
+                    <x-icon name="chevron-down" size="h-4 w-4" />
                 </button>
 
-
-                {{-- Filter Category --}}
-                <div class="relative shrink-0" x-on:click.outside="open === 'category' && (open = null)">
-
+                <div
+                    x-cloak
+                    x-show="open === 'category'"
+                    class="absolute left-0 z-20 mt-2 max-h-72 w-52 overflow-y-auto rounded-xl border border-line bg-white p-1 shadow-lg"
+                >
                     <button
                         type="button"
-                        x-on:click="toggle('category')"
-                        class="flex items-center gap-2 rounded-lg border px-3 py-2 transition"
-                        :class="category ? 'border-brand bg-brand-soft text-brand' : 'border-line bg-white text-muted hover:bg-page'"
+                        x-on:click="category = ''; open = null"
+                        class="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left hover:bg-page"
+                        :class="!category ? 'bg-brand-soft text-brand' : ''"
                     >
-                        <span x-text="category || @js(__('transactions.category'))"></span>
-                        <x-icon name="chevron-down" size="h-4 w-4" />
+                        <span>{{ __('transactions.all_categories') }}</span>
+                        <x-icon name="check" size="h-4 w-4" x-show="!category" x-cloak />
                     </button>
 
-                    <div
-                        x-cloak
-                        x-show="open === 'category'"
-                        class="absolute left-0 z-30 mt-2 max-h-72 w-52 overflow-y-auto rounded-xl border border-line bg-white p-1 shadow-xl"
-                    >
+                    <template x-for="c in allCategories" :key="c.id">
                         <button
                             type="button"
-                            x-on:click="category = ''; open = null"
+                            x-on:click="category = c.name; open = null"
                             class="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left hover:bg-page"
-                            :class="!category ? 'bg-brand-soft text-brand' : ''"
+                            :class="category === c.name ? 'bg-brand-soft text-brand' : ''"
                         >
-                            <span>{{ __('transactions.all_categories') }}</span>
-                            <x-icon name="check" size="h-4 w-4" x-show="!category" x-cloak />
+                            <span x-text="c.name"></span>
+                            <x-icon name="check" size="h-4 w-4" x-show="category === c.name" x-cloak />
                         </button>
-
-                        <template x-for="c in allCategories" :key="c.id">
-                            <button
-                                type="button"
-                                x-on:click="category = c.name; open = null"
-                                class="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left hover:bg-page"
-                                :class="category === c.name ? 'bg-brand-soft text-brand' : ''"
-                            >
-                                <span x-text="c.name"></span>
-                                <x-icon name="check" size="h-4 w-4" x-show="category === c.name" x-cloak />
-                            </button>
-                        </template>
-                    </div>
-
+                    </template>
                 </div>
 
+            </div>
 
-                {{-- Filter Wallet --}}
-                <div class="relative shrink-0" x-on:click.outside="open === 'wallet' && (open = null)">
 
+            {{-- Filter Wallet --}}
+            <div class="relative" x-on:click.outside="open === 'wallet' && (open = null)">
+
+                <button
+                    type="button"
+                    x-on:click="toggle('wallet')"
+                    class="flex items-center gap-2 rounded-lg border px-3 py-2 transition"
+                    :class="wallet ? 'border-brand bg-brand-soft text-brand' : 'border-line bg-white text-muted hover:bg-page'"
+                >
+                    <span x-text="wallet || @js(__('transactions.wallet'))"></span>
+                    <x-icon name="chevron-down" size="h-4 w-4" />
+                </button>
+
+                <div
+                    x-cloak
+                    x-show="open === 'wallet'"
+                    class="absolute left-0 z-20 mt-2 w-44 rounded-xl border border-line bg-white p-1 shadow-lg"
+                >
                     <button
                         type="button"
-                        x-on:click="toggle('wallet')"
-                        class="flex items-center gap-2 rounded-lg border px-3 py-2 transition"
-                        :class="wallet ? 'border-brand bg-brand-soft text-brand' : 'border-line bg-white text-muted hover:bg-page'"
+                        x-on:click="wallet = ''; open = null"
+                        class="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left hover:bg-page"
+                        :class="!wallet ? 'bg-brand-soft text-brand' : ''"
                     >
-                        <span x-text="wallet || @js(__('transactions.wallet'))"></span>
-                        <x-icon name="chevron-down" size="h-4 w-4" />
+                        <span>{{ __('transactions.all_wallets') }}</span>
+                        <x-icon name="check" size="h-4 w-4" x-show="!wallet" x-cloak />
                     </button>
 
-                    <div
-                        x-cloak
-                        x-show="open === 'wallet'"
-                        class="absolute left-0 z-30 mt-2 w-44 rounded-xl border border-line bg-white p-1 shadow-xl sm:left-auto sm:right-0"
-                    >
+                    <template x-for="w in wallets" :key="w.name">
                         <button
                             type="button"
-                            x-on:click="wallet = ''; open = null"
+                            x-on:click="wallet = w.name; open = null"
                             class="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left hover:bg-page"
-                            :class="!wallet ? 'bg-brand-soft text-brand' : ''"
+                            :class="wallet === w.name ? 'bg-brand-soft text-brand' : ''"
                         >
-                            <span>{{ __('transactions.all_wallets') }}</span>
-                            <x-icon name="check" size="h-4 w-4" x-show="!wallet" x-cloak />
+                            <span x-text="w.name"></span>
+                            <x-icon name="check" size="h-4 w-4" x-show="wallet === w.name" x-cloak />
                         </button>
-
-                        <template x-for="w in wallets" :key="w.name">
-                            <button
-                                type="button"
-                                x-on:click="wallet = w.name; open = null"
-                                class="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left hover:bg-page"
-                                :class="wallet === w.name ? 'bg-brand-soft text-brand' : ''"
-                            >
-                                <span x-text="w.name"></span>
-                                <x-icon name="check" size="h-4 w-4" x-show="wallet === w.name" x-cloak />
-                            </button>
-                        </template>
-                    </div>
-
+                    </template>
                 </div>
 
+            </div>
 
-                {{-- Filter Date --}}
-                <div class="relative shrink-0" x-on:click.outside="open === 'date' && (open = null)">
+
+            {{-- Filter Date --}}
+            <div class="relative" x-on:click.outside="open === 'date' && (open = null)">
+
+                <button
+                    type="button"
+                    x-on:click="toggle('date')"
+                    class="flex items-center gap-2 rounded-lg border px-3 py-2 transition"
+                    :class="(dateFrom || dateTo) ? 'border-brand bg-brand-soft text-brand' : 'border-line bg-white text-muted hover:bg-page'"
+                >
+                    <span x-text="(dateFrom || dateTo) ? @js(__('transactions.date_selected')) : @js(__('transactions.date'))"></span>
+                    <x-icon name="chevron-down" size="h-4 w-4" />
+                </button>
+
+                <div
+                    x-cloak
+                    x-show="open === 'date'"
+                    class="absolute left-0 z-20 mt-2 w-64 rounded-xl border border-line bg-white p-4 shadow-lg"
+                >
+                    <label class="block text-xs font-medium text-muted">{{ __('transactions.from') }}</label>
+                    <input
+                        type="date"
+                        x-model="dateFrom"
+                        class="mt-1 w-full rounded-lg border border-line bg-white px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+                    >
+
+                    <label class="mt-3 block text-xs font-medium text-muted">{{ __('transactions.to') }}</label>
+                    <input
+                        type="date"
+                        x-model="dateTo"
+                        class="mt-1 w-full rounded-lg border border-line bg-white px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+                    >
 
                     <button
                         type="button"
-                        x-on:click="toggle('date')"
-                        class="flex items-center gap-2 rounded-lg border px-3 py-2 transition"
-                        :class="(dateFrom || dateTo) ? 'border-brand bg-brand-soft text-brand' : 'border-line bg-white text-muted hover:bg-page'"
+                        x-on:click="dateFrom = ''; dateTo = ''; open = null"
+                        class="mt-3 text-xs font-medium text-brand hover:underline"
                     >
-                        <span x-text="(dateFrom || dateTo) ? @js(__('transactions.date_selected')) : @js(__('transactions.date'))"></span>
-                        <x-icon name="chevron-down" size="h-4 w-4" />
+                        {{ __('transactions.clear_dates') }}
                     </button>
-
-                    <div
-                        x-cloak
-                        x-show="open === 'date'"
-                        class="absolute left-0 z-30 mt-2 w-64 rounded-xl border border-line bg-white p-4 shadow-xl sm:left-auto sm:right-0"
-                    >
-                        <label class="block text-xs font-medium text-muted">{{ __('transactions.from') }}</label>
-                        <input
-                            type="date"
-                            x-model="dateFrom"
-                            class="mt-1 w-full rounded-lg border border-line bg-white px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
-                        >
-
-                        <label class="mt-3 block text-xs font-medium text-muted">{{ __('transactions.to') }}</label>
-                        <input
-                            type="date"
-                            x-model="dateTo"
-                            class="mt-1 w-full rounded-lg border border-line bg-white px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
-                        >
-
-                        <button
-                            type="button"
-                            x-on:click="dateFrom = ''; dateTo = ''; open = null"
-                            class="mt-3 text-xs font-medium text-brand hover:underline"
-                        >
-                            {{ __('transactions.clear_dates') }}
-                        </button>
-                    </div>
-
                 </div>
+
+            </div>
 
         </div>
 
@@ -423,16 +398,16 @@
     {{-- Daftar transaksi per tanggal (hanya halaman yang aktif) --}}
     <template x-for="g in groups" :key="g.date">
 
-        <x-card class="mt-6 px-4 pb-2 pt-5 sm:px-5">
+        <x-card class="mt-6 px-5 pb-2 pt-5">
 
             <div class="flex items-center justify-between">
 
-                <h2 class="text-sm font-semibold sm:text-base" x-text="g.label"></h2>
+                <h2 class="font-semibold" x-text="g.label"></h2>
 
                 <span
-                    class="text-sm font-medium"
+                    class="text-sm"
                     :class="g.total < 0 ? 'text-muted' : 'text-income'"
-                    x-text="(window.financeMoney.compare(g.total, '0') < 0 ? '-' : '+') + rp(g.total)"
+                    x-text="(g.total < 0 ? '-' : '+') + rp(g.total)"
                 ></span>
 
             </div>
@@ -440,53 +415,31 @@
 
             <template x-for="t in g.items" :key="t.id">
 
-                <div class="mt-4 flex items-center justify-between gap-3 border-b border-line pb-4 sm:mt-3 sm:gap-4 sm:pb-3">
+                <div class="mt-3 flex items-start gap-3 border-b border-line pb-3 sm:items-center sm:gap-4">
 
-                    <div class="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
-                        {{-- Ikon --}}
-                        <span
-                            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
-                            :class="boxClass(t.type)"
-                        >
-                            <x-icon name="utensils" size="h-4 w-4" x-show="iconFor(t) === 'utensils'" />
-                            <x-icon name="landmark" size="h-4 w-4" x-show="iconFor(t) === 'landmark'" x-cloak />
-                            <x-icon name="car" size="h-4 w-4" x-show="iconFor(t) === 'car'" x-cloak />
-                            <x-icon name="film" size="h-4 w-4" x-show="iconFor(t) === 'film'" x-cloak />
-                            <x-icon name="briefcase" size="h-4 w-4" x-show="iconFor(t) === 'briefcase'" x-cloak />
-                            <x-icon name="shopping-bag" size="h-4 w-4" x-show="iconFor(t) === 'shopping-bag'" x-cloak />
-                            <x-icon name="transfer" size="h-4 w-4" x-show="iconFor(t) === 'transfer'" x-cloak />
-                            <x-icon name="smartphone" size="h-4 w-4" x-show="iconFor(t) === 'smartphone'" x-cloak />
-                            <x-icon name="banknote" size="h-4 w-4" x-show="iconFor(t) === 'banknote'" x-cloak />
-                            <x-icon name="wallet" size="h-4 w-4" x-show="iconFor(t) === 'wallet'" x-cloak />
-                            <x-icon name="dollar" size="h-4 w-4" x-show="iconFor(t) === 'dollar'" x-cloak />
-                            <x-icon name="target" size="h-4 w-4" x-show="iconFor(t) === 'target'" x-cloak />
-                            <x-icon name="user" size="h-4 w-4" x-show="iconFor(t) === 'user'" x-cloak />
-                            <x-icon name="shield" size="h-4 w-4" x-show="iconFor(t) === 'shield'" x-cloak />
-                            <x-icon name="settings" size="h-4 w-4" x-show="iconFor(t) === 'settings'" x-cloak />
-                            <x-icon name="bell" size="h-4 w-4" x-show="iconFor(t) === 'bell'" x-cloak />
-                        </span>
+                    {{-- Ikon --}}
+                    <span
+                        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+                        :class="boxClass(t.type)"
+                    >
+                        <x-icon name="utensils" size="h-4 w-4" x-show="iconFor(t) === 'utensils'" />
+                        <x-icon name="landmark" size="h-4 w-4" x-show="iconFor(t) === 'landmark'" x-cloak />
+                        <x-icon name="car" size="h-4 w-4" x-show="iconFor(t) === 'car'" x-cloak />
+                        <x-icon name="film" size="h-4 w-4" x-show="iconFor(t) === 'film'" x-cloak />
+                        <x-icon name="briefcase" size="h-4 w-4" x-show="iconFor(t) === 'briefcase'" x-cloak />
+                        <x-icon name="shopping-bag" size="h-4 w-4" x-show="iconFor(t) === 'shopping-bag'" x-cloak />
+                        <x-icon name="transfer" size="h-4 w-4" x-show="iconFor(t) === 'transfer'" x-cloak />
+                        <x-icon name="smartphone" size="h-4 w-4" x-show="iconFor(t) === 'smartphone'" x-cloak />
+                        <x-icon name="banknote" size="h-4 w-4" x-show="iconFor(t) === 'banknote'" x-cloak />
+                    </span>
 
-                        <div class="min-w-0 flex-1">
-                            {{-- Nama --}}
-                            <p class="truncate font-medium leading-tight" x-text="t.name"></p>
+                    {{-- Nama + chip dibungkus agar di mobile menumpuk, di desktop sejajar --}}
+                    <div class="min-w-0 flex-1">
+                        <p class="font-medium" x-text="t.name"></p>
 
-                            {{-- Mobile Categories/Tags --}}
-                            <div class="mt-1 flex flex-wrap items-center gap-1.5 sm:hidden">
-                                <span
-                                    class="truncate rounded-full px-2 py-0.5 text-[10px] font-medium"
-                                    :class="t.type === 'income' ? 'bg-income-soft text-income' : 'bg-gray-100 text-muted'"
-                                    x-text="t.category"
-                                ></span>
-                                <span
-                                    class="truncate rounded-full bg-brand-soft px-2 py-0.5 text-[10px] font-medium text-brand"
-                                    x-text="t.wallet"
-                                ></span>
-                            </div>
-                        </div>
-                    </div>
+                        {{-- Chip kategori + dompet --}}
+                        <div class="mt-1 flex flex-wrap items-center gap-2 sm:mt-0">
 
-                    {{-- Category + Wallet chips (Desktop) --}}
-                    <div class="hidden shrink-0 items-center gap-2 md:flex">
                         <span
                             class="rounded-full px-2.5 py-1 text-xs font-medium"
                             :class="t.type === 'income' ? 'bg-income-soft text-income' : 'bg-gray-100 text-muted'"
@@ -500,25 +453,28 @@
 
                         <template x-if="t.type === 'transfer' && t.to">
                             <div class="flex items-center gap-2">
-                                <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-ink">
+
+                                <span class="flex h-6 w-6 items-center justify-center rounded-full border border-ink">
                                     <x-icon name="arrow-right" size="h-3 w-3" />
                                 </span>
+
                                 <span
                                     class="rounded-full bg-brand-soft px-2.5 py-1 text-xs font-medium text-brand"
                                     x-text="t.to"
                                 ></span>
+
                             </div>
                         </template>
+
+                        </div>
                     </div>
 
                     {{-- Nominal --}}
-                    <div class="shrink-0 text-right">
-                        <p
-                            class="truncate text-sm font-semibold sm:w-32 sm:text-base"
-                            :class="amountClass(t.type, t.jenis)"
-                            x-text="sign(t.type, t.jenis) + rp(t.amount)"
-                        ></p>
-                    </div>
+                    <p
+                        class="w-28 shrink-0 text-right text-base font-semibold sm:w-36 sm:text-lg"
+                        :class="amountClass(t.type, t.jenis)"
+                        x-text="sign(t.type, t.jenis) + rp(t.amount)"
+                    ></p>
 
                 </div>
 
@@ -538,55 +494,41 @@
 
 
     {{-- Pagination --}}
-    <div class="mt-6 flex flex-col items-center justify-between gap-4 text-sm sm:flex-row">
+    <div class="mt-6 flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
 
-        <span class="text-muted text-center sm:text-left" x-text="rangeText"></span>
+        <span class="text-muted" x-text="rangeText"></span>
 
-        <div class="w-full sm:w-auto">
+        <div class="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
 
-            {{-- Desktop Pagination --}}
-            <div class="hidden sm:flex flex-wrap items-center justify-center gap-2">
+            <x-button
+                variant="outline"
+                x-on:click="prev()"
+                x-bind:disabled="page === 1"
+                class="disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+            >
+                {{ __('transactions.previous') }}
+            </x-button>
 
-                <x-button
-                    variant="outline"
-                    x-on:click="prev()"
-                    x-bind:disabled="page === 1"
-                    class="px-3 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
-                >
-                    {{ __('transactions.previous') }}
-                </x-button>
+            <template x-for="n in pageNumbers" :key="n">
+                <button
+                    type="button"
+                    x-on:click="goTo(n)"
+                    class="flex h-9 w-9 items-center justify-center rounded-lg text-sm transition"
+                    :class="n === page
+                        ? 'bg-dark font-medium text-white'
+                        : 'border border-line bg-white text-muted hover:bg-page'"
+                    x-text="n"
+                ></button>
+            </template>
 
-                <template x-for="n in pageNumbers" :key="n">
-                    <button
-                        type="button"
-                        x-on:click="goTo(n)"
-                        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sm transition"
-                        :class="n === page
-                            ? 'bg-dark font-medium text-white'
-                            : 'border border-line bg-white text-muted hover:bg-page'"
-                        x-text="n"
-                    ></button>
-                </template>
-
-                <x-button
-                    variant="outline"
-                    x-on:click="next()"
-                    x-bind:disabled="page === totalPages"
-                    class="px-3 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
-                >
-                    {{ __('transactions.next') }}
-                </x-button>
-
-            </div>
-
-            {{-- Mobile Pagination (Dots) --}}
-            <div class="flex sm:hidden items-center justify-center gap-1.5 overflow-x-auto py-2 snap-x hide-scrollbar">
-                <template x-for="n in pageNumbers" :key="n">
-                    <button type="button" x-on:click="goTo(n)"
-                            class="h-2 shrink-0 rounded-full transition-all duration-300 snap-center"
-                            :class="n === page ? 'w-4 bg-brand' : 'w-2 bg-gray-200'"></button>
-                </template>
-            </div>
+            <x-button
+                variant="outline"
+                x-on:click="next()"
+                x-bind:disabled="page === totalPages"
+                class="disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+            >
+                {{ __('transactions.next') }}
+            </x-button>
 
         </div>
 

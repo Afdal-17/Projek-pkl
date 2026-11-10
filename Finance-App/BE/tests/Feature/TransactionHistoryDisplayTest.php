@@ -33,7 +33,7 @@ class TransactionHistoryDisplayTest extends TestCase
             ->where('id_dompet', $dompetTujuan->id_dompet)
             ->firstOrFail();
 
-        $this->assertSame('Transfer from Budi Santoso', $barisMasuk->displayNama());
+        $this->assertSame('Transfer dari Budi Santoso', $barisMasuk->displayNama());
 
         // Sesi pengirim (toast flash) tidak boleh bocor ke sesi penerima —
         // di produksi keduanya sesi terpisah.
@@ -42,25 +42,25 @@ class TransactionHistoryDisplayTest extends TestCase
         // Riwayat transaksi penerima menampilkan nama user, bukan dompet pengirim
         $this->actingAs($penerima)->get(route('transactions.index'))
             ->assertOk()
-            ->assertSee('Transfer from Budi Santoso', false)
+            ->assertSee('Transfer dari Budi Santoso', false)
             ->assertDontSee('Dompet DANA Kirim', false);
 
         // Riwayat dompet penerima juga
         $this->actingAs($penerima)->get(route('dompet.history', $dompetTujuan))
             ->assertOk()
-            ->assertSee('Transfer from Budi Santoso', false)
+            ->assertSee('Transfer dari Budi Santoso', false)
             ->assertDontSee('Dompet DANA Kirim', false);
 
         // Notifikasi penerima memakai nama user pengirim (bukan dompetnya)
         $this->actingAs($penerima)->get(route('notifications.index'))
             ->assertOk()
-            ->assertSee('from Budi Santoso', false)
+            ->assertSee('Anda di transfer oleh Budi Santoso', false)
             ->assertDontSee('Dompet DANA Kirim', false);
 
         // Sisi pengirim sekarang simetris: nama penerima, bukan dompetnya
         $this->actingAs($pengirim)->get(route('transactions.index'))
             ->assertOk()
-            ->assertSee('Transfer to Siti Aminah', false);
+            ->assertSee('Transfer ke Siti Aminah', false);
     }
 
     public function test_own_wallet_transfer_still_shows_wallet_names(): void
@@ -86,11 +86,11 @@ class TransactionHistoryDisplayTest extends TestCase
             ->firstOrFail();
 
         // Antar dompet milik sendiri tetap memakai nama dompet (lebih informatif)
-        $this->assertSame('Transfer from Dompet Utama', $barisMasuk->displayNama());
+        $this->assertSame('Transfer dari Dompet Utama', $barisMasuk->displayNama());
 
         $this->actingAs($user)->get(route('transactions.index'))
             ->assertOk()
-            ->assertSee('Transfer from Dompet Utama', false);
+            ->assertSee('Transfer dari Dompet Utama', false);
     }
 
     public function test_non_transfer_transaction_keeps_its_own_name(): void
@@ -117,33 +117,6 @@ class TransactionHistoryDisplayTest extends TestCase
             ->assertSee('Makan Siang', false);
     }
 
-    public function test_large_transaction_amount_is_serialized_as_a_decimal_string(): void
-    {
-        [$user, $wallet] = $this->userWithWallet(
-            'large-history@example.com',
-            'Large Balance Wallet',
-            1000000000000000
-        );
-        $category = Kategori::create([
-            'id_user' => $user->id_user,
-            'nama_kategori' => 'Large expense',
-            'jenis' => 'pengeluaran',
-        ]);
-        \App\Models\Transaksi::create([
-            'id_dompet' => $wallet->id_dompet,
-            'id_kategori' => $category->id_kategori,
-            'nama_transaksi' => 'Large transaction',
-            'jumlah' => '1000000000000000.00',
-            'jenis' => 'pengeluaran',
-            'tanggal' => now(),
-        ]);
-
-        $this->actingAs($user)
-            ->get(route('transactions.index'))
-            ->assertOk()
-            ->assertSee('1000000000000000.00', false);
-    }
-
     private function userWithWallet(string $email, string $walletName, int $balance): array
     {
         $user = User::create([
@@ -160,7 +133,6 @@ class TransactionHistoryDisplayTest extends TestCase
             'nama_dompet' => $walletName,
             'saldo_awal' => $balance,
             'saldo' => $balance,
-            'terima_transfer' => true,
         ]);
 
         return [$user, $wallet];

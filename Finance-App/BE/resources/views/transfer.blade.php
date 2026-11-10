@@ -14,7 +14,7 @@
         window.Alpine.data('transferForm', () => ({
         mode: 'wallet',
         from: @js((string) ($wallets->first()['id'] ?? '')),
-        to: @js((string) ($wallets->count() > 1 ? ($wallets->skip(1)->first()['id'] ?? '') : '')),
+        to: @js((string) ($wallets->skip(1)->first()['id'] ?? $wallets->first()['id'] ?? '')),
         userQuery: '',
         recipient: null,
         recipientWalletId: '',
@@ -23,7 +23,6 @@
         saving: false,
         amount: '',
         amountDisplay: '',
-        pendingIdempotencyKeys: {},
         wallets: @js($wallets),
         csrfToken: @js(csrf_token()),
 
@@ -32,7 +31,7 @@
         },
 
         get fromBalance() {
-            return this.fromWallet?.balance ?? '0';
+            return Number(this.fromWallet?.balance ?? 0);
         },
 
         get fromLabel() {
@@ -47,31 +46,9 @@
             return this.recipient?.wallets.find(w => String(w.id) === String(this.recipientWalletId)) ?? null;
         },
 
-        translateTransferError(message, field = null) {
-            const translations = {
-                'Insufficient balance in source wallet.': 'There is not enough balance in the source wallet.',
-                'Destination wallet must be different from source wallet.': 'Choose a destination wallet different from the source wallet.',
-                'Recipient account is suspended and cannot receive transfers.': 'The recipient account is suspended and cannot receive transfers.',
-                'Recipient account is inactive or unverified.': 'The recipient account is inactive or has not been verified.',
-                'Recipient wallet is not enabled to receive transfers.': 'The recipient wallet is not enabled to receive transfers.',
-                'Destination wallet is not enabled to receive transfers.': 'The destination wallet is not enabled to receive transfers.',
-                'Sender wallet not found.': 'The source wallet could not be found.',
-                'Converted amount exceeds the maximum supported limit.': 'The converted amount exceeds the supported limit.',
-                'This idempotency key was already used for a different transfer request.': 'This request key was already used for different transfer details.',
-            };
-            const fieldMessages = {
-                jumlah: 'Enter a valid transfer amount and decimal format.',
-                id_dompet_asal: 'The source wallet is invalid or does not belong to you.',
-                id_dompet_tujuan: 'The destination wallet is invalid or cannot receive transfers.',
-                tanggal_transfer: 'Enter a valid transfer date.',
-            };
-
-            return translations[message] ?? fieldMessages[field] ?? message;
-        },
-
         get formattedAmount() {
             // this.amount adalah input user dalam mata uang aktif
-            return window.financeMoney.formatNative(this.amount || '0');
+            return window.financeMoney.formatNative(Number(this.amount) || 0);
         },
 
         formatAmount(value) {
@@ -81,41 +58,6 @@
 
             this.amount = result.value;
             this.amountDisplay = result.display;
-        },
-
-        idempotencyFor(fingerprint) {
-            const storageKey = 'finance.transfer.idempotency.' + encodeURIComponent(fingerprint);
-
-            try {
-                let key = sessionStorage.getItem(storageKey);
-
-                if (!key) {
-                    key = (window.crypto && window.crypto.randomUUID)
-                        ? window.crypto.randomUUID()
-                        : ('tx_' + Date.now() + '_' + Math.random().toString(36).substring(2));
-                    sessionStorage.setItem(storageKey, key);
-                }
-
-                this.pendingIdempotencyKeys[fingerprint] = key;
-                return { key, storageKey };
-            } catch (error) {
-                if (this.pendingIdempotencyKeys[fingerprint]) {
-                    return {
-                        key: this.pendingIdempotencyKeys[fingerprint],
-                        storageKey: null,
-                    };
-                }
-
-                throw new Error('Browser storage is unavailable; the transfer was not sent.');
-            }
-        },
-
-        clearIdempotency(fingerprint, key, storageKey) {
-            if (storageKey && sessionStorage.getItem(storageKey) === key) {
-                sessionStorage.removeItem(storageKey);
-            }
-
-            delete this.pendingIdempotencyKeys[fingerprint];
         },
 
         toggleMode() {
@@ -172,70 +114,42 @@
         async saveTransfer() {
             if (this.saving) return;
 
-            const amount = this.amount;
+            const amount = Number(this.amount);
             const amountInBase = window.financeMoney.toBase(amount);
             let targetWalletId = this.to;
 
-            if (window.financeMoney.compare(amount, '0.00') <= 0) {
-                window.financeAlert({
-                    title: 'Invalid Amount',
-                    message: 'Amount must be greater than 0.',
-                    variant: 'danger',
-                });
+            if (!amount || amount <= 0) {
+                alert('Amount harus lebih dari 0.');
                 return;
             }
 
             if (this.mode === 'wallet' && !targetWalletId) {
-                window.financeAlert({
-                    title: 'Destination Required',
-                    message: 'Please select a destination wallet.',
-                    variant: 'danger',
-                });
+                alert('Pilih tujuan transfer.');
                 return;
             }
 
             if (this.mode === 'user' && !this.recipient) {
-                window.financeAlert({
-                    title: 'Recipient Required',
-                    message: 'Please search and verify the recipient first.',
-                    variant: 'danger',
-                });
+                alert('Cari dan verifikasi penerima terlebih dahulu.');
                 return;
             }
 
             if (this.mode === 'user' && this.recipient?.is_banned) {
-                window.financeAlert({
-                    title: 'Recipient Suspended',
-                    message: 'The recipient account is currently suspended and cannot receive transfers.',
-                    variant: 'danger',
-                });
+                alert('Penerima sedang diblokir dan tidak dapat menerima transfer.');
                 return;
             }
 
             if (this.mode === 'user' && !this.recipientWalletId) {
-                window.financeAlert({
-                    title: 'Recipient Wallet Required',
-                    message: 'Please select the recipient destination wallet.',
-                    variant: 'danger',
-                });
+                alert('Pilih dompet tujuan penerima.');
                 return;
             }
 
             if (this.mode === 'wallet' && String(this.from) === String(this.to)) {
-                window.financeAlert({
-                    title: 'Same Wallet Selected',
-                    message: 'Source and destination wallets cannot be the same.',
-                    variant: 'danger',
-                });
+                alert('Wallet asal dan tujuan tidak boleh sama.');
                 return;
             }
 
-            if (window.financeMoney.compare(amountInBase, this.fromBalance) > 0) {
-                window.financeAlert({
-                    title: 'Insufficient Balance',
-                    message: 'There is not enough balance in the source wallet for this transfer.',
-                    variant: 'danger',
-                });
+            if (amountInBase > this.fromBalance) {
+                alert('Saldo wallet tidak cukup.');
                 return;
             }
 
@@ -243,32 +157,12 @@
                 targetWalletId = this.recipientWalletId;
             }
 
-            const transferDate = new Date().toLocaleDateString('en-CA');
-            const fingerprint = JSON.stringify([
-                String(this.from),
-                String(targetWalletId),
-                String(amount),
-            ]);
-            let idempotency;
-
-            try {
-                idempotency = this.idempotencyFor(fingerprint);
-            } catch (error) {
-                window.financeAlert({
-                    title: 'Transfer Not Sent',
-                    message: error.message,
-                    variant: 'danger',
-                });
-                return;
-            }
-
             const payload = new URLSearchParams({
                 _token: this.csrfToken,
                 id_dompet_asal: String(this.from),
                 id_dompet_tujuan: String(targetWalletId),
-                jumlah: amount,
-                tanggal_transfer: transferDate,
-                idempotency_key: idempotency.key,
+                jumlah: String(amount),
+                tanggal_transfer: new Date().toLocaleDateString('en-CA'),
             });
 
             this.saving = true;
@@ -276,68 +170,25 @@
             try {
                 const response = await fetch(@js(route('transfer.store')), {
                     method: 'POST',
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
+                    headers: { 'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
                     body: payload,
                 });
 
                 if (!response.ok) {
-                    let result = {};
-                    let errorMessage = 'Transfer could not be processed. Please try again.';
-
-                    try {
-                        result = await response.json();
-                        const firstErrorField = Object.keys(result.errors ?? {})[0];
-                        const firstError = Object.values(result.errors ?? {}).flat()[0]
-                            ?? result.message
-                            ?? null;
-                        if (firstError) errorMessage = this.translateTransferError(firstError, firstErrorField);
-                    } catch (e) {
-                        // Respons server bukan JSON (mis. 500 server error).
-                        if (response.status === 422) {
-                            errorMessage = 'The transfer data is invalid. Check the amount and selected wallets.';
-                        } else if (response.status === 403) {
-                            errorMessage = 'You are not authorized to perform this transfer.';
-                        } else if (response.status === 500) {
-                            errorMessage = 'A server error occurred. Please try again later.';
-                        }
-                    }
-
-                    if (
-                        response.status === 422
-                        && errorMessage.includes('This transfer was already completed')
-                    ) {
-                        this.clearIdempotency(fingerprint, idempotency.key, idempotency.storageKey);
-                        window.location.href = '/transactions';
-                        return;
-                    }
-
-                    window.financeAlert({
-                        title: 'Transfer Failed',
-                        message: errorMessage,
-                        variant: 'danger',
-                        icon: 'transfer',
-                    });
-
+                    const result = await response.json();
+                    alert(Object.values(result.errors ?? {}).flat()[0] ?? 'Transfer tidak dapat diproses.');
                     return;
                 }
 
-                this.clearIdempotency(fingerprint, idempotency.key, idempotency.storageKey);
                 window.location.href = '/transactions';
             } catch (e) {
-                window.financeAlert({
-                    title: 'Connection Error',
-                    message: 'Connection problem. We could not confirm whether the transfer completed. Retry with the same details; the request key will prevent a duplicate.',
-                    variant: 'danger',
-                });
+                alert('Koneksi bermasalah — transfer tidak terkirim. Silakan coba lagi.');
             } finally {
                 this.saving = false;
             }
-                    },
-                    }));
-                });
+        }
+        }));
+    });
 </script>
 
     {{-- Header --}}
@@ -351,7 +202,7 @@
     <div class="mt-8 grid gap-6 lg:grid-cols-[2fr_1.2fr]">
 
         {{-- FORM --}}
-        <x-card class="p-4 sm:p-8">
+        <x-card class="p-8">
 
             {{-- Label + tombol ganti mode --}}
             <div class="flex items-center justify-between">
@@ -373,72 +224,24 @@
 
 
             {{-- Dari ... ke ... --}}
-            <div class="mt-2 flex min-w-0 flex-col gap-3 rounded-xl bg-page p-2 sm:flex-row sm:items-center">
+            <div class="mt-2 flex flex-col gap-3 rounded-xl bg-page p-2 sm:flex-row sm:items-center">
 
                 {{-- Dari wallet --}}
-                <div
-                    class="relative flex-1 min-w-0"
-                    x-data="{
-                        open: false,
-                        dropUp: false,
-                        toggle(el) {
-                            this.open = !this.open;
-                            if (this.open) {
-                                const rect = el.getBoundingClientRect();
-                                this.dropUp = (window.innerHeight - rect.bottom) < 260;
-                            }
-                        }
-                    }"
-                    @click.outside="open = false"
-                    @keydown.escape.window="open = false"
-                >
-                    <button
-                        type="button"
-                        @click="toggle($el)"
-                        class="flex w-full items-center justify-between rounded-lg border border-line bg-white py-2.5 pl-9 pr-3 text-sm text-left shadow-sm transition hover:border-brand/40 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 cursor-pointer"
-                        :class="open ? 'border-brand ring-2 ring-brand/20' : ''"
-                    >
-                        <x-icon name="wallet" size="h-4 w-4"
-                            class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-                        <span class="truncate font-medium text-ink" x-text="fromLabel"></span>
-                        <x-icon name="chevron-down" size="h-4 w-4" class="text-muted shrink-0 transition-transform duration-200" x-bind:class="open ? 'rotate-180' : ''" />
-                    </button>
+                <div class="relative flex-1">
+                    <x-icon name="wallet" size="h-4 w-4"
+                        class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
 
-                    <div
-                        x-show="open"
-                        x-cloak
-                        x-transition:enter="transition ease-out duration-150"
-                        x-transition:enter-start="opacity-0 scale-95"
-                        x-transition:enter-end="opacity-100 scale-100"
-                        x-transition:leave="transition ease-in duration-100"
-                        x-transition:leave-start="opacity-100 scale-100"
-                        x-transition:leave-end="opacity-0 scale-95"
-                        class="absolute left-0 right-0 z-50 max-h-60 overflow-y-auto rounded-xl border border-line bg-white p-1.5 shadow-2xl ring-1 ring-black/5"
-                        :class="dropUp ? 'bottom-full mb-2 origin-bottom' : 'top-full mt-2 origin-top'"
+                    <select
+                        x-model="from"
+                        class="w-full appearance-none rounded-lg border border-line bg-white py-2.5 pl-9 pr-9 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
                     >
-                        <div class="space-y-0.5">
-                            <template x-for="item in wallets" :key="item.name">
-                                <button
-                                    type="button"
-                                    @click="from = item.id; open = false"
-                                    class="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-sm transition text-left cursor-pointer"
-                                    :class="String(from) === String(item.id) ? 'bg-brand-soft text-brand font-semibold' : 'text-ink hover:bg-page font-medium'"
-                                >
-                                    <span x-text="item.name" class="truncate"></span>
-                                    <div class="flex items-center gap-1.5 shrink-0">
-                                        <span class="text-xs text-muted" x-text="window.financeMoney.format(item.balance)"></span>
-                                        <x-icon x-show="String(from) === String(item.id)" name="check" size="h-4 w-4" class="text-brand" />
-                                    </div>
-                                </button>
-                            </template>
-                        </div>
-                    </div>
-
-                    <select x-model="from" class="sr-only" tabindex="-1" aria-hidden="true">
                         <template x-for="item in wallets" :key="item.name">
                             <option :value="item.id" :selected="String(item.id) === String(from)" x-text="item.name"></option>
                         </template>
                     </select>
+
+                    <x-icon name="chevron-down" size="h-4 w-4"
+                        class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted" />
                 </div>
 
                 {{-- Penghubung --}}
@@ -450,74 +253,25 @@
                 </div>
 
                 {{-- Tujuan: wallet --}}
-                <div
-                    class="relative flex-1 min-w-0"
-                    x-show="mode === 'wallet'"
-                    x-data="{
-                        open: false,
-                        dropUp: false,
-                        toggle(el) {
-                            this.open = !this.open;
-                            if (this.open) {
-                                const rect = el.getBoundingClientRect();
-                                this.dropUp = (window.innerHeight - rect.bottom) < 260;
-                            }
-                        }
-                    }"
-                    @click.outside="open = false"
-                    @keydown.escape.window="open = false"
-                >
-                    <button
-                        type="button"
-                        @click="toggle($el)"
-                        class="flex w-full items-center justify-between rounded-lg border border-line bg-white py-2.5 pl-9 pr-3 text-sm text-left shadow-sm transition hover:border-brand/40 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 cursor-pointer"
-                        :class="open ? 'border-brand ring-2 ring-brand/20' : ''"
-                    >
-                        <x-icon name="wallet" size="h-4 w-4"
-                            class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-                        <span class="truncate font-medium text-ink" x-text="wallets.find(w => String(w.id) === String(to))?.name ?? 'Select wallet'"></span>
-                        <x-icon name="chevron-down" size="h-4 w-4" class="text-muted shrink-0 transition-transform duration-200" x-bind:class="open ? 'rotate-180' : ''" />
-                    </button>
+                <div class="relative flex-1" x-show="mode === 'wallet'">
+                    <x-icon name="wallet" size="h-4 w-4"
+                        class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
 
-                    <div
-                        x-show="open"
-                        x-cloak
-                        x-transition:enter="transition ease-out duration-150"
-                        x-transition:enter-start="opacity-0 scale-95"
-                        x-transition:enter-end="opacity-100 scale-100"
-                        x-transition:leave="transition ease-in duration-100"
-                        x-transition:leave-start="opacity-100 scale-100"
-                        x-transition:leave-end="opacity-0 scale-95"
-                        class="absolute left-0 right-0 z-50 max-h-60 overflow-y-auto rounded-xl border border-line bg-white p-1.5 shadow-2xl ring-1 ring-black/5"
-                        :class="dropUp ? 'bottom-full mb-2 origin-bottom' : 'top-full mt-2 origin-top'"
+                    <select
+                        x-model="to"
+                        class="w-full appearance-none rounded-lg border border-line bg-white py-2.5 pl-9 pr-9 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
                     >
-                        <div class="space-y-0.5">
-                            <template x-for="item in wallets" :key="item.name">
-                                <button
-                                    type="button"
-                                    @click="to = item.id; open = false"
-                                    class="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-sm transition text-left cursor-pointer"
-                                    :class="String(to) === String(item.id) ? 'bg-brand-soft text-brand font-semibold' : 'text-ink hover:bg-page font-medium'"
-                                >
-                                    <span x-text="item.name" class="truncate"></span>
-                                    <div class="flex items-center gap-1.5 shrink-0">
-                                        <span class="text-xs text-muted" x-text="window.financeMoney.format(item.balance)"></span>
-                                        <x-icon x-show="String(to) === String(item.id)" name="check" size="h-4 w-4" class="text-brand" />
-                                    </div>
-                                </button>
-                            </template>
-                        </div>
-                    </div>
-
-                    <select x-model="to" class="sr-only" tabindex="-1" aria-hidden="true">
                         <template x-for="item in wallets" :key="item.name">
                             <option :value="item.id" :selected="String(item.id) === String(to)" x-text="item.name"></option>
                         </template>
                     </select>
+
+                    <x-icon name="chevron-down" size="h-4 w-4"
+                        class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted" />
                 </div>
 
                 {{-- Tujuan: user --}}
-                <div class="relative min-w-0 flex-1" x-show="mode === 'user'" x-cloak>
+                <div class="relative flex-1" x-show="mode === 'user'" x-cloak>
                     <x-icon name="user" size="h-4 w-4"
                         class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-brand" />
 
@@ -525,7 +279,7 @@
                         type="text"
                         x-model="userQuery"
                         x-on:input.debounce.300ms="searchUsers()"
-                        placeholder="Search username or email"
+                        placeholder="Seacrh username/email"
                         class="w-full rounded-full border border-line bg-white py-2.5 pl-9 pr-9 text-sm placeholder:text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
                     >
 
@@ -589,70 +343,23 @@
                     </div>
 
                     {{-- Pilih dompet penerima --}}
-                    <div x-show="!recipient?.is_banned" class="mt-3 flex flex-col sm:flex-row sm:items-center gap-2">
-                        <label class="shrink-0 text-xs font-medium text-muted sm:w-28">Destination wallet</label>
-                        <div
-                            class="relative w-full sm:flex-1 min-w-0"
-                            x-data="{
-                                open: false,
-                                dropUp: false,
-                                toggle(el) {
-                                    this.open = !this.open;
-                                    if (this.open) {
-                                        const rect = el.getBoundingClientRect();
-                                        this.dropUp = (window.innerHeight - rect.bottom) < 220;
-                                    }
-                                }
-                            }"
-                            @click.outside="open = false"
-                            @keydown.escape.window="open = false"
-                        >
-                            <button
-                                type="button"
-                                @click="toggle($el)"
-                                class="flex w-full items-center justify-between rounded-lg border border-line bg-white py-2 pl-9 pr-3 text-sm text-left shadow-sm transition hover:border-brand/40 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 cursor-pointer"
-                                :class="open ? 'border-brand ring-2 ring-brand/20' : ''"
-                            >
-                                <x-icon name="wallet" size="h-4 w-4"
-                                    class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-brand" />
-                                <span class="truncate font-medium text-ink" x-text="recipient?.wallets?.find(w => String(w.id) === String(recipientWalletId))?.name ?? 'Select destination wallet'"></span>
-                                <x-icon name="chevron-down" size="h-4 w-4" class="text-muted shrink-0 transition-transform duration-200" x-bind:class="open ? 'rotate-180' : ''" />
-                            </button>
+                    <div x-show="!recipient?.is_banned" class="mt-3 flex items-center gap-2">
+                        <label class="shrink-0 text-xs font-medium text-muted">Destination wallet</label>
+                        <div class="relative flex-1">
+                            <x-icon name="wallet" size="h-4 w-4"
+                                class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-brand" />
 
-                            <div
-                                x-show="open"
-                                x-cloak
-                                x-transition:enter="transition ease-out duration-150"
-                                x-transition:enter-start="opacity-0 scale-95"
-                                x-transition:enter-end="opacity-100 scale-100"
-                                x-transition:leave="transition ease-in duration-100"
-                                x-transition:leave-start="opacity-100 scale-100"
-                                x-transition:leave-end="opacity-0 scale-95"
-                                class="absolute left-0 right-0 z-50 max-h-60 overflow-y-auto rounded-xl border border-line bg-white p-1.5 shadow-2xl ring-1 ring-black/5"
-                                :class="dropUp ? 'bottom-full mb-2 origin-bottom' : 'top-full mt-2 origin-top'"
+                            <select
+                                x-model="recipientWalletId"
+                                class="w-full appearance-none rounded-lg border border-line bg-white py-2 pl-9 pr-9 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
                             >
-                                <div class="space-y-0.5">
-                                    <template x-for="w in recipient?.wallets ?? []" :key="w.id">
-                                        <button
-                                            type="button"
-                                            @click="recipientWalletId = String(w.id); open = false"
-                                            class="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-sm transition text-left cursor-pointer"
-                                            :class="String(recipientWalletId) === String(w.id) ? 'bg-brand-soft text-brand font-semibold' : 'text-ink hover:bg-page font-medium'"
-                                        >
-                                            <span x-text="w.name" class="truncate font-medium"></span>
-                                            <div class="flex items-center gap-1.5 shrink-0">
-                                                <x-icon x-show="String(recipientWalletId) === String(w.id)" name="check" size="h-4 w-4" class="text-brand" />
-                                            </div>
-                                        </button>
-                                    </template>
-                                </div>
-                            </div>
-
-                            <select x-model="recipientWalletId" class="sr-only" tabindex="-1" aria-hidden="true">
                                 <template x-for="w in recipient?.wallets ?? []" :key="w.id">
-                                    <option :value="String(w.id)" :selected="String(w.id) === String(recipientWalletId)" x-text="w.name"></option>
+                                    <option :value="String(w.id)" x-text="w.name"></option>
                                 </template>
                             </select>
+
+                            <x-icon name="chevron-down" size="h-4 w-4"
+                                class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted" />
                         </div>
                     </div>
                 </div>
@@ -668,16 +375,15 @@
                 </div>
 
                 <div class="relative">
-                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-base sm:text-lg font-semibold text-muted" x-text="window.financeMoney.symbol"></span>
+                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-semibold text-muted" x-text="window.financeMoney.symbol"></span>
 
                     <input
                         id="amount"
                         type="text"
-                        inputmode="decimal"
                         x-model="amountDisplay"
                         x-on:input="formatAmount($event.target.value)"
                         x-on:focus="$event.target.select()"
-                        class="w-full rounded-lg border border-line bg-white py-3 pl-12 pr-4 text-xl sm:text-2xl font-semibold focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+                        class="w-full rounded-lg border border-line bg-white py-3 pl-12 pr-4 text-2xl font-semibold focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
                         placeholder="0"
                     >
                 </div>
@@ -699,7 +405,7 @@
             <div class="mt-6 flex justify-end gap-3">
                 <x-button href="/transactions" variant="outline">Cancel</x-button>
                 <x-button x-on:click="saveTransfer()" x-bind:disabled="saving">
-                    <span x-text="saving ? 'Processing...' : 'Transfer'"></span>
+                    <span x-text="saving ? 'Memproses...' : 'Transfer'"></span>
                 </x-button>
             </div>
 
@@ -708,7 +414,7 @@
 
         {{-- SUMMARY --}}
         <div>
-            <x-card class="p-4 sm:p-6">
+            <x-card class="p-6">
 
                 <h2 class="text-lg font-semibold">Summary</h2>
 

@@ -88,7 +88,6 @@ class NotificationCurrencyConversionTest extends TestCase
             'id_user' => $user->id_user,
             'nama_dompet' => $walletName,
             'saldo' => $saldo,
-            'terima_transfer' => true,
         ]);
 
         return [$user, $wallet];

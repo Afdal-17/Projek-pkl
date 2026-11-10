@@ -1,6 +1,6 @@
 @extends('layouts.main')
 
-@section('title', 'Account')
+@section('title', __('account.title'))
 
 @section('content')
 
@@ -8,54 +8,76 @@
     x-data="{
         active: 'profile',
         saved: false,
-        saving: false,
+        showPopup: false,
+        popupTitle: @js(__('account.success_popup')),
+        popupMessage: 'Halaman akan segera dimuat ulang...',
+        switchingCurrency: false,
         form: {
             name: @js($user->nama),
             email: @js($user->email),
             phone: @js($user->nomor_telepon && $user->nomor_telepon !== 'null' ? $user->nomor_telepon : ''),
             location: @js($user->lokasi && $user->lokasi !== 'null' ? $user->lokasi : ''),
-            currency: @js($user->mata_uang ?? 'IDR'),
+            currency: @js($user->mata_uang),
         },
-        currencies: [
-            { value: 'IDR', label: 'IDR (Rp)', symbol: 'Rp', desc: 'Indonesian Rupiah' },
-            { value: 'USD', label: 'USD ($)', symbol: '$', desc: 'US Dollar' },
-            { value: 'EUR', label: 'EUR (€)', symbol: '€', desc: 'Euro' },
-        ],
         avatarUrl: @js($avatarUrl),
         csrfToken: @js(csrf_token()),
 
-        async save() {
-            if (this.saving) return;
-            this.saving = true;
+        async changeCurrency(newCurrency) {
+            if (this.switchingCurrency) return;
+            const currentCurrency = @js($user->mata_uang);
+            if (newCurrency === currentCurrency) return;
+
+            this.switchingCurrency = true;
             try {
-                const response = await fetch(@js(route('account.update')), {
+                const response = await fetch(@js(route('account.currency.switch')), {
                     method: 'PATCH',
                     headers: {
                         'X-CSRF-TOKEN': this.csrfToken,
-                        'Accept': 'application/json'
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
                     },
-                    body: new URLSearchParams({
-                        name: this.form.name,
-                        email: this.form.email,
-                        phone: this.form.phone,
-                        location: this.form.location,
-                        mata_uang: this.form.currency,
-                    }),
+                    body: JSON.stringify({ mata_uang: newCurrency }),
                 });
 
                 if (response.ok) {
-                    this.saved = true;
-                    setTimeout(() => window.location.reload(), 700);
+                    this.form.currency = newCurrency;
+                    this.popupTitle = 'Mata Uang Berhasil Diubah!';
+                    this.popupMessage = `Seluruh nominal sekarang ditampilkan dalam ${newCurrency}. Memuat ulang...`;
+                    this.showPopup = true;
+                    setTimeout(() => window.location.reload(), 1000);
                 } else {
                     const result = await response.json();
-                    window.financeAlert({
-                        title: 'Save Failed',
-                        message: Object.values(result.errors ?? {}).flat()[0] ?? 'Profile could not be saved.',
-                        variant: 'danger',
-                    });
+                    alert(result.message ?? 'Gagal mengubah mata uang.');
+                    this.form.currency = currentCurrency;
                 }
+            } catch (err) {
+                alert('Terjadi kesalahan saat mengubah mata uang.');
+                this.form.currency = currentCurrency;
             } finally {
-                this.saving = false;
+                this.switchingCurrency = false;
+            }
+        },
+
+        async save() {
+            const response = await fetch(@js(route('account.update')), {
+                method: 'PATCH',
+                headers: { 'X-CSRF-TOKEN': this.csrfToken, 'Accept': 'application/json' },
+                body: new URLSearchParams({
+                    name: this.form.name,
+                    email: this.form.email,
+                    phone: this.form.phone,
+                    location: this.form.location,
+                    mata_uang: this.form.currency,
+                }),
+            });
+
+            if (response.ok) {
+                this.saved = true;
+                this.showPopup = true;
+                setTimeout(() => window.location.reload(), 1200);
+            } else {
+                const result = await response.json();
+                alert(Object.values(result.errors ?? {}).flat()[0] ?? 'Profile could not be saved.');
             }
         },
 
@@ -63,75 +85,31 @@
             const file = event.target.files[0];
             if (!file) return;
 
-            try {
-                const data = new FormData();
-                data.append('avatar', file);
+            const data = new FormData();
+            data.append('avatar', file);
 
-                const response = await fetch(@js(route('account.avatar.update')), {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRF-TOKEN': this.csrfToken,
-                        'Accept': 'application/json'
-                    },
-                    body: data,
-                });
-                const body = await response.text();
-                let result = null;
+            const response = await fetch(@js(route('account.avatar.update')), {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': this.csrfToken, 'Accept': 'application/json' },
+                body: data,
+            });
 
-                try {
-                    result = body ? JSON.parse(body) : null;
-                } catch {
-                    result = null;
-                }
-
-                if (!response.ok) {
-                    const message = Object.values(result?.errors ?? {}).flat()[0]
-                        ?? result?.message
-                        ?? (response.status === 422
-                            ? 'Choose a valid JPG or PNG photo no larger than 2 MB.'
-                            : 'Photo could not be uploaded. Please try again.');
-                    window.financeAlert({
-                        title: 'Upload Failed',
-                        message,
-                        variant: 'danger',
-                    });
-                    return;
-                }
-
-                if (typeof result?.avatar_url !== 'string' || result.avatar_url === '') {
-                    throw new Error('The server did not return a photo URL.');
-                }
-
-                await new Promise((resolve, reject) => {
-                    const image = new Image();
-                    image.onload = resolve;
-                    image.onerror = reject;
-                    image.src = result.avatar_url;
-                });
-
-                this.avatarUrl = result.avatar_url;
-                window.financeToast({
-                    message: 'Photo successfully updated.',
-                    variant: 'income',
-                });
-            } catch {
-                window.financeAlert({
-                    title: 'Upload Failed',
-                    message: 'Photo could not be uploaded or displayed. Check your connection and storage access, then try again.',
-                    variant: 'danger',
-                });
-            } finally {
-                event.target.value = '';
+            if (response.ok) {
+                const res = await response.json();
+                this.avatarUrl = res.avatar_url;
+                setTimeout(() => window.location.reload(), 300);
+            } else {
+                const result = await response.json();
+                alert(Object.values(result.errors ?? {}).flat()[0] ?? 'Photo could not be uploaded.');
             }
+
+            event.target.value = '';
         },
 
         async removeAvatar() {
             const response = await fetch(@js(route('account.avatar.destroy')), {
                 method: 'DELETE',
-                headers: {
-                    'X-CSRF-TOKEN': this.csrfToken,
-                    'Accept': 'application/json'
-                },
+                headers: { 'X-CSRF-TOKEN': this.csrfToken, 'Accept': 'application/json' },
             });
 
             if (response.ok) this.avatarUrl = null;
@@ -139,13 +117,29 @@
     }"
 >
 
-    {{-- Header --}}
-    <div>
-        <h1 class="text-3xl font-bold">Account</h1>
-        <p class="mt-1 text-sm text-muted">
-            Manage your profile, security, and finance preferences.
-        </p>
+    {{-- Pop-up notifikasi berhasil simpan profile / konversi mata uang --}}
+    <div x-cloak x-show="showPopup" x-transition class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+        <div class="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-2xl">
+            <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-income-soft text-income">
+                <x-icon name="check" size="h-6 w-6" />
+            </div>
+            <h3 class="mt-4 text-lg font-bold text-ink" x-text="popupTitle"></h3>
+            <p class="mt-1 text-xs text-muted" x-text="popupMessage"></p>
+        </div>
     </div>
+
+    {{-- Header --}}
+    <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+            <h1 class="text-3xl font-bold">{{ __('account.title') }}</h1>
+            <p class="mt-1 text-sm text-muted">{{ __('account.subtitle') }}</p>
+        </div>
+
+        <x-button x-on:click="save()">
+            <span x-text="saved ? @js(__('account.saved')) : @js(__('account.save_changes'))"></span>
+        </x-button>
+    </div>
+
 
     <div class="mt-8 grid items-start gap-6 lg:grid-cols-[224px_1fr]">
 
@@ -154,9 +148,9 @@
             <nav class="space-y-1 text-sm font-medium">
 
                 @foreach ([
-                    ['profile', 'Profile', 'user', '#profile'],
-                    ['security', 'Security', 'shield', '#security'],
-                    ['preferences', 'Finance preferences', 'settings', '#preferences'],
+                    ['profile', __('account.profile'), 'user', '#profile'],
+                    ['security', __('account.security'), 'shield', '#security'],
+                    ['preferences', __('account.preferences'), 'settings', '#preferences'],
                 ] as [$key, $label, $icon, $href])
                     <a href="{{ $href }}"
                        x-on:click="active = '{{ $key }}'"
@@ -167,284 +161,114 @@
                     </a>
                 @endforeach
 
-                <a href="/notifications"
-                   class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-muted transition hover:bg-page">
+                <a href="/notifications" class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-muted transition hover:bg-page">
                     <x-icon name="bell" size="h-4 w-4" />
-                    Notifications
+                    {{ __('account.notifications') }}
                 </a>
 
                 <form method="POST" action="{{ route('logout') }}">
                     @csrf
-                    <button type="submit"
-                            class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-expense transition hover:bg-page">
+                    <button type="submit" class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-expense transition hover:bg-page">
                         <x-icon name="logout" size="h-4 w-4" />
-                        Sign out
+                        {{ __('account.sign_out') }}
                     </button>
                 </form>
 
             </nav>
         </x-card>
 
+
         {{-- Konten kanan --}}
-        <div class="space-y-6 pb-20">
+        <div class="space-y-6">
 
             {{-- Profile --}}
             <x-card id="profile" class="scroll-mt-6 p-6">
 
-                <div class="flex items-start justify-between gap-3">
-                    <h2 class="text-lg font-semibold">Profile</h2>
-                    <span class="text-xs text-muted">Your public account details</span>
+                <div class="flex items-start justify-between">
+                    <h2 class="text-lg font-semibold">{{ __('account.profile') }}</h2>
+                    <span class="text-xs text-muted">{{ __('account.public_details') }}</span>
                 </div>
 
-                <div class="mt-5 flex flex-wrap items-center gap-5">
-                    <img
-                        x-cloak
-                        x-show="avatarUrl"
-                        :src="avatarUrl"
-                        x-on:error="avatarUrl = null"
-                        alt="Profile photo"
-                        class="h-20 w-20 rounded-full bg-brand-soft object-cover"
-                    >
+                <div class="mt-5 flex items-center gap-5">
+                    <img x-show="avatarUrl" :src="avatarUrl" alt="Profile photo" class="h-20 w-20 rounded-full bg-brand-soft object-cover">
+                    <span x-show="!avatarUrl" class="flex h-20 w-20 items-center justify-center rounded-full bg-brand-soft text-xl font-bold text-brand" x-text="(form.name || 'U').charAt(0).toUpperCase()"></span>
 
-                    <span
-                        x-show="!avatarUrl"
-                        class="flex h-20 w-20 items-center justify-center rounded-full bg-brand-soft text-2xl font-bold text-brand select-none"
-                        x-text="form.name ? form.name.trim().split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() : '?'"
-                    ></span>
-
-                    <div class="min-w-0">
+                    <div>
                         <p class="font-semibold" x-text="form.name"></p>
-                        <p class="mt-1 text-xs text-muted">
-                            JPG or PNG. Maximum file size 2 MB.
-                        </p>
+                        <p class="mt-1 text-xs text-muted">{{ __('account.photo_note') }}</p>
 
-                        <div class="mt-3 flex flex-wrap items-center gap-3">
-                            <input
-                                x-ref="avatarInput"
-                                type="file"
-                                accept="image/jpeg,image/png"
-                                class="hidden"
-                                x-on:change="uploadAvatar($event)"
-                            >
-
-                            <x-button
-                                type="button"
-                                variant="outline"
-                                x-on:click="$refs.avatarInput.click()"
-                            >
-                                Change photo
-                            </x-button>
-
-                            <button
-                                type="button"
-                                x-on:click="removeAvatar()"
-                                class="text-xs font-medium text-expense hover:underline"
-                            >
-                                Remove
-                            </button>
+                        <div class="mt-3 flex items-center gap-3">
+                            <input x-ref="avatarInput" type="file" accept="image/jpeg,image/png" class="hidden" x-on:change="uploadAvatar($event)">
+                            <x-button type="button" variant="outline" x-on:click="$refs.avatarInput.click()">{{ __('account.change_photo') }}</x-button>
+                            <button type="button" x-on:click="removeAvatar()" class="text-xs font-medium text-expense hover:underline">{{ __('account.remove') }}</button>
                         </div>
                     </div>
                 </div>
 
             </x-card>
+
 
             {{-- About --}}
             <x-card class="p-6">
-                <h2 class="text-lg font-semibold">About</h2>
+
+                <h2 class="text-lg font-semibold">{{ __('account.about') }}</h2>
 
                 <div class="mt-5 grid gap-4 md:grid-cols-2">
-                    <x-input label="Full name" name="full_name" x-model="form.name" />
-                    <x-input label="Email address" name="email" type="email" x-model="form.email" />
-                    <x-input
-                        label="Phone number"
-                        name="phone"
-                        placeholder="0812345678"
-                        x-model="form.phone"
-                    />
-
-                    <x-input
-                        label="Location"
-                        name="location"
-                        placeholder="Jakarta,Indonesian"
-                        x-model="form.location"
-                    />
+                    <x-input label="{{ __('account.full_name') }}" name="full_name" x-model="form.name" />
+                    <x-input label="{{ __('account.email_address') }}" name="email" type="email" x-model="form.email" />
+                    <x-input label="{{ __('account.phone_number') }}"  name="phone" x-model="form.phone" />
+                    <x-input label="{{ __('account.location') }}" name="location" x-model="form.location" />
                 </div>
+
             </x-card>
 
-            {{-- Save Changes di luar card About --}}
-            <div class="flex w-full justify-end">
-                <x-button
-                    x-on:click="save()"
-                    x-bind:disabled="saving"
-                    class="w-full justify-center sm:w-auto"
-                >
-                    <span x-show="saving">Saving...</span>
-                    <span x-show="!saving" x-text="saved ? 'Saved' : 'Save changes'"></span>
-                </x-button>
-            </div>
 
             {{-- Security + Preferences --}}
-            <div class="grid items-stretch gap-6 md:grid-cols-2">
+            <div class="grid items-start gap-6 md:grid-cols-2">
 
-                {{-- Security Card --}}
-                <x-card id="security" class="scroll-mt-6 p-6 flex flex-col justify-between">
+                <x-card id="security" class="scroll-mt-6 p-6">
 
-                    <div>
-                        <div class="flex items-center gap-3">
-                            <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-soft text-brand shadow-sm">
-                                <x-icon name="shield" size="h-5 w-5" />
-                            </span>
-                            <div>
-                                <h2 class="text-lg font-semibold text-ink">Security</h2>
-                                <p class="text-xs text-muted">Password & authentication settings</p>
-                            </div>
-                        </div>
+                    <span class="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-soft text-brand">
+                        <x-icon name="shield" size="h-5 w-5" />
+                    </span>
 
-                        <p class="mt-4 text-sm text-muted leading-relaxed">
-                            Your password was last changed 3 months ago. Enable two-step verification for extra protection.
-                        </p>
-                    </div>
+                    <h2 class="mt-4 text-lg font-semibold">{{ __('account.security') }}</h2>
 
-                    <div class="mt-6">
-                        <x-button
-                            :href="route('profile.edit')"
-                            variant="outline"
-                            class="w-full justify-center sm:w-auto"
-                        >
-                            Update password
-                        </x-button>
-                    </div>
+                    <p class="mt-2 text-sm text-muted">
+                        {{ __('account.security_desc') }}
+                    </p>
+
+                    {{-- Backend: arahkan ke form ganti password --}}
+                    <x-button :href="route('profile.edit')" variant="outline" class="mt-4">{{ __('account.update_password') }}</x-button>
 
                 </x-card>
 
-                {{-- Finance Preferences Card --}}
-                <x-card id="preferences" class="scroll-mt-6 p-6 flex flex-col justify-between">
 
-                    <div>
-                        <div class="flex items-start justify-between gap-4">
-                            <div class="flex items-center gap-3">
-                                <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-soft text-brand shadow-sm">
-                                    <x-icon name="settings" size="h-5 w-5" />
-                                </span>
-                                <div>
-                                    <h2 class="text-lg font-semibold text-ink">Finance preferences</h2>
-                                    <p class="text-xs text-muted">Set your reporting currency</p>
-                                </div>
-                            </div>
+                <x-card id="preferences" class="scroll-mt-6 p-6">
+
+                    <span class="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-soft text-brand">
+                        <x-icon name="settings" size="h-5 w-5" />
+                    </span>
+
+                    <h2 class="mt-4 text-lg font-semibold">{{ __('account.preferences') }}</h2>
+
+                    <dl class="mt-4 space-y-3 text-sm">
+
+                        <div class="flex items-center justify-between">
+                            <dt class="text-muted">{{ __('account.default_currency') }}</dt>
+                            <dd>
+                                <select
+                                    x-model="form.currency"
+                                    x-on:change="changeCurrency($event.target.value)"
+                                    :disabled="switchingCurrency"
+                                    class="border-0 bg-transparent py-0 pl-0 pr-6 text-right text-sm font-semibold focus:ring-0 disabled:opacity-50">
+                                    <option value="IDR">IDR (Rp)</option>
+                                    <option value="USD">USD ($)</option>
+                                    <option value="EUR">EUR (€)</option>
+                                </select>
+                            </dd>
                         </div>
-
-                        <div class="mt-6 space-y-3.5">
-
-                            {{-- Currency Row --}}
-                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-line/70 bg-page/40 p-3.5 transition hover:bg-page/60">
-                                <div>
-                                    <span class="text-sm font-semibold text-ink">Default currency</span>
-                                    <p class="text-xs text-muted">Primary currency for transactions and balances</p>
-                                </div>
-
-                                <div
-                                    class="relative shrink-0"
-                                    x-data="{
-                                        open: false,
-                                        dropUp: false,
-                                        toggle(el) {
-                                            this.open = !this.open;
-                                            if (this.open) {
-                                                const rect = el.getBoundingClientRect();
-                                                this.dropUp = (window.innerHeight - rect.bottom) < 220;
-                                            }
-                                        }
-                                    }"
-                                    @click.outside="open = false"
-                                    @keydown.escape.window="open = false"
-                                >
-                                    <button
-                                        type="button"
-                                        @click="toggle($el)"
-                                        class="flex items-center justify-between gap-3 min-w-[150px] rounded-xl border border-line bg-white px-3.5 py-2 text-sm font-semibold text-ink shadow-sm transition hover:border-brand/50 hover:bg-page/40 focus:outline-none focus:ring-2 focus:ring-brand/20 cursor-pointer"
-                                    >
-                                        <div class="flex items-center gap-2 min-w-0">
-                                            <span
-                                                class="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-brand-soft text-[11px] font-bold text-brand"
-                                                x-text="currencies.find(c => c.value === form.currency)?.symbol ?? 'Rp'"
-                                            ></span>
-                                            <span
-                                                class="truncate"
-                                                x-text="currencies.find(c => c.value === form.currency)?.label ?? 'IDR (Rp)'"
-                                            ></span>
-                                        </div>
-                                        <span class="text-muted shrink-0 transition-transform duration-200" :class="open ? 'rotate-180' : ''">
-                                            <x-icon name="chevron-down" size="h-4 w-4" />
-                                        </span>
-                                    </button>
-
-                                    <div
-                                        x-show="open"
-                                        x-cloak
-                                        x-transition:enter="transition ease-out duration-150"
-                                        x-transition:enter-start="opacity-0 scale-95"
-                                        x-transition:enter-end="opacity-100 scale-100"
-                                        x-transition:leave="transition ease-in duration-100"
-                                        x-transition:leave-start="opacity-100 scale-100"
-                                        x-transition:leave-end="opacity-0 scale-95"
-                                        class="absolute right-0 z-50 min-w-[210px] rounded-2xl border border-line bg-white p-1.5 shadow-2xl ring-1 ring-black/5"
-                                        :class="dropUp ? 'bottom-full mb-2 origin-bottom-right' : 'top-full mt-2 origin-top-right'"
-                                    >
-                                        <div class="px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted">
-                                            Select currency
-                                        </div>
-                                        <div class="space-y-0.5">
-                                            <template x-for="item in currencies" :key="item.value">
-                                                <button
-                                                    type="button"
-                                                    @click="form.currency = item.value; open = false"
-                                                    class="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-sm transition text-left cursor-pointer"
-                                                    :class="form.currency === item.value ? 'bg-brand-soft text-brand font-semibold' : 'text-ink hover:bg-page font-medium'"
-                                                >
-                                                    <div class="flex items-center gap-2.5">
-                                                        <span
-                                                            class="flex h-6 w-6 items-center justify-center rounded-md text-xs font-bold transition"
-                                                            :class="form.currency === item.value ? 'bg-brand text-white' : 'bg-page text-muted'"
-                                                            x-text="item.symbol"
-                                                        ></span>
-                                                        <div>
-                                                            <div class="font-medium" x-text="item.label"></div>
-                                                            <div class="text-[11px] text-muted font-normal" x-text="item.desc"></div>
-                                                        </div>
-                                                    </div>
-                                                    <x-icon
-                                                        x-show="form.currency === item.value"
-                                                        name="check"
-                                                        size="h-4 w-4"
-                                                        class="text-brand shrink-0"
-                                                    />
-                                                </button>
-                                            </template>
-                                        </div>
-                                    </div>
-
-                                    <select x-model="form.currency" name="currency" class="sr-only" tabindex="-1" aria-hidden="true">
-                                        <template x-for="item in currencies" :key="item.value">
-                                            <option :value="item.value" x-text="item.label"></option>
-                                        </template>
-                                    </select>
-                                </div>
-                            </div>
-
-                        </div>
-                    </div>
-
-                    <div class="mt-6 flex items-center justify-end">
-                        <x-button
-                            type="button"
-                            x-on:click="save()"
-                            x-bind:disabled="saving"
-                            class="w-full justify-center sm:w-auto"
-                        >
-                            <span x-show="saving">Saving...</span>
-                            <span x-show="!saving" x-text="saved ? 'Saved' : 'Save preferences'"></span>
-                        </x-button>
-                    </div>
+                    </dl>
 
                 </x-card>
 
@@ -453,6 +277,7 @@
         </div>
 
     </div>
+
 </div>
 
 @endsection

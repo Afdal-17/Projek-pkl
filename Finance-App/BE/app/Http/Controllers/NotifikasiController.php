@@ -3,95 +3,38 @@
 namespace App\Http\Controllers;
 
 use App\Models\Notifikasi;
-use App\Models\TargetTabungan;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
 class NotifikasiController extends Controller
 {
-    public function frontendIndex(): View
+    public function frontendIndex(Request $request): View|JsonResponse
     {
-        $userTargets = TargetTabungan::where('id_user', Auth::id())
-            ->with('dompet')
-            ->get();
-
         $notifications = Notifikasi::where('id_user', Auth::id())
+            // Filter opsional untuk klien mobile: ?read=1 (sudah) / ?read=0 (belum)
+            ->when($request->filled('read'), fn ($query) => $query->where('sudah_dibaca', $request->boolean('read')))
             ->latest('id_notifikasi')
             ->get()
-	            ->map(function (Notifikasi $notification) use ($userTargets): array {
-                $isTarget = $notification->tipe === 'target'
-                    || $notification->display_type === 'saving';
+            ->map(fn (Notifikasi $notification): array => [
+                'id' => $notification->id_notifikasi,
+                'type' => $notification->tipe === 'target'
+                    ? 'saving'
+                    : (str_starts_with($notification->pesan, 'Transfer ')
+                        || str_starts_with($notification->pesan, 'Anda di transfer oleh ') ? 'transfer' : 'transaction'),
+                'title' => $notification->tipe === 'target' ? 'Savings goal reached' : (str_starts_with($notification->pesan, 'Transfer ')
+                    || str_starts_with($notification->pesan, 'Anda di transfer oleh ') ? 'Transfer success!' : 'Transaction update'),
+                'text' => $notification->pesanTampil(),
+                'scope' => $notification->tanggal->diffForHumans(),
+                'read' => $notification->sudah_dibaca,
+            ]);
 
-                $isTransfer = str_starts_with($notification->pesan ?? '', 'Transfer ')
-                    || str_starts_with($notification->pesan ?? '', 'Anda di transfer oleh ')
-                    || str_starts_with($notification->pesan ?? '', 'You received a transfer ')
-                    || str_starts_with($notification->pesan ?? '', 'Anda menerima transfer ');
+        if ($request->expectsJson()) {
+            return response()->json($notifications);
+        }
 
-                $type = $isTarget ? 'saving' : ($isTransfer ? 'transfer' : 'transaction');
-
-                $title = $isTarget
-                    ? 'Savings goal reached'
-                    : ($isTransfer ? 'Transfer success!' : 'Transaction update');
-
-                $goal = null;
-
-                if ($isTarget) {
-                    $targetName = null;
-
-                    if (preg_match('/^Target (.+?) (?:telah tercapai|has been reached)\.?$/ui', $notification->pesan ?? '', $matches)) {
-                        $targetName = trim($matches[1]);
-                    }
-
-                    $matchedTarget = $targetName
-                        ? $userTargets->first(fn ($t) => strcasecmp($t->nama_target, $targetName) === 0)
-                        : $userTargets->first();
-
-                    if (!$matchedTarget && $targetName) {
-                        $matchedTarget = $userTargets->first(
-                            fn ($t) => stripos($t->nama_target, $targetName) !== false
-                                || stripos($targetName, $t->nama_target) !== false
-                        );
-                    }
-
-                    if (!$matchedTarget) {
-                        $matchedTarget = $userTargets->first(
-                            fn ($t) => $t->tercapai || $t->status === 'tercapai'
-                        ) ?: $userTargets->first();
-                    }
-
-                    if ($matchedTarget) {
-                        $targetNominal = (string) $matchedTarget->nominal_target;
-                        $savedNominal = bccomp((string) $matchedTarget->jumlah_terkumpul, $targetNominal, 2) > 0
-                            ? (string) $matchedTarget->jumlah_terkumpul
-                            : $targetNominal;
-
-                        $goal = [
-                            'name' => $matchedTarget->nama_target,
-                            'note' => $matchedTarget->deskripsi ?: 'Savings target',
-                            'saved' => $savedNominal,
-                            'target' => bccomp($targetNominal, '0.00', 2) > 0 ? $targetNominal : $savedNominal,
-                        ];
-                    } elseif ($targetName) {
-                        $goal = [
-                            'name' => $targetName,
-                            'note' => 'Savings target',
-                            'saved' => 100,
-                            'target' => 100,
-                        ];
-                    }
-                }
-
-                return [
-                    'id' => $notification->id_notifikasi,
-                    'type' => $type,
-                    'title' => $title,
-                    'text' => $notification->formatted_pesan,
-                    'scope' => $notification->tanggal->diffForHumans(),
-                    'read' => $notification->sudah_dibaca,
-                    'goal' => $goal,
-                ];
-            });
         return view('notifications', [
             'notifications' => $notifications,
             'readIds' => $notifications->where('read', true)->pluck('id')->values(),
