@@ -4,7 +4,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\GoogleAuthController;
-use App\Http\Controllers\Auth\PasswordController;
+use App\Http\Controllers\Auth\PasswordResetLinkController;
+use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\DompetController;
 use App\Http\Controllers\KategoriController;
 use App\Http\Controllers\NotifikasiController;
@@ -24,11 +25,13 @@ use App\Http\Controllers\UserController;
 |
 */
 
-// Public API Login & Register (untuk frontend Vue.js & Mobile)
+// Public API Login, Register & Forgot Password (untuk frontend Vue.js & Mobile)
 Route::post('/login', [AuthenticatedSessionController::class, 'apiStore']);
 Route::post('/register', [RegisteredUserController::class, 'apiStore']);
 Route::post('/register/verify-otp', [RegisteredUserController::class, 'apiVerifyOtp']);
 Route::post('/auth/google', [GoogleAuthController::class, 'apiGoogleLogin']);
+Route::post('/forgot-password', [PasswordResetLinkController::class, 'apiStore']);
+Route::post('/reset-password', [NewPasswordController::class, 'apiStore']);
 
 Route::middleware('auth:sanctum')->group(function () {
     // Autentikasi & Profil

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Auth\Events\PasswordReset;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -22,6 +23,45 @@ class NewPasswordController extends Controller
     public function create(Request $request): View
     {
         return view('auth.reset-password', ['request' => $request]);
+    }
+
+    /**
+     * Handle an incoming new password request via API.
+     */
+    public function apiStore(Request $request): JsonResponse
+    {
+        $request->validate([
+            'token' => ['required'],
+            'email' => ['required', 'email'],
+            'password' => ['required', 'confirmed', Rules\Password::defaults()],
+        ]);
+
+        $user = User::where('email', $request->input('email'))->first();
+        $cache = Cache::store(app()->environment('testing') ? 'array' : 'file');
+        $emailKey = hash('sha256', strtolower((string) $request->input('email')));
+        $tokenKey = 'password-reset:token:'.$emailKey;
+        $hashedToken = $cache->get($tokenKey);
+
+        if (! $user || ! is_string($hashedToken) || ! Hash::check($request->input('token'), $hashedToken)) {
+            return response()->json([
+                'message' => __('passwords.token'),
+                'errors' => ['email' => [__('passwords.token')]]
+            ], 422);
+        }
+
+        $user->forceFill([
+            'password' => Hash::make($request->input('password')),
+            'remember_token' => Str::random(60),
+        ])->save();
+
+        $cache->forget($tokenKey);
+        $cache->forget('password-reset:throttle:'.$emailKey);
+
+        event(new PasswordReset($user));
+
+        return response()->json([
+            'message' => __('passwords.reset'),
+        ], 200);
     }
 
     /**

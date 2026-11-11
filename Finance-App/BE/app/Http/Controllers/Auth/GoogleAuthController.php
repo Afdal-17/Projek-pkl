@@ -162,42 +162,33 @@ class GoogleAuthController extends Controller
 
         $email = strtolower(trim($request->email));
         $googleId = $request->google_id;
-        $nama = $request->nama ?: 'Google User';
         $avatarPath = $request->avatar_path;
 
         // Cari user berdasarkan google_id atau email
         $user = User::where('google_id', $googleId)->orWhere('email', $email)->first();
 
+        // Jika user tidak ditemukan, jangan otomatis dibuatkan akun baru.
+        // Jika akun sudah dihapus oleh admin, user harus mendaftar ulang (register).
         if (! $user) {
-            // Jika belum ada, buat akun baru otomatis terverifikasi untuk mobile
-            $user = User::create([
-                'nama' => $nama,
-                'email' => $email,
-                'google_id' => $googleId,
-                'password' => Hash::make(Str::random(32)),
-                'role' => 'user',
-                'status' => true,
-                'email_verified_at' => now(),
-                'otp_verified_at' => now(),
-                'avatar_path' => $avatarPath,
-                'mata_uang' => 'IDR',
-            ]);
-        } else {
-            // Perbarui data jika belum sinkron
-            $updates = [];
-            if (! $user->google_id) {
-                $updates['google_id'] = $googleId;
-            }
-            if (! $user->email_verified_at) {
-                $updates['email_verified_at'] = now();
-                $updates['status'] = true;
-            }
-            if ($avatarPath && ! $user->avatar_path) {
-                $updates['avatar_path'] = $avatarPath;
-            }
-            if (! empty($updates)) {
-                $user->update($updates);
-            }
+            return response()->json([
+                'message' => 'Akun tidak ditemukan. Silakan melakukan registrasi terlebih dahulu.',
+            ], 404);
+        }
+
+        // Perbarui data jika belum sinkron
+        $updates = [];
+        if (! $user->google_id) {
+            $updates['google_id'] = $googleId;
+        }
+        if (! $user->email_verified_at) {
+            $updates['email_verified_at'] = now();
+            $updates['status'] = true;
+        }
+        if ($avatarPath && ! $user->avatar_path) {
+            $updates['avatar_path'] = $avatarPath;
+        }
+        if (! empty($updates)) {
+            $user->update($updates);
         }
 
         // Cek status banned

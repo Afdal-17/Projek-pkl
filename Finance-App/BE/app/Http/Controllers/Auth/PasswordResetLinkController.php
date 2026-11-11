@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -20,6 +21,45 @@ class PasswordResetLinkController extends Controller
     public function create(): View
     {
         return view('auth.forgot-password');
+    }
+
+    /**
+     * Handle an incoming password reset link request via API.
+     */
+    public function apiStore(Request $request): JsonResponse
+    {
+        $request->validate([
+            'email' => ['required', 'email'],
+        ]);
+
+        $cache = Cache::store(app()->environment('testing') ? 'array' : 'file');
+        $emailKey = hash('sha256', strtolower((string) $request->input('email')));
+        $throttleKey = 'password-reset:throttle:'.$emailKey;
+
+        $sukses = fn (): JsonResponse => response()->json([
+            'message' => __('passwords.sent'),
+        ], 200);
+
+        if ($cache->has($throttleKey)) {
+            return $sukses();
+        }
+
+        $cache->put($throttleKey, true, now()->addSeconds(60));
+
+        $user = User::where('email', $request->input('email'))->first();
+
+        if ($user) {
+            $token = Str::random(64);
+            $cache->put('password-reset:token:'.$emailKey, Hash::make($token), now()->addMinutes(60));
+
+            try {
+                $user->sendPasswordResetNotification($token);
+            } catch (Throwable $e) {
+                report($e);
+            }
+        }
+
+        return $sukses();
     }
 
     /**

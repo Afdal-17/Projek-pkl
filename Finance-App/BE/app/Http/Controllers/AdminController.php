@@ -271,18 +271,17 @@ public function toggleStatus(Request $request, User $user): \Illuminate\Http\Jso
             ], 409);
         }
 
-        $walletIds = $user->dompet()->pluck('id_dompet');
-        $hasTransferHistory = Transfer::whereIn('id_dompet_asal', $walletIds)
-            ->orWhereIn('id_dompet_tujuan', $walletIds)
-            ->exists();
+        \Illuminate\Support\Facades\DB::transaction(function () use ($user): void {
+            $walletIds = $user->dompet()->pluck('id_dompet');
 
-        if ($hasTransferHistory) {
-            return response()->json([
-                'message' => 'User tidak dapat dihapus karena wallet-nya memiliki riwayat transfer.',
-            ], 409);
-        }
+            // Hapus riwayat transfer terkait agar tidak melanggar foreign key constraint
+            \App\Models\Transfer::query()
+                ->whereIn('id_dompet_asal', $walletIds)
+                ->orWhereIn('id_dompet_tujuan', $walletIds)
+                ->delete();
 
-        $user->delete();
+            $user->delete();
+        });
 
         return response()->json([], 204);
     }

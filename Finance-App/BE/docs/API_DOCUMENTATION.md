@@ -88,10 +88,12 @@ Rate limit 5 percobaan per identifier juga membalas **422** dengan pesan throttl
 
 | Method | Endpoint | Deskripsi |
 |---|---|---|
-| POST | `/login` | Login, mengembalikan token + data user |
-| POST | `/register` | Registrasi akun baru via email (mengirim kode OTP) |
-| POST | `/register/verify-otp` | Verifikasi 6 digit kode OTP (mengaktifkan akun & mengembalikan token) |
-| `PUT` | `/password` | Ganti password akun |
+| POST | `/api/login` | Login, mengembalikan token + data user |
+| POST | `/api/register` | Registrasi akun baru via email (mengirim kode OTP) |
+| POST | `/api/register/verify-otp` | Verifikasi 6 digit kode OTP (mengaktifkan akun & mengembalikan token) |
+| POST | `/api/auth/google` | Login / Register instan via Google OAuth |
+| POST | `/api/forgot-password` | Kirim token/link reset password ke email |
+| POST | `/api/reset-password` | Ganti password baru menggunakan token reset |
 | GET | `/user` | Data user yang sedang login |
 | GET | `/account` | Profil akun + `avatar_url` |
 | PATCH | `/account` | Ubah profil (`nama`, `email`, `nomor_telepon`, `lokasi`, `mata_uang`) |
