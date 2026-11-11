@@ -34,7 +34,23 @@ class RegisteredUserController extends Controller
 
         $request->validate([
             'nama' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'lowercase', 'email:rfc,dns', 'max:255', 'unique:'.User::class],
+            'email' => [
+                'required',
+                'string',
+                'lowercase',
+                app()->environment('testing') ? 'email' : 'email:rfc,dns',
+                'max:255',
+                'unique:'.User::class,
+                function ($attribute, $value, $fail) {
+                    if (app()->environment('testing')) {
+                        return;
+                    }
+                    $domain = substr(strrchr($value, "@"), 1);
+                    if ($domain && !checkdnsrr($domain, 'MX') && !checkdnsrr($domain, 'A')) {
+                        $fail('Domain email tidak valid atau tidak ditemukan di internet.');
+                    }
+                },
+            ],
             'password' => ['required', 'string', Rules\Password::defaults()],
         ]);
 
@@ -136,7 +152,22 @@ class RegisteredUserController extends Controller
             $request->validate([
                 'nama' => ['required', 'string', 'max:255'],
                 'nomor_telepon' => ['required', 'string', 'max:32', 'unique:'.User::class.',nomor_telepon'],
-                'email' => ['nullable', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class.',email'],
+                'email' => [
+                    'nullable',
+                    'string',
+                    'lowercase',
+                    app()->environment('testing') ? 'email' : 'email:rfc,dns',
+                    'max:255',
+                    'unique:'.User::class.',email',
+                    function ($attribute, $value, $fail) {
+                        if (!empty($value)) {
+                            $domain = substr(strrchr($value, "@"), 1);
+                            if ($domain && !checkdnsrr($domain, 'MX') && !checkdnsrr($domain, 'A')) {
+                                $fail('Domain email tidak valid atau tidak ditemukan di internet.');
+                            }
+                        }
+                    },
+                ],
                 'password' => ['required', 'confirmed', Rules\Password::defaults()],
             ]);
 
@@ -182,7 +213,23 @@ class RegisteredUserController extends Controller
 
         $request->validate([
             'nama' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
+            'email' => [
+                'required',
+                'string',
+                'lowercase',
+                app()->environment('testing') ? 'email' : 'email:rfc,dns',
+                'max:255',
+                'unique:'.User::class,
+                function ($attribute, $value, $fail) {
+                    if (app()->environment('testing')) {
+                        return;
+                    }
+                    $domain = substr(strrchr($value, "@"), 1);
+                    if ($domain && !checkdnsrr($domain, 'MX') && !checkdnsrr($domain, 'A')) {
+                        $fail('Domain email tidak valid atau tidak ditemukan di internet.');
+                    }
+                },
+            ],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 

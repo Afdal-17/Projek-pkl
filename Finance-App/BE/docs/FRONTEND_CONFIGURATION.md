@@ -49,7 +49,7 @@ Backend Finance App **menyimpan seluruh data keuangan di database dalam bentuk R
 | `POST` | `/api/register/verify-otp` | Verifikasi 6 digit kode OTP (mengaktifkan akun & mengembalikan token) | Publik |
 | `POST` | `/api/login` | Login dengan email/phone + password | Publik |
 | `POST` | `/api/auth/google` | Login / Register instan via Google OAuth | Publik |
-| `GET` | `/api/user` | Mendapatkan data user yang sedang login | **Wajib Bearer Token** |
+| `PUT` | `/api/password` | Mengganti password akun (wajib login) | **Wajib Bearer Token** |
 | `POST` | `/api/logout` | Logout (menghapus token Sanctum di database) | **Wajib Bearer Token** |
 
 ---

@@ -91,7 +91,7 @@ Rate limit 5 percobaan per identifier juga membalas **422** dengan pesan throttl
 | POST | `/login` | Login, mengembalikan token + data user |
 | POST | `/register` | Registrasi akun baru via email (mengirim kode OTP) |
 | POST | `/register/verify-otp` | Verifikasi 6 digit kode OTP (mengaktifkan akun & mengembalikan token) |
-| POST | `/logout` | Cabut token yang sedang dipakai |
+| `PUT` | `/password` | Ganti password akun |
 | GET | `/user` | Data user yang sedang login |
 | GET | `/account` | Profil akun + `avatar_url` |
 | PATCH | `/account` | Ubah profil (`nama`, `email`, `nomor_telepon`, `lokasi`, `mata_uang`) |
