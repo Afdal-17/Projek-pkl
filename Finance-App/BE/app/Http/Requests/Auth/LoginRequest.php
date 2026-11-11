@@ -86,6 +86,15 @@ class LoginRequest extends FormRequest
             ]);
         }
 
+        // Jika akun tidak aktif (misal dihapus/banned atau belum verifikasi admin)
+        if (! $user->status) {
+            RateLimiter::hit($this->throttleKey());
+            $field = $this->filled('phone') ? 'phone' : 'email';
+            throw ValidationException::withMessages([
+                $field => 'Akun Anda tidak aktif atau telah dihapus. Silakan hubungi admin.',
+            ]);
+        }
+
         Auth::login($user, $this->boolean('remember'));
         RateLimiter::clear($this->throttleKey());
     }
