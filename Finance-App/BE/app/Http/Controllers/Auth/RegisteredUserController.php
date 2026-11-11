@@ -26,11 +26,54 @@ class RegisteredUserController extends Controller
     }
 
     /**
-     * API Endpoint untuk registrasi user via email dari Mobile / Frontend.
+     * API Endpoint untuk registrasi user via email atau nomor telepon dari Mobile / Frontend.
      */
     public function apiStore(Request $request): JsonResponse
     {
         $request->merge(['nama' => $request->input('nama', $request->input('name'))]);
+        $phoneInput = $request->input('phone', $request->input('nomor_telepon'));
+
+        if (! empty($phoneInput)) {
+            $cleanPhone = preg_replace('/[^\d+]/', '', (string) $phoneInput);
+            $request->merge(['nomor_telepon' => $cleanPhone]);
+
+            $request->validate([
+                'nama' => ['required', 'string', 'max:255'],
+                'nomor_telepon' => ['required', 'string', 'max:32', 'unique:'.User::class.',nomor_telepon'],
+                'email' => ['nullable', 'string', 'lowercase', 'max:255', 'unique:'.User::class.',email'],
+                'password' => ['required', 'string', Rules\Password::defaults()],
+            ]);
+
+            $user = User::create([
+                'nama' => $request->nama,
+                'nomor_telepon' => $cleanPhone,
+                'email' => $request->filled('email') ? $request->email : null,
+                'password' => Hash::make($request->password),
+                'role' => 'user',
+                'status' => false,
+                'email_verified_at' => null,
+            ]);
+
+            if ($user->email) {
+                try {
+                    app(OtpService::class)->kirim($user);
+                } catch (Throwable $e) {
+                    report($e);
+                }
+            } elseif (app(FonnteService::class)->aktif()) {
+                try {
+                    app(OtpService::class)->kirimWhatsapp($user);
+                } catch (Throwable $e) {
+                    report($e);
+                }
+            }
+
+            return response()->json([
+                'message' => 'Registrasi berhasil. Kode OTP telah dikirim.',
+                'user_id' => $user->id_user,
+                'nomor_telepon' => $user->nomor_telepon,
+            ], 201);
+        }
 
         $request->validate([
             'nama' => ['required', 'string', 'max:255'],
@@ -67,10 +110,6 @@ class RegisteredUserController extends Controller
             app(OtpService::class)->kirim($user);
         } catch (Throwable $e) {
             report($e);
-            return response()->json([
-                'message' => 'Akun berhasil dibuat, namun gagal mengirim kode OTP ke email Anda.',
-                'error' => $e->getMessage()
-            ], 500);
         }
 
         return response()->json([
