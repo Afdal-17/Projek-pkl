@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../data/admin_dummy_data.dart';
 import '../services/auth_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/app_button.dart';
@@ -97,9 +98,14 @@ class _LoginScreenState extends State<LoginScreen> {
       if (success) {
         widget.onLoginSuccess();
       } else {
+        final err = AuthService.lastLoginError ?? 'Invalid email or password.';
         setState(() {
-          _errorMessage = 'Invalid email or password.';
+          _errorMessage = err;
         });
+        if (err.toLowerCase().contains('suspended') ||
+            err.toLowerCase().contains('ditangguhkan')) {
+          _showSuspendedAccountDialog(err);
+        }
       }
     }
   }
@@ -117,6 +123,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (success) {
         widget.onLoginSuccess();
+      } else {
+        final err = AuthService.lastLoginError ?? 'Google sign-in failed.';
+        setState(() => _errorMessage = err);
+        if (err.toLowerCase().contains('suspended') ||
+            err.toLowerCase().contains('ditangguhkan')) {
+          _showSuspendedAccountDialog(err);
+        }
       }
     } catch (e) {
       if (!mounted) return;
@@ -125,6 +138,238 @@ class _LoginScreenState extends State<LoginScreen> {
         _errorMessage = 'Google sign-in error: ${e.toString()}';
       });
     }
+  }
+
+  void _showSuspendedAccountDialog(String rawMessage) {
+    String reason = 'Violation of terms of service';
+    if (rawMessage.contains(':')) {
+      final parts = rawMessage.split(':');
+      if (parts.length > 1 && parts.sublist(1).join(':').trim().isNotEmpty) {
+        reason = parts.sublist(1).join(':').trim();
+      }
+    }
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: Colors.white,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        child: Padding(
+          padding: const EdgeInsets.all(22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEE2E2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.block_rounded,
+                      color: Color(0xFFDC2626),
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Account Suspended',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.ink,
+                          ),
+                        ),
+                        SizedBox(height: 3),
+                        Text(
+                          'Your account access has been temporarily restricted',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.muted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  InkWell(
+                    onTap: () => Navigator.of(ctx).pop(),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: AppColors.line),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.close_rounded,
+                        size: 16,
+                        color: AppColors.muted,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFFECACA)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'REASON FROM ADMIN',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                        color: Color(0xFFDC2626),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      reason,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF7F1D1D),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF9FAFB),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.line),
+                ),
+                child: const Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Suspension Duration:',
+                          style: TextStyle(fontSize: 12, color: AppColors.muted),
+                        ),
+                        Text(
+                          '30 Days',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.ink,
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Remaining Time:',
+                          style: TextStyle(fontSize: 12, color: AppColors.muted),
+                        ),
+                        Text(
+                          '29 days left',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFFDC2626),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.of(ctx).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Please contact support at admin@finance.app',
+                            ),
+                          ),
+                        );
+                      },
+                      icon: const Icon(
+                        Icons.mail_outline_rounded,
+                        size: 16,
+                        color: Colors.white,
+                      ),
+                      label: const Text(
+                        'Contact Admin',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.dark,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  OutlinedButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AppColors.line),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'Close',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.ink,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   InputDecoration _fieldDecoration({required String hint, Widget? suffixIcon}) {
@@ -336,7 +581,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         child: Text(
-                          'or',
+                          'OR',
                           style: _inter(12, FontWeight.w500, AppColors.muted),
                         ),
                       ),
@@ -720,9 +965,11 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   bool _isLoading = false;
+  bool _isPhoneMode = false;
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
   String? _errorMessage;
@@ -731,13 +978,67 @@ class _RegisterScreenState extends State<RegisterScreen> {
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
+    _phoneController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
   }
 
+  Future<void> _handleGoogleSignUp() async {
+    setState(() {
+      _errorMessage = null;
+      _isLoading = true;
+    });
+
+    try {
+      final success = await AuthService.loginWithGoogle();
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+
+      if (success) {
+        widget.onRegisterSuccess();
+      } else {
+        final err = AuthService.lastLoginError ?? 'Google sign-up failed.';
+        setState(() => _errorMessage = err);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Google sign-up error: ${e.toString()}';
+      });
+    }
+  }
+
   Future<void> _handleRegister() async {
-    if (_passwordController.text != _confirmPasswordController.text) {
+    final name = _nameController.text.trim();
+    final email = _emailController.text.trim();
+    final phone = _phoneController.text.trim();
+    final password = _passwordController.text;
+    final confirmPassword = _confirmPasswordController.text;
+
+    if (name.isEmpty) {
+      setState(() => _errorMessage = 'Please enter your full name.');
+      return;
+    }
+
+    if (_isPhoneMode) {
+      if (phone.isEmpty || phone.length < 8) {
+        setState(() => _errorMessage = 'Please enter a valid phone number.');
+        return;
+      }
+    } else {
+      if (email.isEmpty || !email.contains('@')) {
+        setState(() => _errorMessage = 'Please enter a valid email address.');
+        return;
+      }
+    }
+
+    if (password.length < 8) {
+      setState(() => _errorMessage = 'Password must be at least 8 characters.');
+      return;
+    }
+    if (password != confirmPassword) {
       setState(() => _errorMessage = 'Passwords do not match.');
       return;
     }
@@ -747,21 +1048,75 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _isLoading = true;
     });
 
-    final success = await AuthService.register(
-      _nameController.text.trim(),
-      _emailController.text.trim(),
-      _passwordController.text,
-    );
+    if (_isPhoneMode) {
+      final sent = await AuthService.sendOtp(phone);
+      if (!mounted) return;
+      setState(() => _isLoading = false);
 
-    if (!mounted) return;
-
-    if (success) {
-      widget.onRegisterSuccess();
+      if (sent) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => OtpVerificationScreen(
+              targetPhone: phone,
+              isWhatsApp: true,
+              onVerificationSuccess: () {
+                Navigator.of(context).pop();
+                widget.onRegisterSuccess();
+              },
+            ),
+          ),
+        );
+      } else {
+        setState(() {
+          _errorMessage = 'Failed to send OTP code to your phone number.';
+        });
+      }
     } else {
-      setState(() {
-        _errorMessage = 'Registration failed. Please try again.';
-        _isLoading = false;
-      });
+      final userId = await AuthService.registerUser(
+        name,
+        email,
+        password,
+      );
+
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+
+      if (userId != null) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => OtpVerificationScreen(
+              userId: userId,
+              targetEmail: email,
+              targetPhone: '',
+              isWhatsApp: false,
+              onVerificationSuccess: () {
+                AdminDummyData.registerUser(name: name, email: email);
+                Navigator.of(context).pop();
+                widget.onRegisterSuccess();
+              },
+            ),
+          ),
+        );
+      } else {
+        final err = AuthService.lastRegisterError ?? '';
+        final isNetwork = err.startsWith('Connection failed:') ||
+            err.contains('SocketException') ||
+            err.contains('Timeout') ||
+            err.contains('Failed host lookup');
+
+        if (isNetwork) {
+          if (!mounted) return;
+          setState(() {
+            _errorMessage = 'Cannot connect to server. Please check your internet connection and try again.';
+          });
+          return;
+        }
+
+        setState(() {
+          _errorMessage = AuthService.lastRegisterError ??
+              'Registration failed. Please check your data and try again.';
+        });
+      }
     }
   }
 
@@ -820,7 +1175,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Full name',
+                      'Full Name',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -856,43 +1211,73 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    const Text(
-                      'Email',
-                      style: TextStyle(
+                    Text(
+                      _isPhoneMode ? 'Phone Number' : 'Email',
+                      style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                         color: AppColors.ink,
                       ),
                     ),
                     const SizedBox(height: 8),
-                    TextField(
-                      controller: _emailController,
-                      enabled: !_isLoading,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: InputDecoration(
-                        hintText: 'alex@example.com',
-                        hintStyle: const TextStyle(color: AppColors.muted),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: AppColors.line),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: AppColors.line),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                            color: AppColors.brand,
-                            width: 2,
+                    if (_isPhoneMode)
+                      TextField(
+                        controller: _phoneController,
+                        enabled: !_isLoading,
+                        keyboardType: TextInputType.phone,
+                        decoration: InputDecoration(
+                          hintText: '08123456789 or +628123456789',
+                          hintStyle: const TextStyle(color: AppColors.muted),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: AppColors.line),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: AppColors.line),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                              color: AppColors.brand,
+                              width: 2,
+                            ),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
                           ),
                         ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 12,
+                      )
+                    else
+                      TextField(
+                        controller: _emailController,
+                        enabled: !_isLoading,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: InputDecoration(
+                          hintText: 'alex@example.com',
+                          hintStyle: const TextStyle(color: AppColors.muted),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: AppColors.line),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: AppColors.line),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                              color: AppColors.brand,
+                              width: 2,
+                            ),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
                         ),
                       ),
-                    ),
                     const SizedBox(height: 16),
                     const Text(
                       'Password',
@@ -913,9 +1298,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         suffixIcon: IconButton(
                           icon: Icon(
                             _obscurePassword
-                                ? Icons.visibility_off_rounded
-                                : Icons.visibility_rounded,
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
                             color: AppColors.muted,
+                            size: 20,
                           ),
                           onPressed: () {
                             setState(
@@ -969,9 +1355,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         suffixIcon: IconButton(
                           icon: Icon(
                             _obscureConfirm
-                                ? Icons.visibility_off_rounded
-                                : Icons.visibility_rounded,
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
                             color: AppColors.muted,
+                            size: 20,
                           ),
                           onPressed: () {
                             setState(
@@ -1025,7 +1412,104 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       background:
                           _isLoading ? AppColors.muted : AppColors.dark,
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
+
+                    // OR DIVIDER
+                    Row(
+                      children: [
+                        const Expanded(child: Divider(color: AppColors.line)),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: Text(
+                            'OR',
+                            style: _inter(12, FontWeight.w500, AppColors.muted),
+                          ),
+                        ),
+                        const Expanded(child: Divider(color: AppColors.line)),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
+                    // GOOGLE SIGN UP
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: OutlinedButton(
+                        onPressed: _isLoading ? null : _handleGoogleSignUp,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.ink,
+                          backgroundColor: Colors.white,
+                          side: const BorderSide(color: Color(0xFFE5E7EB)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            GoogleLogo(size: 20),
+                            SizedBox(width: 10),
+                            Text(
+                              'Sign up with Google',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.ink,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // TOGGLE PHONE / EMAIL MODE
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: OutlinedButton(
+                        onPressed: () {
+                          setState(() {
+                            _isPhoneMode = !_isPhoneMode;
+                            _errorMessage = null;
+                          });
+                        },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.ink,
+                          backgroundColor: Colors.white,
+                          side: const BorderSide(color: Color(0xFFE5E7EB)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              _isPhoneMode
+                                  ? Icons.mail_outline_rounded
+                                  : Icons.phone_android_outlined,
+                              size: 20,
+                              color: AppColors.ink,
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              _isPhoneMode
+                                  ? 'Continue with Email'
+                                  : 'Continue with Phone',
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.ink,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
                     Center(
                       child: RichText(
                         text: TextSpan(
@@ -1040,7 +1524,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 child: const Text(
                                   'Sign in',
                                   style: TextStyle(
-                                    color: AppColors.brand,
+                                    color: AppColors.ink,
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),

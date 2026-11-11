@@ -22,6 +22,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   @override
   void initState() {
     super.initState();
+    AdminDummyData.loadFromApi();
     _searchCtrl.addListener(() {
       setState(() {
         _query = _searchCtrl.text.trim().toLowerCase();
@@ -36,7 +37,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   }
 
   Future<void> _handleRefresh() async {
-    await Future.delayed(const Duration(milliseconds: 600));
+    await AdminDummyData.loadFromApi();
     if (mounted) {
       setState(() {});
     }
@@ -161,7 +162,22 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
 
     if (result == true && mounted) {
       final reason = reasonCtrl.text.trim();
-      AdminDummyData.suspendUser(user.id, reason);
+      final success = await AdminDummyData.suspendUser(user.id, reason);
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${user.name} has been suspended.'),
+            backgroundColor: const Color(0xFFDC2626),
+          ),
+        );
+      } else if (!success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to suspend ${user.name}. Please try again.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
     }
   }
 
@@ -255,8 +271,23 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     );
   }
 
-  void _unbanUser(AdminUser user) {
-    AdminDummyData.unbanUser(user.id);
+  Future<void> _unbanUser(AdminUser user) async {
+    final success = await AdminDummyData.unbanUser(user.id);
+    if (success && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${user.name} has been unbanned and can log in now.'),
+          backgroundColor: const Color(0xFF16A34A),
+        ),
+      );
+    } else if (!success && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to unban ${user.name}. Please try again.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
   }
 
   Future<void> _deleteUser(AdminUser user) async {
@@ -286,7 +317,22 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     );
 
     if (confirm == true && mounted) {
-      AdminDummyData.deleteUser(user.id);
+      final success = await AdminDummyData.deleteUser(user.id);
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${user.name} has been deleted.'),
+            backgroundColor: AppColors.dark,
+          ),
+        );
+      } else if (!success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete ${user.name}. Please try again.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
     }
   }
 
@@ -395,19 +441,46 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                           const SizedBox(height: 16),
 
                           // User List Items
-                          ListView.separated(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: filtered.length,
-                            separatorBuilder: (context, index) => const Divider(
-                              color: Color(0xFFF1F5F9),
-                              height: 24,
+                          if (filtered.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 36),
+                              child: Center(
+                                child: Column(
+                                  children: [
+                                    const Icon(
+                                      Icons.people_outline_rounded,
+                                      size: 40,
+                                      color: AppColors.muted,
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      _query.isNotEmpty
+                                          ? 'No users matching "$_query"'
+                                          : 'No users registered yet.',
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                        color: AppColors.muted,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
+                          else
+                            ListView.separated(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: filtered.length,
+                              separatorBuilder: (context, index) => const Divider(
+                                color: Color(0xFFF1F5F9),
+                                height: 24,
+                              ),
+                              itemBuilder: (context, i) {
+                                final u = filtered[i];
+                                return _buildUserCard(u);
+                              },
                             ),
-                            itemBuilder: (context, i) {
-                              final u = filtered[i];
-                              return _buildUserCard(u);
-                            },
-                          ),
                           const SizedBox(height: 20),
 
                           // Footer "Showing X of X users" (Image 2)

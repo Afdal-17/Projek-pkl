@@ -13,14 +13,18 @@ TextStyle _inter(double size, FontWeight weight, Color color) =>
 class OtpVerificationScreen extends StatefulWidget {
   const OtpVerificationScreen({
     super.key,
-    required this.targetPhone,
+    this.targetPhone = '',
     required this.onVerificationSuccess,
     this.isWhatsApp = true,
+    this.userId,
+    this.targetEmail,
   });
 
   final String targetPhone;
   final VoidCallback onVerificationSuccess;
   final bool isWhatsApp;
+  final int? userId;
+  final String? targetEmail;
 
   @override
   State<OtpVerificationScreen> createState() => _OtpVerificationScreenState();
@@ -130,10 +134,18 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       _errorMessage = null;
     });
 
-    final success = await AuthService.verifyOtp(
-      widget.targetPhone,
-      _otpCode,
-    );
+    final bool success;
+    if (widget.userId != null) {
+      success = await AuthService.verifyRegisterOtp(
+        userId: widget.userId!,
+        code: _otpCode,
+      );
+    } else {
+      success = await AuthService.verifyOtp(
+        widget.targetPhone,
+        _otpCode,
+      );
+    }
 
     if (!mounted) return;
     setState(() => _isLoading = false);
@@ -142,7 +154,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       widget.onVerificationSuccess();
     } else {
       setState(() {
-        _errorMessage = 'Invalid verification code. Please check and try again.';
+        _errorMessage = (widget.userId != null ? AuthService.lastRegisterError : null) ??
+            'Invalid verification code. Please check and try again.';
       });
     }
   }
@@ -155,7 +168,18 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       _errorMessage = null;
     });
 
-    await AuthService.resendOtp(widget.targetPhone);
+    if (widget.userId != null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please check your inbox or spam folder for your 6-digit OTP code.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } else {
+      await AuthService.resendOtp(widget.targetPhone);
+    }
 
     if (!mounted) return;
     setState(() => _isLoading = false);
@@ -164,8 +188,9 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final masked = _maskPhone(widget.targetPhone);
-    final kanal = widget.isWhatsApp ? 'WhatsApp' : 'phone';
+    final isEmail = widget.targetEmail != null && widget.targetEmail!.isNotEmpty;
+    final masked = isEmail ? widget.targetEmail! : _maskPhone(widget.targetPhone);
+    final kanal = isEmail ? 'email' : (widget.isWhatsApp ? 'WhatsApp' : 'phone');
 
     return Scaffold(
       backgroundColor: AppColors.page,
@@ -222,9 +247,11 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Icon(
-                        widget.isWhatsApp
-                            ? Icons.chat_bubble_outline_rounded
-                            : Icons.phone_android_rounded,
+                        isEmail
+                            ? Icons.mail_outline_rounded
+                            : (widget.isWhatsApp
+                                ? Icons.chat_bubble_outline_rounded
+                                : Icons.phone_android_rounded),
                         size: 26,
                         color: AppColors.dark,
                       ),
@@ -234,7 +261,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
                   // Title & Subtitle (matches auth/otp.blade.php)
                   Text(
-                    'Verify your $kanal',
+                    isEmail ? 'Verify your email' : 'Verify your $kanal',
                     textAlign: TextAlign.center,
                     style: _inter(24, FontWeight.w800, AppColors.ink),
                   ),
@@ -252,8 +279,9 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                             style: _inter(14, FontWeight.w600, AppColors.ink),
                           ),
                           TextSpan(
-                            text:
-                                '. Enter it below to verify your $kanal number.',
+                            text: isEmail
+                                ? '. Enter it below to activate your account.'
+                                : '. Enter it below to verify your $kanal number.',
                           ),
                         ],
                       ),

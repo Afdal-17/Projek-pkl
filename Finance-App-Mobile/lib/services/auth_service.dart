@@ -1,5 +1,7 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import '../data/admin_dummy_data.dart';
+import '../utils/currency.dart';
 import 'api_config.dart';
 import 'api_service.dart';
 
@@ -11,6 +13,12 @@ class AuthService {
   static const _userNameKey = 'user_name';
   static const _phoneKey = 'user_phone';
   static const _roleKey = 'user_role';
+
+  /// Pesan error terakhir dari server saat percobaan login gagal
+  static String? lastLoginError;
+
+  /// Pesan error terakhir dari server saat percobaan registrasi gagal
+  static String? lastRegisterError;
 
   /// URL Base API Backend
   static const String baseUrl = ApiConfig.baseUrl;
@@ -78,29 +86,28 @@ class AuthService {
             final role = (user is Map ? user['role']?.toString() : null) ?? 'user';
             await _storage.write(key: _roleKey, value: role);
 
+            if (user is Map && user['mata_uang'] != null) {
+              final curr = user['mata_uang'].toString().toUpperCase();
+              if (supportedCurrencies.contains(curr)) {
+                preferredCurrency.value = curr;
+              }
+            }
+
             return sanctumToken;
           }
+        } else {
+          lastLoginError = res.message ?? 'Google authentication failed on server.';
+          return null;
         }
-      } catch (_) {
-        // Backend endpoint offline / gagal koneksi
+      } catch (e) {
+        // Backend endpoint tidak dapat dihubungi
+        lastLoginError = 'Connection failed: ${e.toString()}';
+        return null;
       }
 
-      // 2. Fallback offline jika backend ngrok belum aktif
-      final fallbackToken = idToken ?? _dummyToken;
-      await _storage.write(key: _tokenKey, value: fallbackToken);
-      await _storage.write(key: _userKey, value: email);
-      if (account.displayName != null) {
-        await _storage.write(key: _userNameKey, value: account.displayName);
-      }
-
-      final cleanId = email.trim().toLowerCase();
-      if (cleanId == 'admin@finance.test' || cleanId == 'admin@finance.app') {
-        await _storage.write(key: _roleKey, value: 'admin');
-      } else {
-        await _storage.write(key: _roleKey, value: 'user');
-      }
-
-      return fallbackToken;
+      // Backend merespons tapi tidak mengembalikan Sanctum token yang valid
+      lastLoginError = 'Invalid response from authentication server.';
+      return null;
     } catch (e) {
       return null;
     }
@@ -122,6 +129,7 @@ class AuthService {
     if (identifier.isEmpty || password.isEmpty) return false;
     if (password.length < 6) return false;
 
+    lastLoginError = null;
     final cleanId = identifier.trim().toLowerCase();
 
     // 1. Coba request ke Backend Laravel API jika bukan nomor HP
@@ -151,30 +159,42 @@ class AuthService {
             final role = (user is Map ? user['role']?.toString() : null) ??
                 ((cleanId == 'admin@finance.test' || cleanId == 'admin@finance.app') ? 'admin' : 'user');
             await _storage.write(key: _roleKey, value: role);
+
+            if (user is Map && user['mata_uang'] != null) {
+              final curr = user['mata_uang'].toString().toUpperCase();
+              if (supportedCurrencies.contains(curr)) {
+                preferredCurrency.value = curr;
+              }
+            }
+
             return true;
           }
         }
-      } catch (_) {
-        // Fallback untuk local preview jika koneksi ngrok belum tersambung
+
+        // Cek apakah server backend merespons (bukan kegagalan jaringan).
+        // Jika server menolak (401, 403, 422, atau error server lainnya),
+        // jangan pernah menggunakan dummy token atau meloloskan login.
+        final isNetworkFailure = res.message != null && res.message!.startsWith('Connection failed:');
+        if (!isNetworkFailure) {
+          lastLoginError = res.message ?? 'Invalid email or password.';
+          return false;
+        }
+      } catch (e) {
+        // Backend tidak dapat dihubungi (SocketException, timeout, dll.)
+        lastLoginError = 'Connection failed: ${e.toString()}';
+        return false;
       }
     }
 
-    // 2. Fallback local / phone auth
-    await _storage.write(key: _tokenKey, value: _dummyToken);
-
+    // Untuk mode phone (OTP), tidak ada backend endpoint — tetap gunakan dummy
     if (isPhone) {
+      await _storage.write(key: _tokenKey, value: _dummyToken);
       await _storage.write(key: _phoneKey, value: identifier);
       await _storage.write(key: _roleKey, value: 'user');
-    } else {
-      await _storage.write(key: _userKey, value: identifier);
-      // Akun admin resmi di Laravel DatabaseSeeder: admin@finance.test
-      if (cleanId == 'admin@finance.test' || cleanId == 'admin@finance.app') {
-        await _storage.write(key: _roleKey, value: 'admin');
-      } else {
-        await _storage.write(key: _roleKey, value: 'user');
-      }
+      return true;
     }
-    return true;
+
+    return false;
   }
 
   /// Ambil data profil user dari Laravel Sanctum API (/api/user)
@@ -233,21 +253,155 @@ class AuthService {
     return true;
   }
 
+  /// Registrasi akun baru ke REST API backend Laravel (/api/register).
+  /// Mengembalikan userId (int) jika registrasi berhasil dan kode OTP dikirim ke email.
+  /// Mengembalikan null jika validasi gagal atau terjadi error.
+  static Future<int?> registerUser(
+    String name,
+    String email,
+    String password,
+  ) async {
+    lastRegisterError = null;
+    final cleanName = name.trim();
+    final cleanEmail = email.trim().toLowerCase();
+
+    if (cleanName.isEmpty) {
+      lastRegisterError = 'Full name is required.';
+      return null;
+    }
+    if (cleanEmail.isEmpty || !cleanEmail.contains('@')) {
+      lastRegisterError = 'A valid email address is required.';
+      return null;
+    }
+    if (password.length < 8) {
+      lastRegisterError = 'Password must be at least 8 characters.';
+      return null;
+    }
+
+    try {
+      final res = await ApiService.post(
+        ApiConfig.registerEndpoint,
+        body: {
+          'nama': cleanName,
+          'email': cleanEmail,
+          'password': password,
+          'password_confirmation': password,
+        },
+        requiresAuth: false,
+      );
+
+      if (res.success && res.data is Map) {
+        final dataMap = res.data as Map;
+        final rawUserId = dataMap['user_id'];
+        if (rawUserId != null) {
+          final userId = (rawUserId is num)
+              ? rawUserId.toInt()
+              : int.tryParse(rawUserId.toString());
+          if (userId != null) {
+            return userId;
+          }
+        }
+      }
+
+      if (res.message != null && res.message!.isNotEmpty) {
+        lastRegisterError = res.message;
+      } else {
+        lastRegisterError = 'Registration failed. Please check your data and try again.';
+      }
+      return null;
+    } catch (e) {
+      lastRegisterError = 'Connection error: ${e.toString()}';
+      return null;
+    }
+  }
+
+  /// Verifikasi kode OTP 6-digit untuk aktivasi akun registrasi email.
+  /// Endpoint: POST /api/register/verify-otp
+  /// Mengembalikan true dan menyimpan Sanctum Bearer token jika berhasil.
+  static Future<bool> verifyRegisterOtp({
+    required int userId,
+    required String code,
+  }) async {
+    lastRegisterError = null;
+    final cleanCode = code.trim();
+
+    if (cleanCode.length != 6) {
+      lastRegisterError = 'Please enter the 6-digit verification code.';
+      return false;
+    }
+
+    try {
+      final res = await ApiService.post(
+        ApiConfig.registerVerifyOtpEndpoint,
+        body: {
+          'user_id': userId,
+          'kode': cleanCode,
+        },
+        requiresAuth: false,
+      );
+
+      if (res.success && res.data is Map) {
+        final dataMap = res.data as Map;
+        final token = dataMap['token']?.toString();
+        final user = dataMap['user'];
+
+        if (token != null && token.isNotEmpty) {
+          await _storage.write(key: _tokenKey, value: token);
+          final userEmail = (user is Map ? user['email']?.toString() : null);
+          if (userEmail != null) {
+            await _storage.write(key: _userKey, value: userEmail);
+          }
+          final userName = (user is Map ? (user['nama'] ?? user['name'])?.toString() : null);
+          if (userName != null) {
+            await _storage.write(key: _userNameKey, value: userName);
+          }
+          final role = (user is Map ? user['role']?.toString() : null) ?? 'user';
+          await _storage.write(key: _roleKey, value: role);
+
+          if (user is Map && user['mata_uang'] != null) {
+            final curr = user['mata_uang'].toString().toUpperCase();
+            if (supportedCurrencies.contains(curr)) {
+              preferredCurrency.value = curr;
+            }
+          }
+
+          return true;
+        }
+      }
+
+      if (res.message != null && res.message!.isNotEmpty) {
+        lastRegisterError = res.message;
+      } else {
+        lastRegisterError = 'Invalid verification code. Please check and try again.';
+      }
+      return false;
+    } catch (e) {
+      lastRegisterError = 'Connection error: ${e.toString()}';
+      return false;
+    }
+  }
+
+  /// Simpan sesi user lokal (fallback offline testing)
+  static Future<void> saveLocalUser({required String name, required String email}) async {
+    await _storage.write(key: _tokenKey, value: _dummyToken);
+    await _storage.write(key: _userKey, value: email);
+    await _storage.write(key: _userNameKey, value: name);
+    await _storage.write(key: _roleKey, value: 'user');
+    AdminDummyData.registerUser(name: name, email: email);
+  }
+
   /// Register dengan nama, email, dan password.
   static Future<bool> register(
     String name,
     String email,
     String password,
   ) async {
-    if (name.isEmpty || email.isEmpty || password.isEmpty) return false;
-    if (password.length < 6) return false;
-    if (!email.contains('@')) return false;
-
-    await _storage.write(key: _tokenKey, value: _dummyToken);
-    await _storage.write(key: _userKey, value: email);
-    await _storage.write(key: _userNameKey, value: name);
-    await _storage.write(key: _roleKey, value: 'user');
-    return true;
+    final userId = await registerUser(name, email, password);
+    if (userId != null) {
+      AdminDummyData.registerUser(name: name, email: email);
+      return true;
+    }
+    return false;
   }
 
   /// Logout (sekaligus membersihkan sesi Google Sign-In jika ada).
@@ -303,5 +457,22 @@ class AuthService {
   /// Ambil nomor telepon user yang login.
   static Future<String?> getUserPhone() async {
     return await _storage.read(key: _phoneKey);
+  }
+
+  /// Sinkronisasikan mata uang user ke database backend Laravel (/api/account/currency)
+  static Future<bool> syncCurrencyToBackend([String currency = 'IDR']) async {
+    try {
+      final token = await getToken();
+      if (token != null && token.isNotEmpty) {
+        final res = await ApiService.patch(
+          ApiConfig.switchCurrencyEndpoint,
+          body: {'mata_uang': currency},
+        );
+        return res.success;
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
   }
 }

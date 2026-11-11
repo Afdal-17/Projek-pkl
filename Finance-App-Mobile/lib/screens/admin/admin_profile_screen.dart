@@ -3,6 +3,9 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../data/admin_dummy_data.dart';
+import '../../services/api_config.dart';
+import '../../services/api_service.dart';
+import '../../services/profile_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/admin_header.dart';
 import '../../widgets/app_card.dart';
@@ -55,6 +58,28 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
     if (AdminDummyData.adminAvatarFile is Uint8List) {
       _avatarFile = AdminDummyData.adminAvatarFile as Uint8List;
     }
+    _loadProfileFromApi();
+  }
+
+  Future<void> _loadProfileFromApi() async {
+    try {
+      final res = await ProfileService.fetchProfile();
+      if (res.success && res.data is Map) {
+        final map = res.data as Map;
+        final name = (map['nama'] ?? map['name'])?.toString();
+        final email = map['email']?.toString();
+        final phone = (map['nomor_telepon'] ?? map['phone'])?.toString();
+        final loc = (map['lokasi'] ?? map['location'])?.toString();
+        if (mounted) {
+          setState(() {
+            if (name != null && name.isNotEmpty) _nameCtrl.text = name;
+            if (email != null && email.isNotEmpty) _emailCtrl.text = email;
+            if (phone != null && phone.isNotEmpty) _phoneCtrl.text = phone;
+            if (loc != null && loc.isNotEmpty) _locationCtrl.text = loc;
+          });
+        }
+      }
+    } catch (_) {}
   }
 
   @override
@@ -182,16 +207,23 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   }
 
   Future<void> _saveProfile() async {
-    setState(() {
-      _isSaving = true;
-      AdminDummyData.adminName = _nameCtrl.text.trim().isEmpty ? 'Admin' : _nameCtrl.text.trim();
-      AdminDummyData.adminEmail = _emailCtrl.text.trim().isEmpty ? 'admin@finance.app' : _emailCtrl.text.trim();
-      AdminDummyData.adminPhone = _phoneCtrl.text.trim();
-      AdminDummyData.adminLocation = _locationCtrl.text.trim();
-      AdminDummyData.adminAvatarFile = _avatarFile;
-    });
+    setState(() => _isSaving = true);
 
-    await Future.delayed(const Duration(milliseconds: 300));
+    try {
+      await ProfileService.updateProfile(
+        name: _nameCtrl.text.trim(),
+        email: _emailCtrl.text.trim(),
+        phone: _phoneCtrl.text.trim(),
+        location: _locationCtrl.text.trim(),
+      );
+    } catch (_) {}
+
+    AdminDummyData.adminName = _nameCtrl.text.trim().isEmpty ? 'Admin' : _nameCtrl.text.trim();
+    AdminDummyData.adminEmail = _emailCtrl.text.trim().isEmpty ? 'admin@finance.app' : _emailCtrl.text.trim();
+    AdminDummyData.adminPhone = _phoneCtrl.text.trim();
+    AdminDummyData.adminLocation = _locationCtrl.text.trim();
+    AdminDummyData.adminAvatarFile = _avatarFile;
+
     if (mounted) {
       setState(() {
         _isSaving = false;
@@ -210,25 +242,66 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
     final np = _newPassCtrl.text;
     final cp = _confirmPassCtrl.text;
 
-    if (cur.isEmpty || np.length < 8 || np != cp) {
+    if (cur.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter your current password.')),
+      );
+      return;
+    }
+    if (np.length < 8) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('New password must be at least 8 characters.')),
+      );
+      return;
+    }
+    if (np != cp) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('New passwords do not match.')),
+      );
       return;
     }
 
     setState(() => _isUpdatingPassword = true);
-    await Future.delayed(const Duration(milliseconds: 300));
 
-    if (mounted) {
-      setState(() {
-        _isUpdatingPassword = false;
-        _isPasswordUpdated = true;
-        _currentPassCtrl.clear();
-        _newPassCtrl.clear();
-        _confirmPassCtrl.clear();
-      });
+    try {
+      final res = await ApiService.put(
+        ApiConfig.passwordEndpoint,
+        body: {
+          'current_password': cur,
+          'password': np,
+          'password_confirmation': cp,
+        },
+      );
 
-      await Future.delayed(const Duration(milliseconds: 1500));
+      if (!mounted) return;
+
+      if (res.success) {
+        setState(() {
+          _isUpdatingPassword = false;
+          _isPasswordUpdated = true;
+          _currentPassCtrl.clear();
+          _newPassCtrl.clear();
+          _confirmPassCtrl.clear();
+        });
+
+        await Future.delayed(const Duration(milliseconds: 1500));
+        if (mounted) {
+          setState(() => _isPasswordUpdated = false);
+        }
+      } else {
+        setState(() => _isUpdatingPassword = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(res.message ?? 'Failed to update password. Please check your current password.'),
+          ),
+        );
+      }
+    } catch (e) {
       if (mounted) {
-        setState(() => _isPasswordUpdated = false);
+        setState(() => _isUpdatingPassword = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${e.toString()}')),
+        );
       }
     }
   }

@@ -9,6 +9,8 @@ import '../utils/currency.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_header.dart';
 import 'notifications_screen.dart';
+import '../services/api_config.dart';
+import '../services/api_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key, required this.onLogout});
@@ -27,6 +29,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late final TextEditingController _phoneCtrl;
   late final TextEditingController _locationCtrl;
 
+  final TextEditingController _currentPassCtrl = TextEditingController();
+  final TextEditingController _newPassCtrl = TextEditingController();
+  final TextEditingController _confirmPassCtrl = TextEditingController();
+
+  bool _obscureCurrent = true;
+  bool _obscureNew = true;
+  bool _obscureConfirm = true;
+  bool _isUpdatingPassword = false;
+  bool _isPasswordUpdated = false;
+
   late String _selectedCurrency;
   bool _isCurrencyDropdownOpen = false;
 
@@ -35,6 +47,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   bool _isSaving = false;
   bool _isSaved = false;
+
+  bool _isPreferencesSaving = false;
+  bool _isPreferencesSaved = false;
 
   @override
   void initState() {
@@ -69,11 +84,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final res = await ProfileService.fetchProfile();
       if (!mounted) return;
       if (res.success && res.data != null && res.data is Map) {
-        final data = res.data as Map;
+        final rootData = res.data as Map;
+        final data = (rootData['user'] is Map)
+            ? rootData['user'] as Map
+            : rootData;
         final name = data['nama'] ?? data['name'] ?? '';
         final email = data['email'] ?? '';
-        final phone = data['phone'] ?? data['no_hp'] ?? '';
-        final location = data['location'] ?? data['alamat'] ?? '';
+        final phone = data['nomor_telepon'] ?? data['phone'] ?? data['no_hp'] ?? '';
+        final location = data['lokasi'] ?? data['location'] ?? data['alamat'] ?? '';
         final currency = data['mata_uang'] ?? data['currency'] ?? '';
 
         setState(() {
@@ -104,6 +122,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _emailCtrl.dispose();
     _phoneCtrl.dispose();
     _locationCtrl.dispose();
+    _currentPassCtrl.dispose();
+    _newPassCtrl.dispose();
+    _confirmPassCtrl.dispose();
     super.dispose();
   }
 
@@ -214,21 +235,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _saveProfile() async {
     setState(() {
       _isSaving = true;
+    });
+
+    bool apiSuccess = false;
+    try {
+      final res = await ProfileService.updateProfile(
+        name: _nameCtrl.text.trim(),
+        phone: _phoneCtrl.text.trim(),
+        location: _locationCtrl.text.trim(),
+        currency: _selectedCurrency,
+      );
+      apiSuccess = res.success;
+    } catch (_) {
+      apiSuccess = false;
+    }
+
+    if (!apiSuccess) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to save profile. Please try again.'),
+            backgroundColor: Color(0xFFDC2626),
+          ),
+        );
+      }
+      return;
+    }
+
+    // Update local state hanya setelah backend berhasil
+    setState(() {
       DummyData.userName = _nameCtrl.text.trim().isEmpty ? DummyData.userName : _nameCtrl.text.trim();
       DummyData.userEmail = _emailCtrl.text.trim().isEmpty ? DummyData.userEmail : _emailCtrl.text.trim();
       DummyData.userPhone = _phoneCtrl.text.trim();
       DummyData.userLocation = _locationCtrl.text.trim();
       DummyData.userAvatarFile = _profileImage;
     });
-
-    try {
-      await ProfileService.updateProfile(
-        name: _nameCtrl.text.trim(),
-        phone: _phoneCtrl.text.trim(),
-        location: _locationCtrl.text.trim(),
-        currency: _selectedCurrency,
-      );
-    } catch (_) {}
 
     await Future.delayed(const Duration(milliseconds: 300));
     if (mounted) {
@@ -244,11 +286,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  void _savePreferences() {
-    preferredCurrency.value = _selectedCurrency;
+  Future<void> _savePreferences() async {
     setState(() {
+      _isPreferencesSaving = true;
       _isCurrencyDropdownOpen = false;
     });
+
+    final previousCurrency = preferredCurrency.value;
+    final success = await AuthService.syncCurrencyToBackend(_selectedCurrency);
+
+    if (mounted) {
+      if (success) {
+        preferredCurrency.value = _selectedCurrency;
+        setState(() {
+          _isPreferencesSaving = false;
+          _isPreferencesSaved = true;
+        });
+
+        await Future.delayed(const Duration(milliseconds: 2000));
+        if (mounted) {
+          setState(() => _isPreferencesSaved = false);
+        }
+      } else {
+        setState(() {
+          _isPreferencesSaving = false;
+          _selectedCurrency = previousCurrency;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to update currency preference. Please try again.'),
+            backgroundColor: Color(0xFFDC2626),
+          ),
+        );
+      }
+    }
   }
 
 
@@ -288,78 +359,73 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _showUpdatePasswordDialog() {
-    final currentCtrl = TextEditingController();
-    final newCtrl = TextEditingController();
-    final confirmCtrl = TextEditingController();
+  Future<void> _updatePassword() async {
+    final cur = _currentPassCtrl.text;
+    final np = _newPassCtrl.text;
+    final cp = _confirmPassCtrl.text;
 
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 24,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Update Password',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.ink),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.of(ctx).pop(),
-                    icon: const Icon(Icons.close_rounded, color: AppColors.muted),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              _formLabel('Current Password'),
-              const SizedBox(height: 6),
-              _passwordField(currentCtrl, 'Enter current password'),
-              const SizedBox(height: 14),
-              _formLabel('New Password'),
-              const SizedBox(height: 6),
-              _passwordField(newCtrl, 'Enter new password'),
-              const SizedBox(height: 14),
-              _formLabel('Confirm New Password'),
-              const SizedBox(height: 6),
-              _passwordField(confirmCtrl, 'Confirm new password'),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.of(ctx).pop();
-                  },
-                  icon: const Icon(Icons.lock_outline_rounded, size: 16, color: Colors.white),
-                  label: const Text('Update Password', style: TextStyle(fontWeight: FontWeight.w700)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.dark,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    elevation: 0,
-                  ),
-                ),
-              ),
-            ],
+    if (cur.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter your current password.')),
+      );
+      return;
+    }
+    if (np.length < 8) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('New password must be at least 8 characters.')),
+      );
+      return;
+    }
+    if (np != cp) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('New passwords do not match.')),
+      );
+      return;
+    }
+
+    setState(() => _isUpdatingPassword = true);
+
+    try {
+      final res = await ApiService.put(
+        ApiConfig.passwordEndpoint,
+        body: {
+          'current_password': cur,
+          'password': np,
+          'password_confirmation': cp,
+        },
+      );
+
+      if (!mounted) return;
+
+      if (res.success) {
+        setState(() {
+          _isUpdatingPassword = false;
+          _isPasswordUpdated = true;
+          _currentPassCtrl.clear();
+          _newPassCtrl.clear();
+          _confirmPassCtrl.clear();
+        });
+
+        await Future.delayed(const Duration(milliseconds: 1500));
+        if (mounted) {
+          setState(() => _isPasswordUpdated = false);
+        }
+      } else {
+        setState(() => _isUpdatingPassword = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(res.message ?? 'Failed to update password. Please check your current password.'),
           ),
         );
-      },
-    );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isUpdatingPassword = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${e.toString()}')),
+        );
+      }
+    }
   }
 
   @override
@@ -876,16 +942,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Security',
+                      'Security / Change Password',
                       style: TextStyle(
                         fontSize: 16,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w700,
                         color: AppColors.ink,
                       ),
                     ),
                     SizedBox(height: 2),
                     Text(
-                      'Password & authentication settings',
+                      'Update your password to keep your account secure.',
                       style: TextStyle(
                         fontSize: 13,
                         color: AppColors.muted,
@@ -896,37 +962,77 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          const Text(
-            'Your password was last changed 3 months ago. Enable two-step verification for extra protection.',
-            style: TextStyle(
-              fontSize: 14,
-              color: AppColors.muted,
-              height: 1.45,
-            ),
-          ),
           const SizedBox(height: 20),
+
+          // Form Update Password
+          _formLabel('Current Password'),
+          const SizedBox(height: 8),
+          _passwordField(
+            _currentPassCtrl,
+            'Enter current password',
+            _obscureCurrent,
+            () => setState(() => _obscureCurrent = !_obscureCurrent),
+          ),
+          const SizedBox(height: 16),
+
+          _formLabel('New Password'),
+          const SizedBox(height: 8),
+          _passwordField(
+            _newPassCtrl,
+            'Enter new password',
+            _obscureNew,
+            () => setState(() => _obscureNew = !_obscureNew),
+          ),
+          const SizedBox(height: 16),
+
+          _formLabel('Confirm New Password'),
+          const SizedBox(height: 8),
+          _passwordField(
+            _confirmPassCtrl,
+            'Confirm new password',
+            _obscureConfirm,
+            () => setState(() => _obscureConfirm = !_obscureConfirm),
+          ),
+          const SizedBox(height: 24),
+
           SizedBox(
             width: double.infinity,
             height: 46,
-            child: OutlinedButton(
-              onPressed: _showUpdatePasswordDialog,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.ink,
-                backgroundColor: Colors.white,
-                side: const BorderSide(color: Color(0xFFE5E7EB)),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+            child: ElevatedButton(
+              onPressed: _isUpdatingPassword ? null : _updatePassword,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _isPasswordUpdated ? const Color(0xFF10B981) : AppColors.dark,
+                foregroundColor: Colors.white,
                 elevation: 0,
-              ),
-              child: const Text(
-                'Update password',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
                 ),
               ),
+              child: _isUpdatingPassword
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          _isPasswordUpdated ? Icons.check_circle_rounded : Icons.lock_outline_rounded,
+                          size: 16,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          _isPasswordUpdated ? 'Password updated!' : 'Update Password',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
             ),
           ),
         ],
@@ -1140,22 +1246,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
             width: double.infinity,
             height: 48,
             child: ElevatedButton(
-              onPressed: _savePreferences,
+              onPressed: _isPreferencesSaving ? null : _savePreferences,
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.dark,
+                backgroundColor: _isPreferencesSaved ? const Color(0xFF10B981) : AppColors.dark,
                 foregroundColor: Colors.white,
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: const Text(
-                'Save preferences',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+              child: _isPreferencesSaving
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (_isPreferencesSaved) ...[
+                          const Icon(Icons.check_circle_rounded, size: 18, color: Colors.white),
+                          const SizedBox(width: 8),
+                        ],
+                        Text(
+                          _isPreferencesSaved ? 'Saved successfully' : 'Save preferences',
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
             ),
           ),
         ],
@@ -1276,25 +1397,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _passwordField(TextEditingController controller, String hint) {
-    return Container(
-      height: 48,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      child: TextField(
-        controller: controller,
-        obscureText: true,
-        style: const TextStyle(fontSize: 15, color: AppColors.ink),
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: const TextStyle(color: AppColors.muted),
-          border: InputBorder.none,
-          isDense: true,
-          contentPadding: const EdgeInsets.symmetric(vertical: 13),
+  Widget _passwordField(
+    TextEditingController controller,
+    String hint,
+    bool obscure,
+    VoidCallback onToggle,
+  ) {
+    return TextField(
+      controller: controller,
+      obscureText: obscure,
+      style: const TextStyle(fontSize: 14, color: AppColors.ink, fontWeight: FontWeight.w500),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: const TextStyle(fontSize: 14, color: AppColors.muted),
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        suffixIcon: IconButton(
+          icon: Icon(
+            obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+            color: AppColors.muted,
+            size: 20,
+          ),
+          onPressed: onToggle,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.brand, width: 1.5),
         ),
       ),
     );

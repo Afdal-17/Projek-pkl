@@ -35,7 +35,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   void initState() {
     super.initState();
     _emailController = TextEditingController(
-      text: widget.initialEmail ?? 'gaktaubanh68@gmail.com',
+      text: widget.initialEmail ?? '',
     );
   }
 

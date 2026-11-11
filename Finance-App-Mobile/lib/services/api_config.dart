@@ -10,10 +10,14 @@ class ApiConfig {
   static const String ngrokHeaderValue = 'true';
 
   // ─── Endpoints ───────────────────────────────────────────────
-  // Autentikasi
+  // Autentikasi & Akun
   static const String loginEndpoint = '$baseUrl/login';
+  static const String registerEndpoint = '$baseUrl/register';
+  static const String registerVerifyOtpEndpoint = '$baseUrl/register/verify-otp';
+  static const String passwordEndpoint = '$baseUrl/password';
   static const String userEndpoint = '$baseUrl/user';
   static const String googleAuthEndpoint = '$baseUrl/auth/google';
+  static const String switchCurrencyEndpoint = '$baseUrl/account/currency';
 
   // Dompet
   static const String dompetEndpoint = '$baseUrl/dompet';
@@ -32,6 +36,18 @@ class ApiConfig {
   static const String notificationsEndpoint = '$baseUrl/notifications';
   static String readNotificationEndpoint(dynamic id) => '$baseUrl/notifications/$id/read';
   static const String readAllNotificationsEndpoint = '$baseUrl/notifications/read-all';
+
+  // Kurs Mata Uang Real-time
+  static const String currencyRatesEndpoint = '$baseUrl/currency/rates';
+
+  // Admin Endpoints
+  static const String adminDashboardEndpoint = '$baseUrl/admin/dashboard';
+  static const String adminUsersEndpoint = '$baseUrl/admin/users';
+  static const String adminVerifyUsersEndpoint = '$baseUrl/admin/verify-users';
+  static String adminUserStatusEndpoint(dynamic id) => '$baseUrl/admin/users/$id/status';
+  static String adminUserBanEndpoint(dynamic id) => '$baseUrl/admin/users/$id/ban';
+  static String adminUserVerifyEndpoint(dynamic id) => '$baseUrl/admin/users/$id/verify';
+  static String adminUserManageEndpoint(dynamic id) => '$baseUrl/admin/users/$id';
 
   /// Header standar untuk setiap request API
   static Map<String, String> get defaultHeaders => {

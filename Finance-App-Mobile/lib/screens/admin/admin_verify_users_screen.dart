@@ -22,6 +22,7 @@ class _AdminVerifyUsersScreenState extends State<AdminVerifyUsersScreen> {
   @override
   void initState() {
     super.initState();
+    AdminDummyData.loadFromApi();
     _searchCtrl.addListener(() {
       setState(() {
         _query = _searchCtrl.text.trim().toLowerCase();
@@ -36,7 +37,7 @@ class _AdminVerifyUsersScreenState extends State<AdminVerifyUsersScreen> {
   }
 
   Future<void> _handleRefresh() async {
-    await Future.delayed(const Duration(milliseconds: 600));
+    await AdminDummyData.loadFromApi();
     if (mounted) {
       setState(() {});
     }
@@ -76,7 +77,15 @@ class _AdminVerifyUsersScreenState extends State<AdminVerifyUsersScreen> {
     );
 
     if (confirmed == true && mounted) {
-      AdminDummyData.verifyUser(user.id);
+      final success = await AdminDummyData.verifyUser(user.id);
+      if (!success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to verify ${user.name}. Please try again.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
     }
   }
 

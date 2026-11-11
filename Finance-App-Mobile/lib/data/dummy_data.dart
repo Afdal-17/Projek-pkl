@@ -3,6 +3,8 @@ import '../models/money.dart';
 import '../models/saving_goal.dart';
 import '../models/transaction_item.dart';
 import '../models/wallet.dart';
+import '../services/api_config.dart';
+import '../services/api_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/currency.dart';
 
@@ -17,18 +19,38 @@ class DummyData {
   static String get apiBaseUrl => 'https://sinuous-fame-jazz.ngrok-free.dev/api';
   DummyData._();
 
-  static String userName = "Muhammad Rofi'i Alawi";
-  static String userInitials = 'MR';
-  static String userEmail = 'gaktaubanh68@gmail.com';
-  static String userPhone = '087812822400';
-  static String userLocation = 'Cianjur';
+  static String userName = "User";
+  static String userInitials = 'U';
+  static String userEmail = 'user@finance.app';
+  static String userPhone = '';
+  static String userLocation = 'Indonesia';
   static dynamic userAvatarFile; // File? jika dipilih dari device
 
-  static const _dummyRateFromIdr = <String, double>{
+  static Map<String, double> _dummyRateFromIdr = <String, double>{
     'IDR': 1.0,
-    'USD': 0.0000645,
-    'EUR': 0.0000555,
+    'USD': 1.0 / 18000.0, // 1 USD = Rp 18.000 (18k)
+    'EUR': 1.0 / 19500.0, // 1 EUR = Rp 19.500
   };
+
+  /// Mengambil kurs mata uang langsung secara real-time dari backend (/api/currency/rates)
+  static Future<void> fetchLiveRates() async {
+    try {
+      final res = await ApiService.get(ApiConfig.currencyRatesEndpoint);
+      if (res.success && res.data is Map) {
+        final map = res.data as Map;
+        final newRates = <String, double>{'IDR': 1.0};
+        for (final entry in map.entries) {
+          final val = (entry.value as num?)?.toDouble();
+          if (val != null && val > 0) {
+            newRates[entry.key.toString().toUpperCase()] = 1.0 / val;
+          }
+        }
+        if (newRates.length > 1) {
+          _dummyRateFromIdr = newRates;
+        }
+      }
+    } catch (_) {}
+  }
 
   /// Membuat Money dari nilai IDR, dikonversi ke mata uang pilihan user.
   static Money money(num idr) {
