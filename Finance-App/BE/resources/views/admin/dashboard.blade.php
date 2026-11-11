@@ -157,7 +157,7 @@
             <a href="/admin/users" class="text-sm font-medium text-brand hover:underline">View all</a>
         </div>
 
-
+        
 
         <div class="overflow-x-auto">
         <div class="min-w-[480px]">

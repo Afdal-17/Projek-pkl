@@ -86,7 +86,7 @@ class KategoriController extends Controller
     public function destroy(Kategori $kategori): \Illuminate\Http\Response|\Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
     {
         abort_unless($kategori->id_user === Auth::id(), 404);
-
+        
         // Cannot delete category if it has transactions
         if ($kategori->transaksi()->count() > 0) {
             if (request()->expectsJson() || request()->wantsJson()) {
@@ -94,7 +94,7 @@ class KategoriController extends Controller
             }
             return redirect()->route('kategori.index')->withErrors(['message' => 'Category cannot be deleted because it has transactions. You can only edit it.']);
         }
-
+        
         $kategori->delete();
 
         if (request()->expectsJson()) {

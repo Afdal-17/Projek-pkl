@@ -33,7 +33,7 @@ class AuthenticatedSessionController extends Controller
         // Cek verifikasi email / admin untuk role user
         if ($user?->role === 'user' && $user?->email_verified_at === null) {
             $user->tokens()->delete();
-
+            
             $pesan = ($user->otp_kode && ! $user->otp_verified_at)
                 ? 'Akun Anda belum diverifikasi. Silakan masukkan kode OTP yang dikirim ke email Anda.'
                 : 'Akun Anda belum diverifikasi oleh admin. Silakan hubungi admin.';

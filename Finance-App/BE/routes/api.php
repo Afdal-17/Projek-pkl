@@ -4,7 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\GoogleAuthController;
-use App\Http\Controllers\Auth\RegisteredUserController;
+use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\DompetController;
 use App\Http\Controllers\KategoriController;
 use App\Http\Controllers\NotifikasiController;
@@ -39,6 +39,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/account/currency', [ProfileController::class, 'switchCurrency']);
     Route::post('/account/avatar', [ProfileController::class, 'updateAvatar']);
     Route::delete('/account/avatar', [ProfileController::class, 'deleteAvatar']);
+    Route::put('/password', [PasswordController::class, 'apiUpdate']);
 
     // Dashboard
     Route::get('/dashboard/summary', [UserController::class, 'summary']);

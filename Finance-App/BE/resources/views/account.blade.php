@@ -257,8 +257,8 @@
                         <div class="flex items-center justify-between">
                             <dt class="text-muted">{{ __('account.default_currency') }}</dt>
                             <dd>
-                                <select
-                                    x-model="form.currency"
+                                <select 
+                                    x-model="form.currency" 
                                     x-on:change="changeCurrency($event.target.value)"
                                     :disabled="switchingCurrency"
                                     class="border-0 bg-transparent py-0 pl-0 pr-6 text-right text-sm font-semibold focus:ring-0 disabled:opacity-50">

@@ -136,7 +136,7 @@
                     {{-- Pop-up Modal / Dropdown Container (Kompak & Minimalis) --}}
                     <div x-cloak x-show="open" @click.outside="open = false" x-transition.opacity.scale.origin.top.right
                          class="absolute right-0 z-30 mt-2 w-72 sm:w-80 rounded-xl border border-line bg-white shadow-lg overflow-hidden">
-
+                        
                         {{-- Header Pop-up --}}
                         <div class="flex items-center justify-between border-b border-line px-3.5 py-2.5 bg-white">
                             <div class="flex items-center gap-1.5">

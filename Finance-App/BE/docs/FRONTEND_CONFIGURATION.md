@@ -9,9 +9,9 @@ Panduan konfigurasi koneksi dan aturan integrasi frontend (Flutter & Vue.js) den
 Setiap request dari frontend **wajib** mengarah ke base URL yang benar dan menyertakan header standar.
 
 ### 🌐 Base URL
-* **Production / Remote (via ngrok HTTPS):**
+* **Production / Remote (via ngrok HTTPS):** 
   `https://sinuous-fame-jazz.ngrok-free.dev/api`
-* **Local Development (Backend di port 8003):**
+* **Local Development (Backend di port 8003):** 
   `http://127.0.0.1:8003/api`
 
 > ⚠️ **Catatan Penting untuk ngrok:** Jangan gunakan IP lokal (seperti `192.168.x.x` atau `10.x.x.x`) saat menghubungkan Google OAuth atau membagikan akses ke tim, karena Google OAuth dan kebijakan browser modern menolak *mixed content* / IP HTTP mentah. Selalu gunakan domain statis ngrok `https://sinuous-fame-jazz.ngrok-free.dev`.
@@ -28,7 +28,7 @@ Authorization: Bearer <sanctum_token>
 
 ## 2. Aturan Penting Konversi Mata Currency (Penting untuk Tim Mobile/Web)
 
-Backend Finance App **menyimpan seluruh data keuangan di database dalam bentuk Rupiah (IDR) murni** sebagai *base currency*.
+Backend Finance App **menyimpan seluruh data keuangan di database dalam bentuk Rupiah (IDR) murni** sebagai *base currency*. 
 
 1. **Backend Menangani Konversi Otomatis:**
    * Backend otomatis membaca preferensi mata uang user (`mata_uang` di tabel `users`, pilihannya: `IDR`, `USD`, `EUR`).
@@ -49,7 +49,7 @@ Backend Finance App **menyimpan seluruh data keuangan di database dalam bentuk R
 | `POST` | `/api/register/verify-otp` | Verifikasi 6 digit kode OTP (mengaktifkan akun & mengembalikan token) | Publik |
 | `POST` | `/api/login` | Login dengan email/phone + password | Publik |
 | `POST` | `/api/auth/google` | Login / Register instan via Google OAuth | Publik |
-| `GET` | `/api/user` | Mendapatkan data user yang sedang login | **Wajib Bearer Token** |
+| `PUT` | `/api/password` | Mengganti password akun (wajib login) | **Wajib Bearer Token** |
 | `POST` | `/api/logout` | Logout (menghapus token Sanctum di database) | **Wajib Bearer Token** |
 
 ---
@@ -107,7 +107,7 @@ Future<void> verifyOtp(int userId, String kode) async {
   if (response.statusCode == 200) {
     final data = jsonDecode(response.body);
     final token = data['token'];
-
+    
     // Simpan token ke SharedPreferences
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('token', token);
