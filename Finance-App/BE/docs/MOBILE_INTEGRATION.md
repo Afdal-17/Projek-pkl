@@ -196,7 +196,7 @@ Accept: application/json
 
 ---
 
-### 3d. Login Google (untuk tombol *Sign in with Google* native)
+### 3d. Login / Register Google (untuk tombol *Sign in with Google* native)
 
 ```http
 POST /api/auth/google
@@ -207,7 +207,8 @@ Accept: application/json
   "email": "user@gmail.com",
   "google_id": "1029384756...",
   "nama": "Nama User",
-  "avatar_path": "https://lh3.googleusercontent.com/..."
+  "avatar_path": "https://lh3.googleusercontent.com/...",
+  "mode": "login"
 }
 ```
 
@@ -217,12 +218,24 @@ Accept: application/json
 |---|---|---|
 | `email` | ✅ | Email Google user |
 | `google_id` | ✅ | ID unik dari Google (sub) |
-| `nama` | ❌ | Default `"Google User"` |
+| `mode` | ✅ | `login` (halaman Login) atau `register` (halaman Sign Up) |
+| `nama` | ❌ | Dipakai saat `mode=register`, default `"Google Sign-In User"` |
 | `avatar_path` | ❌ | URL foto profil Google |
 
-> ⚠️ `google_id` **wajib**. Jika tidak dikirim, API mengembalikan **422**.
+> ⚠️ `google_id` dan `mode` **wajib**. Jika tidak dikirim, API mengembalikan **422**.
 
-**Sukses → 200** (user baru dibuat otomatis bila belum ada)
+**Perilaku `mode`:**
+
+| `mode` | Akun belum ada di DB | Akun sudah ada |
+|---|---|---|
+| `login` | **404** `"Akun tidak ditemukan. Silakan melakukan registrasi terlebih dahulu."` | Login → 200 + token |
+| `register` | Akun baru dibuat otomatis → 200 + token | Login → 200 + token |
+
+> 🔑 **Penting untuk tim mobile:** kirim `mode: "login"` dari **halaman Login** dan
+> `mode: "register"` dari **halaman Sign Up**. Akun yang sudah dihapus admin akan
+> ditolak di `mode=login` (404), tetapi tetap bisa didaftarkan ulang lewat `mode=register`.
+
+**Sukses → 200**
 
 ```json
 {
@@ -955,18 +968,20 @@ Future<String?> verifyOtp({
 }
 ```
 
-### 8.4 Login Google
+### 8.4 Login / Register Google
 
 ```dart
-Future<void> loginWithGoogle({
+Future<void> googleAuth({
   required String email,
   required String googleId,
+  required String mode, // 'login' dari halaman Login, 'register' dari halaman Sign Up
   String? nama,
   String? avatarPath,
 }) async {
   final res = await api.post('/auth/google', {
     'email': email,
     'google_id': googleId,
+    'mode': mode,
     if (nama != null) 'nama': nama,
     if (avatarPath != null) 'avatar_path': avatarPath,
   });
@@ -980,6 +995,9 @@ Future<void> loginWithGoogle({
     await prefs.setString('user', jsonEncode(body['user']));
 
     // lanjut ke Home
+  } else if (res.statusCode == 404) {
+    // mode=login & akun tidak ada (mis. sudah dihapus admin)
+    // → tampilkan body['message'], arahkan user ke halaman Register
   } else if (res.statusCode == 403) {
     // akun dibanned / tidak aktif → tampilkan body['message']
   } else {
@@ -1125,8 +1143,9 @@ Sebelum laporan "sudah terhubung", pastikan semua tercentang:
 |---|---|---|
 | **401** di semua endpoint | Token tidak terkirim / stale | Login ulang, cek header `Authorization` |
 | **419** | Base URL tanpa `/api` atau cookie session | Tambah `/api`, pakai token bukan session |
-| **404** di `/api/auth/google` | Base URL salah | Pastikan berakhiran `/api` |
+| **404** di `/api/auth/google` | Base URL salah **atau** `mode=login` tetapi akun tidak ada (sudah dihapus) | Cek base URL berakhiran `/api`; jika akun terhapus, daftar ulang via `mode=register` |
 | **422** `google_id` | Field tidak dikirim | Sertakan `google_id` |
+| **422** `mode` | Field `mode` tidak dikirim / salah nilai | Sertakan `mode` (`login` atau `register`) |
 | **422** `prohibits` | Kirim `saldo` **dan** `saldo_awal` | Kirim salah satu saja |
 | **422** `initial_savings` | Default = saldo dompet, melebihi target | Kirim `initial_savings` eksplisit |
 | **422** field `nama kategori` / `id dompet` required | Pakai nama field GET saat POST | Cek [bagian 7 — dua nama field](#7-aturan-validasi-penting) |
