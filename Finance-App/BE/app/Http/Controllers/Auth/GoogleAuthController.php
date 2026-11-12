@@ -158,21 +158,42 @@ class GoogleAuthController extends Controller
             'google_id' => 'required|string',
             'nama' => 'nullable|string',
             'avatar_path' => 'nullable|string',
+            // mode = 'login'    -> akun wajib sudah terdaftar (akun terhapus ditolak)
+            // mode = 'register' -> akun baru boleh dibuatkan otomatis
+            'mode' => 'required|in:login,register',
         ]);
 
         $email = strtolower(trim($request->email));
         $googleId = $request->google_id;
+        $nama = $request->nama ?: 'Google Sign-In User';
         $avatarPath = $request->avatar_path;
+        $isRegister = $request->mode === 'register';
 
         // Cari user berdasarkan google_id atau email
         $user = User::where('google_id', $googleId)->orWhere('email', $email)->first();
 
-        // Jika user tidak ditemukan, jangan otomatis dibuatkan akun baru.
-        // Jika akun sudah dihapus oleh admin, user harus mendaftar ulang (register).
         if (! $user) {
-            return response()->json([
-                'message' => 'Akun tidak ditemukan. Silakan melakukan registrasi terlebih dahulu.',
-            ], 404);
+            // Mode LOGIN: akun harus sudah ada. Jika sudah dihapus admin,
+            // tolak dan minta user mendaftar ulang — jangan dibuatkan diam-diam.
+            if (! $isRegister) {
+                return response()->json([
+                    'message' => 'Akun tidak ditemukan. Silakan melakukan registrasi terlebih dahulu.',
+                ], 404);
+            }
+
+            // Mode REGISTER: buatkan akun baru otomatis (terverifikasi via Google).
+            $user = User::create([
+                'nama' => $nama,
+                'email' => $email,
+                'google_id' => $googleId,
+                'password' => Hash::make(Str::random(32)),
+                'role' => 'user',
+                'status' => true,
+                'email_verified_at' => now(),
+                'otp_verified_at' => now(),
+                'avatar_path' => $avatarPath,
+                'mata_uang' => 'IDR',
+            ]);
         }
 
         // Perbarui data jika belum sinkron

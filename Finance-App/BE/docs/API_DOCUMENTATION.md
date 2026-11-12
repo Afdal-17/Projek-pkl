@@ -91,7 +91,7 @@ Rate limit 5 percobaan per identifier juga membalas **422** dengan pesan throttl
 | POST | `/api/login` | Login, mengembalikan token + data user |
 | POST | `/api/register` | Registrasi akun baru via email (mengirim kode OTP) |
 | POST | `/api/register/verify-otp` | Verifikasi 6 digit kode OTP (mengaktifkan akun & mengembalikan token) |
-| POST | `/api/auth/google` | Login / Register instan via Google OAuth |
+| POST | `/api/auth/google` | Login / Register via Google (wajib field `mode`: `login`\|`register`) |
 | POST | `/api/forgot-password` | Kirim token/link reset password ke email |
 | POST | `/api/reset-password` | Ganti password baru menggunakan token reset |
 | GET | `/user` | Data user yang sedang login |

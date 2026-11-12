@@ -125,4 +125,4 @@ Future<void> verifyOtp(int userId, String kode) async {
 - [ ] Memastikan header `Authorization: Bearer <token>` disertakan pada seluruh request privat.
 - [ ] Tidak melakukan kalkulasi kurs manual di sisi client (frontend).
 - [ ] Menggunakan endpoint `/api/register` dan `/api/register/verify-otp` untuk alur pendaftaran email baru.
-- [ ] Menggunakan endpoint `/api/auth/google` untuk login Google native.
+- [ ] Menggunakan endpoint `/api/auth/google` untuk login Google native, dengan field `mode` (`login` dari halaman Login, `register` dari halaman Sign Up).
