@@ -89,6 +89,11 @@ class User extends Authenticatable
         return $this->role === 'user';
     }
 
+    public function usesGoogleSignIn(): bool
+    {
+        return $this->google_id !== null;
+    }
+
     public function isBanned(): bool
     {
         return $this->banned_at !== null;

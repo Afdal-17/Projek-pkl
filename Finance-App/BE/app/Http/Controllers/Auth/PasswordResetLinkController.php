@@ -48,7 +48,7 @@ class PasswordResetLinkController extends Controller
 
         $user = User::where('email', $request->input('email'))->first();
 
-        if ($user) {
+        if ($user && ! $user->usesGoogleSignIn()) {
             $token = Str::random(64);
             $cache->put('password-reset:token:'.$emailKey, Hash::make($token), now()->addMinutes(60));
 
@@ -93,7 +93,7 @@ class PasswordResetLinkController extends Controller
 
         $user = User::where('email', $request->input('email'))->first();
 
-        if (! $user) {
+        if (! $user || $user->usesGoogleSignIn()) {
             return $sukses();
         }
 

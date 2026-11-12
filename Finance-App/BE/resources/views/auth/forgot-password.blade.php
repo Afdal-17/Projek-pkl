@@ -1,6 +1,6 @@
 <x-guest-layout>
     <div class="mb-4 text-sm text-gray-600">
-        {{ __('Forgot your password? No problem. Just let us know your email address and we will email you a password reset link that will allow you to choose a new one.') }}
+        {{ __('Forgot your password? Enter your email address and we will email a reset link if the account uses a Finance App password. If you registered with Google, sign in with Google instead; your Google password is managed by Google.') }}
     </div>
 
     <!-- Session Status -->

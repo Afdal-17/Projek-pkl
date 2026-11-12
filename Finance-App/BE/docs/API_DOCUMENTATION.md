@@ -74,13 +74,57 @@ POST /api/login
 Login juga menerima `phone` (pengganti `email`) dan `remember` (boolean).
 Akun demo: `admin@finance.test` / `user@finance.test`, password `password`.
 
+Login API hanya menerima **POST**; membuka `/api/login` dengan browser (GET)
+akan menghasilkan **405 Method Not Allowed**. Kirim JSON dengan `email` atau
+`phone`, serta `password`.
+
 **Kegagalan login → 422** (bukan 401/429):
 
 ```json
 { "message": "These credentials do not match our records.", "errors": { "email": ["..."] } }
 ```
 
-Rate limit 5 percobaan per identifier juga membalas **422** dengan pesan throttle.
+**422** juga dapat berarti field wajib tidak dikirim, kredensial salah, akun
+belum diverifikasi/tidak aktif/ditangguhkan, atau rate limit 5 percobaan
+per identifier tercapai. Baca isi `errors` untuk penyebabnya.
+
+Lupa password hanya menerima **POST** dengan JSON `{ "email": "..." }`.
+Reset link hanya dikirim untuk akun yang menggunakan password Finance App;
+akun yang terhubung dengan Google harus masuk melalui Google. Respons **200**
+tetap sama untuk setiap alamat email agar jenis/keberadaan akun tidak bocor.
+
+Pemulihan lewat nomor telepon menggunakan WhatsApp/Fonnte dan tiga request:
+
+```json
+POST /api/forgot-password/phone
+{ "phone": "081234567890" }
+
+POST /api/forgot-password/phone/verify
+{ "phone": "081234567890", "code": "123456" }
+
+200 OK
+{ "message": "...", "reset_token": "..." }
+
+POST /api/reset-password/phone
+{
+  "phone": "081234567890",
+  "reset_token": "...",
+  "password": "password-baru",
+  "password_confirmation": "password-baru"
+}
+```
+
+Kode OTP berlaku 10 menit, maksimal 5 percobaan, dan token pemulihan hanya
+berlaku 10 menit serta hanya dapat digunakan sekali. Permintaan kode hanya
+tersedia untuk nomor akun yang sudah terverifikasi dan tidak tertaut ke Google.
+Endpoint permintaan selalu memberi respons generik; pastikan `FONNTE_TOKEN`
+telah dikonfigurasi agar WhatsApp dapat menerima pesan. Form web lupa password
+belum mencakup alur nomor telepon.
+
+`/api/forgot-password/phone` dibatasi 5 request/menit per IP, endpoint verifikasi
+10 request/menit, dan endpoint reset 5 request/menit. Jika batas IP tercapai,
+Laravel membalas `429 Too Many Requests`; batas 5 percobaan kode per nomor
+membalas `422`.
 
 ---
 
@@ -94,6 +138,9 @@ Rate limit 5 percobaan per identifier juga membalas **422** dengan pesan throttl
 | POST | `/api/auth/google` | Login / Register via Google (wajib field `mode`: `login`\|`register`) |
 | POST | `/api/forgot-password` | Kirim token/link reset password ke email |
 | POST | `/api/reset-password` | Ganti password baru menggunakan token reset |
+| POST | `/api/forgot-password/phone` | Minta kode OTP pemulihan lewat WhatsApp |
+| POST | `/api/forgot-password/phone/verify` | Verifikasi OTP dan memperoleh token pemulihan |
+| POST | `/api/reset-password/phone` | Ganti password dengan token pemulihan telepon |
 | GET | `/user` | Data user yang sedang login |
 | GET | `/account` | Profil akun + `avatar_url` |
 | PATCH | `/account` | Ubah profil (`nama`, `email`, `nomor_telepon`, `lokasi`, `mata_uang`) |
@@ -359,7 +406,8 @@ GET /api/notifications?read=0
 | **404** | Data tidak ada / bukan milik user | Cek ID |
 | **405** | Transaksi transfer diubah/dihapus | Tidak bisa — memang immutable |
 | **419** | **URL tanpa prefix `/api`** → CSRF token mismatch | Perbaiki base URL |
-| **422** | Validasi / saldo kurang / duplikat 30 detik / rate limit login | Baca `errors` |
+| **422** | Validasi / saldo kurang / duplikat 30 detik / OTP salah atau kedaluwarsa / rate limit login | Baca `errors` |
+| **429** | Throttle endpoint (mis. pemulihan nomor telepon) | Tunggu sesuai `Retry-After`, lalu coba kembali |
 | **403** | (Apache XAMPP di port 8000) | Pakai port 8003 |
 
 Format 422:
@@ -368,13 +416,17 @@ Format 422:
 { "message": "...", "errors": { "jumlah": ["Saldo dompet tidak mencukupi..."] } }
 ```
 
-> **Tidak ada respons 429.** Proteksi kiriman kembar (tap ganda) dan rate limit login
-> semuanya memakai `ValidationException` → **422**.
+> Proteksi kiriman kembar (tap ganda) dan rate limit login memakai
+> `ValidationException` → **422**. Route yang secara eksplisit memakai middleware
+> `throttle` dapat membalas **429**.
 
-## Daftar endpoint lengkap (31 route)
+## Endpoint utama (daftar ringkas)
 
 ```
 POST   /api/login                          (publik)
+POST   /api/forgot-password/phone          (minta OTP WhatsApp)
+POST   /api/forgot-password/phone/verify   (verifikasi OTP)
+POST   /api/reset-password/phone           (setel password baru)
 POST   /api/logout
 GET    /api/user
 GET    /api/account

@@ -20,8 +20,25 @@ class NewPasswordController extends Controller
     /**
      * Display the password reset view.
      */
-    public function create(Request $request): View
+    public function create(Request $request): View|RedirectResponse
     {
+        $email = (string) $request->query('email', '');
+        $user = User::where('email', $email)->first();
+        $emailKey = hash('sha256', strtolower($email));
+        $hashedToken = Cache::store(app()->environment('testing') ? 'array' : 'file')
+            ->get('password-reset:token:'.$emailKey);
+
+        if (
+            ! $user
+            || $user->usesGoogleSignIn()
+            || ! is_string($hashedToken)
+            || ! Hash::check((string) $request->route('token'), $hashedToken)
+        ) {
+            return redirect()
+                ->route('password.request')
+                ->withErrors(['email' => __('passwords.token')]);
+        }
+
         return view('auth.reset-password', ['request' => $request]);
     }
 
@@ -42,7 +59,7 @@ class NewPasswordController extends Controller
         $tokenKey = 'password-reset:token:'.$emailKey;
         $hashedToken = $cache->get($tokenKey);
 
-        if (! $user || ! is_string($hashedToken) || ! Hash::check($request->input('token'), $hashedToken)) {
+        if (! $user || $user->usesGoogleSignIn() || ! is_string($hashedToken) || ! Hash::check($request->input('token'), $hashedToken)) {
             return response()->json([
                 'message' => __('passwords.token'),
                 'errors' => ['email' => [__('passwords.token')]]
@@ -86,7 +103,7 @@ class NewPasswordController extends Controller
             $tokenKey = 'password-reset:token:'.$emailKey;
             $hashedToken = $cache->get($tokenKey);
 
-            if (! $user || ! is_string($hashedToken) || ! Hash::check($request->input('token'), $hashedToken)) {
+            if (! $user || $user->usesGoogleSignIn() || ! is_string($hashedToken) || ! Hash::check($request->input('token'), $hashedToken)) {
                 return back()->withInput($request->only('email'))->withErrors(['email' => __('passwords.token')]);
             }
 

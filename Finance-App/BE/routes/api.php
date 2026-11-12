@@ -4,8 +4,11 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\GoogleAuthController;
-use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\NewPasswordController;
+use App\Http\Controllers\Auth\PasswordController;
+use App\Http\Controllers\Auth\PasswordResetLinkController;
+use App\Http\Controllers\Auth\PhonePasswordResetController;
+use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\DompetController;
 use App\Http\Controllers\KategoriController;
 use App\Http\Controllers\NotifikasiController;
@@ -32,6 +35,12 @@ Route::post('/register/verify-otp', [RegisteredUserController::class, 'apiVerify
 Route::post('/auth/google', [GoogleAuthController::class, 'apiGoogleLogin']);
 Route::post('/forgot-password', [PasswordResetLinkController::class, 'apiStore']);
 Route::post('/reset-password', [NewPasswordController::class, 'apiStore']);
+Route::post('/forgot-password/phone', [PhonePasswordResetController::class, 'requestCode'])
+    ->middleware('throttle:5,1');
+Route::post('/forgot-password/phone/verify', [PhonePasswordResetController::class, 'verifyCode'])
+    ->middleware('throttle:10,1');
+Route::post('/reset-password/phone', [PhonePasswordResetController::class, 'resetPassword'])
+    ->middleware('throttle:5,1');
 
 Route::middleware('auth:sanctum')->group(function () {
     // Autentikasi & Profil

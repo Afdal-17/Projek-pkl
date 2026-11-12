@@ -50,10 +50,87 @@ Backend Finance App **menyimpan seluruh data keuangan di database dalam bentuk R
 | `POST` | `/api/login` | Login dengan email/phone + password | Publik |
 | `POST` | `/api/forgot-password` | Kirim link/token reset password ke email | Publik |
 | `POST` | `/api/reset-password` | Ubah password baru menggunakan token reset | Publik |
+| `POST` | `/api/forgot-password/phone` | Minta OTP pemulihan lewat WhatsApp | Publik |
+| `POST` | `/api/forgot-password/phone/verify` | Verifikasi OTP, menerima `reset_token` | Publik |
+| `POST` | `/api/reset-password/phone` | Ubah password menggunakan `reset_token` | Publik |
 | `PUT` | `/api/password` | Mengganti password akun (wajib login) | **Wajib Bearer Token** |
 | `POST` | `/api/logout` | Logout (menghapus token Sanctum di database) | **Wajib Bearer Token** |
 
 ---
+
+### Pemulihan password nomor telepon (API)
+
+Klien meminta OTP WhatsApp, memverifikasinya, lalu mengirim password baru.
+Nomor Indonesia didukung dalam format `0812...`, `62812...`, atau `+62812...`.
+Semua request ini publik dan memerlukan header `Accept: application/json` serta
+`Content-Type: application/json`; jangan kirim token Sanctum.
+
+1. `POST /api/forgot-password/phone` — body `{ "phone": "081234567890" }`.
+   Respons `200` generik selalu sama, termasuk untuk nomor tidak terdaftar,
+   akun Google, akun belum terverifikasi, atau pengiriman yang gagal. Karena itu,
+   `200` bukan konfirmasi bahwa OTP benar-benar terkirim.
+2. `POST /api/forgot-password/phone/verify` — body
+   `{ "phone": "081234567890", "code": "481926" }`. OTP berlaku 10 menit,
+   maksimal 5 percobaan. Sukses `200` mengembalikan `reset_token`; simpan hanya
+   sementara dan jangan tulis ke log/penyimpanan persisten.
+3. `POST /api/reset-password/phone` — body
+   `{ "phone": "081234567890", "reset_token": "...", "password": "...", "password_confirmation": "..." }`.
+   Token berlaku 10 menit dan hanya sekali pakai; sukses `200`.
+
+Validasi/kode salah atau kedaluwarsa menghasilkan `422` dan detail `errors`;
+rate limit IP menghasilkan `429` (minta pengguna menunggu sebelum mencoba
+kembali). Pengiriman WhatsApp memerlukan `FONNTE_TOKEN` valid pada konfigurasi
+BE. Jika respons request OTP `200` tetapi pesan tidak diterima, periksa log
+`BE/storage/logs/laravel.log` dan koneksi/provider Fonnte.
+
+Contoh pemanggilan terpisah dari event handler UI (OTP dan reset token hanya
+disimpan sementara di state aplikasi):
+
+```js
+const BASE_URL = '<base-url-backend>/api';
+const jsonHeaders = {
+  Accept: 'application/json',
+  'Content-Type': 'application/json',
+};
+
+async function requestPhonePasswordReset(phone) {
+  const response = await fetch(`${BASE_URL}/forgot-password/phone`, {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ phone }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.message);
+  return data; // Pesan generik; lanjutkan UI meminta OTP dari WhatsApp.
+}
+
+async function verifyPhonePasswordReset(phone, code) {
+  const response = await fetch(`${BASE_URL}/forgot-password/phone/verify`, {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ phone, code }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.message);
+  return data.reset_token; // Simpan sementara; jangan persist/log.
+}
+
+async function setPhonePassword(phone, resetToken, password) {
+  const response = await fetch(`${BASE_URL}/reset-password/phone`, {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({
+      phone,
+      reset_token: resetToken,
+      password,
+      password_confirmation: password,
+    }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.message);
+  return data;
+}
+```
 
 ## 4. Contoh Implementasi di Flutter (Mobile)
 

@@ -60,6 +60,14 @@ class AuthenticatedSessionController extends Controller
             }
         }
 
+        // Akun dinonaktifkan oleh admin (status=false) — tidak boleh login via mobile
+        if ($user?->status === false) {
+            $user->tokens()->delete();
+            throw ValidationException::withMessages([
+                'email' => 'Akun Anda tidak aktif. Silakan hubungi admin.',
+            ]);
+        }
+
         // Buat Sanctum token untuk autentikasi API frontend Vue/mobile
         $token = $user->createToken('vue-frontend-token')->plainTextToken;
 
@@ -135,6 +143,17 @@ class AuthenticatedSessionController extends Controller
                         'days_remaining' => $daysRemaining,
                     ]);
             }
+        }
+
+        // Akun dinonaktifkan oleh admin (status=false, bukan banned)
+        if ($user?->status === false) {
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return redirect()->route('login')->withErrors([
+                'email' => 'Akun Anda tidak aktif. Silakan hubungi admin.',
+            ]);
         }
 
         if ($user?->role === 'admin') {
