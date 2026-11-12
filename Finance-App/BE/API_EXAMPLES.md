@@ -92,6 +92,39 @@ curl -s -X POST $BASE/logout \
 
 ---
 
+### Pemulihan password nomor telepon via WhatsApp
+
+Contoh berikut memakai `BASE` dari bagian sebelumnya. Respons request kode
+selalu generik; minta pengguna memasukkan kode yang benar-benar diterima di
+WhatsApp.
+
+```bash
+# 1. Minta OTP. Hanya nomor terverifikasi untuk akun lokal yang eligible.
+curl -s -X POST "$BASE/forgot-password/phone" \
+  -H "Accept: application/json" \
+  -H "Content-Type: application/json" \
+  -d '{"phone":"081234567890"}'
+
+# 2. Tukar kode WhatsApp dengan reset_token (gunakan kode yang diterima).
+read -r -p "Kode OTP WhatsApp: " OTP
+RESET_TOKEN=$(curl -s -X POST "$BASE/forgot-password/phone/verify" \
+  -H "Accept: application/json" \
+  -H "Content-Type: application/json" \
+  -d "{\"phone\":\"081234567890\",\"code\":\"$OTP\"}" | jq -r .reset_token)
+
+# 3. Gunakan token sekali untuk mengatur password baru.
+curl -s -X POST "$BASE/reset-password/phone" \
+  -H "Accept: application/json" \
+  -H "Content-Type: application/json" \
+  -d "{\"phone\":\"081234567890\",\"reset_token\":\"$RESET_TOKEN\",\"password\":\"passwordBaru123\",\"password_confirmation\":\"passwordBaru123\"}"
+```
+
+OTP dan `reset_token` berlaku masing-masing 10 menit; OTP maksimal 5 percobaan.
+Pemulihan memerlukan `FONNTE_TOKEN` valid di backend. Jangan simpan token reset
+di log atau penyimpanan persisten.
+
+---
+
 ## 2. Frontend Web — vanilla JavaScript (fetch)
 
 ```js

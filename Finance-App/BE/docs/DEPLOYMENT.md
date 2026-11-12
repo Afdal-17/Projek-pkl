@@ -70,8 +70,10 @@ Rotasi semuanya sebelum / saat deploy:
 
 ## Perbaikan KODE yang sudah dikerjakan (batch ini)
 
-1. **Throttle brute-force auth** — `POST /login`, `/forgot-password`, `/reset-password`
-   diberi `throttle:6,1` (6 percobaan/menit per IP).
+1. **Throttle brute-force auth** — auth web diberi batas percobaan; endpoint
+   pemulihan telepon API memakai `throttle:5,1` untuk request/reset kode dan
+   `throttle:10,1` untuk verifikasi OTP (per IP). Throttle per nomor juga mencegah
+   pengiriman ulang OTP terlalu cepat.
 2. **Anti user-enumeration lupa password** — respons identik untuk email terdaftar /
    tidak terdaftar (termasuk saat throttle & kegagalan SMTP); gagal kirim email hanya
    dilaporkan ke log, tidak membocorkan status akun.

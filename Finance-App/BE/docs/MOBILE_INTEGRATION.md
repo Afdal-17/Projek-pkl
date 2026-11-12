@@ -1,8 +1,8 @@
 # 📱 Dokumentasi Integrasi Mobile (Flutter) → Backend Laravel
 
 > **Untuk:** Developer Mobile
-> **Versi dokumen:** 2026-11-09
-> **Jumlah endpoint API:** 33 route
+> **Versi dokumen:** 2026-11-12
+> **Jumlah endpoint API:** 50 route (`php artisan route:list --path=api`)
 > **Autentikasi:** Laravel Sanctum (Bearer Token)
 
 ---
@@ -301,6 +301,142 @@ Accept: application/json
 ```
 
 > ⚠️ Token **langsung dihapus permanen** dari database setelah logout. Token lama tidak bisa dipakai lagi.
+
+### 3e. Pemulihan Password dengan Nomor Telepon (OTP WhatsApp)
+
+Alur ini ditujukan untuk akun password lokal yang nomor teleponnya sudah
+terverifikasi dan dapat menerima WhatsApp. Akun yang terhubung ke Google harus
+masuk dengan Google. Pemulihan nomor telepon dilakukan oleh klien melalui API;
+form web belum menyediakan alur ini.
+
+#### Tahap 1 — Minta kode OTP
+
+```http
+POST /api/forgot-password/phone
+Content-Type: application/json
+Accept: application/json
+
+{
+  "phone": "081234567890"
+}
+```
+
+Nomor Indonesia boleh dikirim sebagai `0812...`, `62812...`, `+62812...`, atau
+dengan pemisah spasi/tanda hubung. Respons `200` selalu generik untuk mencegah
+nomor atau jenis akun ditebak:
+
+```json
+{
+  "message": "Jika nomor terdaftar dan dapat dipulihkan, kode pemulihan akan dikirim melalui WhatsApp."
+}
+```
+
+Kode dikirim via WhatsApp melalui Fonnte, berlaku **10 menit**, dan permintaan
+dibatasi **5 kali per menit per IP** serta satu permintaan per nomor per menit.
+Jika Fonnte tidak dikonfigurasi atau gagal mengirim, respons tetap generik;
+server mencatat kegagalan dan kode tidak dapat digunakan. Pengiriman nyata
+membutuhkan `FONNTE_TOKEN` valid dan nomor tujuan yang dapat menerima WhatsApp.
+
+#### Tahap 2 — Verifikasi kode
+
+`code` adalah kode enam digit dari WhatsApp. Namanya berbeda dari field `kode`
+pada endpoint verifikasi registrasi.
+
+```http
+POST /api/forgot-password/phone/verify
+Content-Type: application/json
+Accept: application/json
+
+{
+  "phone": "081234567890",
+  "code": "481926"
+}
+```
+
+Berhasil → `200 OK`. Simpan `reset_token` hanya sementara untuk tahap berikutnya:
+
+```json
+{
+  "message": "Nomor berhasil diverifikasi. Silakan buat password baru.",
+  "reset_token": "token-rahasia-sementara"
+}
+```
+
+Kode maksimal dapat dicoba **5 kali** dan hanya dapat diverifikasi sekali.
+Kode salah/kedaluwarsa, nomor yang tidak eligible, atau percobaan habis →
+`422` dengan `errors.code`. Verifikasi dibatasi **10 kali per menit per IP**;
+jika throttle IP tercapai, server membalas `429`.
+
+#### Tahap 3 — Simpan password baru
+
+```http
+POST /api/reset-password/phone
+Content-Type: application/json
+Accept: application/json
+
+{
+  "phone": "081234567890",
+  "reset_token": "token-rahasia-sementara",
+  "password": "passwordBaru123",
+  "password_confirmation": "passwordBaru123"
+}
+```
+
+Berhasil → `200 OK`:
+
+```json
+{
+  "message": "Password berhasil diperbarui."
+}
+```
+
+`reset_token` berlaku **10 menit** dan hanya bisa digunakan sekali. Token salah,
+kedaluwarsa, atau tidak cocok dengan nomor → `422`. Validasi password juga dapat
+menghasilkan `422`; baca `errors`. Endpoint ini dibatasi **5 kali per menit per IP**.
+
+#### Integrasi klien Flutter
+
+Gunakan helper HTTP/API publik yang sama seperti request publik lain:
+
+```dart
+Future<void> requestPhonePasswordResetOtp(String phone) async {
+  final response = await api.post('/forgot-password/phone', {'phone': phone});
+  if (response.statusCode != 200) {
+    throw Exception(jsonDecode(response.body)['message']);
+  }
+  // Tampilkan instruksi memeriksa WhatsApp, lalu minta pengguna memasukkan OTP.
+}
+
+Future<String> verifyPhonePasswordResetOtp(String phone, String code) async {
+  final verifiedResponse = await api.post('/forgot-password/phone/verify', {
+    'phone': phone,
+    'code': code,
+  });
+  if (verifiedResponse.statusCode != 200) {
+    throw Exception(jsonDecode(verifiedResponse.body)['message']);
+  }
+  final verified = jsonDecode(verifiedResponse.body) as Map<String, dynamic>;
+  return verified['reset_token'] as String;
+}
+
+Future<void> setPhonePassword(String phone, String resetToken, String password,
+    String passwordConfirmation) async {
+  final resetResponse = await api.post('/reset-password/phone', {
+    'phone': phone,
+    'reset_token': resetToken,
+    'password': password,
+    'password_confirmation': passwordConfirmation,
+  });
+  if (resetResponse.statusCode != 200) {
+    throw Exception(jsonDecode(resetResponse.body)['message']);
+  }
+}
+```
+
+Jangan simpan `reset_token` di log atau penyimpanan persisten. Setelah sukses,
+hapus token dari memori layar. Jika permintaan tampak sukses tetapi OTP tidak
+diterima, minta pengguna menunggu sebentar lalu cek konfigurasi/koneksi Fonnte
+dan `storage/logs/laravel.log` di backend.
 
 ---
 
@@ -1107,6 +1243,9 @@ Sebelum laporan "sudah terhubung", pastikan semua tercentang:
 - [ ] `POST /api/logout` menghapus token dari penyimpanan lokal
 
 ### Fitur
+- [ ] Alur pemulihan telepon memanggil `/api/forgot-password/phone`, `/verify`, lalu `/api/reset-password/phone`.
+- [ ] `reset_token` hanya disimpan sementara dan dibuang setelah reset selesai.
+- [ ] Respons generik `200` pada permintaan OTP tidak dianggap sebagai bukti kode pasti terkirim.
 - [ ] `GET /api/user` → 200
 - [ ] `GET /api/dompet` → 200 (array `data`)
 - [ ] `POST /api/dompet` → **201**, data masuk tabel `dompet`
@@ -1120,6 +1259,7 @@ Sebelum laporan "sudah terhubung", pastikan semua tercentang:
 - [ ] `401` → hapus token, paksa login ulang
 - [ ] `403` → tampilkan pesan banned / non-aktif
 - [ ] `422` → tampilkan isi `errors`
+- [ ] `429` → batasi pengiriman ulang dan minta pengguna menunggu sebelum mencoba lagi
 - [ ] `500` → laporkan ke backend (kemungkinan bug)
 
 ---

@@ -1,4 +1,8 @@
 <x-guest-layout>
+    <div class="mb-4 text-sm text-gray-600">
+        If you registered with Google, return to sign in and choose Continue with Google. This form only resets a Finance App password.
+    </div>
+
     <form method="POST" action="{{ route('password.store') }}">
         @csrf
 
