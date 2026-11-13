@@ -58,6 +58,12 @@ Backend Finance App **menyimpan seluruh data keuangan di database dalam bentuk R
 
 ---
 
+Untuk registrasi dengan `phone`, body `/api/register` menerima field `phone`
+dan dapat menerima `email` tambahan (opsional). Jika `phone` dikirim, OTP
+verifikasi dikirim lewat WhatsApp meskipun email juga disertakan. Pastikan
+nomor terdaftar pada WhatsApp dan Fonnte backend aktif. Verifikasi tetap
+menggunakan `POST /api/register/verify-otp` dengan `user_id` dan `kode`.
+
 ### Pemulihan password nomor telepon (API)
 
 Klien meminta OTP WhatsApp, memverifikasinya, lalu mengirim password baru.

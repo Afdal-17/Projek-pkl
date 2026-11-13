@@ -54,15 +54,11 @@ class RegisteredUserController extends Controller
                 'email_verified_at' => null,
             ]);
 
-            if ($user->email) {
+            if ($user->nomor_telepon) {
                 try {
-                    app(OtpService::class)->kirim($user);
-                } catch (Throwable $e) {
-                    report($e);
-                }
-            } elseif (app(FonnteService::class)->aktif()) {
-                try {
-                    app(OtpService::class)->kirimWhatsapp($user);
+                    if (app(FonnteService::class)->aktif()) {
+                        app(OtpService::class)->kirimWhatsapp($user);
+                    }
                 } catch (Throwable $e) {
                     report($e);
                 }
@@ -219,10 +215,6 @@ class RegisteredUserController extends Controller
                 'status' => false,
                 'email_verified_at' => null,
             ]);
-
-            if ($user->email) {
-                return $this->kirimOtpDanArahkan($request, $user);
-            }
 
             // Register via nomor telepon: kirim kode OTP ke WhatsApp (Fonnte).
             // Akun langsung aktif setelah kode benar — tanpa menunggu admin.
