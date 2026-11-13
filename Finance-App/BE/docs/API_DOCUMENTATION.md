@@ -133,7 +133,7 @@ membalas `422`.
 | Method | Endpoint | Deskripsi |
 |---|---|---|
 | POST | `/api/login` | Login, mengembalikan token + data user |
-| POST | `/api/register` | Registrasi akun baru via email (mengirim kode OTP) |
+| POST | `/api/register` | Registrasi via email (OTP email) atau nomor telepon (OTP WhatsApp) |
 | POST | `/api/register/verify-otp` | Verifikasi 6 digit kode OTP (mengaktifkan akun & mengembalikan token) |
 | POST | `/api/auth/google` | Login / Register via Google (wajib field `mode`: `login`\|`register`) |
 | POST | `/api/forgot-password` | Kirim token/link reset password ke email |

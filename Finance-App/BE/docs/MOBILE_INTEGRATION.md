@@ -107,7 +107,30 @@ Accept: application/json
 
 ---
 
-### 3b. Verifikasi Kode OTP Registrasi
+### 3b. Registrasi Akun Baru via Nomor Telepon (dengan OTP WhatsApp)
+
+```http
+POST /api/register
+Content-Type: application/json
+Accept: application/json
+
+{
+  "nama": "Sari",
+  "phone": "081234567890",
+  "email": "sari@example.com",
+  "password": "password123"
+}
+```
+
+`email` bersifat opsional. Jika `phone` dikirim, BE mengirim OTP verifikasi
+melalui WhatsApp/Fonnte, termasuk ketika email opsional juga diberikan.
+Nomor perlu dapat menerima WhatsApp dan `FONNTE_TOKEN` backend harus valid.
+Respons → `201 Created` berisi `user_id` dan `nomor_telepon`; pengguna kemudian
+memasukkan OTP enam digit pada endpoint verifikasi berikut.
+
+---
+
+### 3c. Verifikasi Kode OTP Registrasi
 
 ```http
 POST /api/register/verify-otp
@@ -137,7 +160,7 @@ Accept: application/json
 
 ---
 
-### 3c. Login Email & Password
+### 3d. Login Email & Password
 
 ```http
 POST /api/login
@@ -196,7 +219,7 @@ Accept: application/json
 
 ---
 
-### 3d. Login / Register Google (untuk tombol *Sign in with Google* native)
+### 3e. Login / Register Google (untuk tombol *Sign in with Google* native)
 
 ```http
 POST /api/auth/google
@@ -270,7 +293,7 @@ Accept: application/json
 
 ---
 
-### 3c. Simpan & Pakai Token
+### 3f. Simpan & Pakai Token
 
 ```
 Login sukses
@@ -286,7 +309,7 @@ Login sukses
    └── 422       → validasi gagal → tampilkan errors
 ```
 
-### 3d. Logout
+### 3g. Logout
 
 ```http
 POST /api/logout

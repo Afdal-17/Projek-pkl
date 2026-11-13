@@ -70,6 +70,28 @@ class PhoneOtpWhatsAppTest extends TestCase
         });
     }
 
+    public function test_api_phone_registration_sends_otp_to_whatsapp_when_optional_email_is_provided(): void
+    {
+        $this->aktifkanFonnte();
+
+        Http::fake([
+            'api.fonnte.com/*' => Http::response(['status' => true]),
+        ]);
+
+        $response = $this->postJson('/api/register', [
+            'nama' => 'Rina Marlina',
+            'phone' => '081234567890',
+            'email' => 'rina@example.com',
+            'password' => 'password123',
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('nomor_telepon', '081234567890');
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'api.fonnte.com/send')
+            && $request['target'] === '6281234567890'
+            && str_contains($request['message'], 'Kode Verifikasi'));
+    }
+
     public function test_correct_whatsapp_otp_activates_account_and_logs_in(): void
     {
         $user = $this->buatUserTelepon();
@@ -111,7 +133,7 @@ class PhoneOtpWhatsAppTest extends TestCase
         $response = $this->withSession(['otp_user_id' => $user->id_user])
             ->get(route('otp.show'));
 
-        $expected = '0812' . str_repeat('*', strlen('081234567890') - 7) . '890';
+        $expected = '0812'.str_repeat('*', strlen('081234567890') - 7).'890';
 
         $response->assertOk();
         $response->assertSee($expected, false);
