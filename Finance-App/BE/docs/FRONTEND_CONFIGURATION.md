@@ -22,13 +22,13 @@ Accept: application/json
 Content-Type: application/json
 Authorization: Bearer <sanctum_token>
 ```
-*(Header `Authorization` hanya dikosongkan untuk endpoint publik seperti `/login`, `/register`, `/register/verify-otp`, dan `/auth/google`).*
+*(Header `Authorization` hanya dikosongkan untuk endpoint publik seperti `/login`, `/register`, `/register/verify-otp`, `/register/resend-otp`, dan `/auth/google`).*
 
 ---
 
 ## 2. Aturan Penting Konversi Mata Currency (Penting untuk Tim Mobile/Web)
 
-Backend Finance App **menyimpan seluruh data keuangan di database dalam bentuk Rupiah (IDR) murni** sebagai *base currency*. 
+Backend Finance App **menyimpan seluruh data keuangan di database dalam bentuk Rupiah (IDR) murni** sebagai *base currency*. Preferensi tampilan mata uang akun baru secara default adalah USD; mata uang tersimpan milik akun lama tetap mengikuti preferensi masing-masing.
 
 1. **Backend Menangani Konversi Otomatis:**
    * Backend otomatis membaca preferensi mata uang user (`mata_uang` di tabel `users`, pilihannya: `IDR`, `USD`, `EUR`).
@@ -47,6 +47,7 @@ Backend Finance App **menyimpan seluruh data keuangan di database dalam bentuk R
 |---|---|---|---|
 | `POST` | `/api/register` | Mendaftarkan akun baru via email (mengirim OTP) | Publik |
 | `POST` | `/api/register/verify-otp` | Verifikasi 6 digit kode OTP (mengaktifkan akun & mengembalikan token) | Publik |
+| `POST` | `/api/register/resend-otp` | Kirim ulang OTP registrasi (`user_id`) | Publik |
 | `POST` | `/api/login` | Login dengan email/phone + password | Publik |
 | `POST` | `/api/forgot-password` | Kirim link/token reset password ke email | Publik |
 | `POST` | `/api/reset-password` | Ubah password baru menggunakan token reset | Publik |
@@ -63,6 +64,13 @@ dan dapat menerima `email` tambahan (opsional). Jika `phone` dikirim, OTP
 verifikasi dikirim lewat WhatsApp meskipun email juga disertakan. Pastikan
 nomor terdaftar pada WhatsApp dan Fonnte backend aktif. Verifikasi tetap
 menggunakan `POST /api/register/verify-otp` dengan `user_id` dan `kode`.
+Registrasi belum menghasilkan token sampai verifikasi sukses. Pesan OTP WhatsApp
+dikirim dalam bahasa Inggris. Jika provider gagal atau Fonnte belum aktif untuk
+registrasi telepon, API mengembalikan `503` dan akun tidak dibuat. OTP berlaku
+10 menit, maksimal 5 percobaan. Verifikasi dibatasi 10 request/menit per IP;
+endpoint kirim ulang dibatasi 10 request/menit per IP dan 6 kali/15 menit per akun.
+Kirim ulang dengan `POST /api/register/resend-otp`, body
+`{ "user_id": 12 }`; respons `503` berarti kode tidak berhasil dikirim.
 
 ### Pemulihan password nomor telepon (API)
 
@@ -207,5 +215,6 @@ Future<void> verifyOtp(int userId, String kode) async {
 - [ ] Memastikan base URL berakhiran `/api` dan menggunakan domain ngrok HTTPS.
 - [ ] Memastikan header `Authorization: Bearer <token>` disertakan pada seluruh request privat.
 - [ ] Tidak melakukan kalkulasi kurs manual di sisi client (frontend).
-- [ ] Menggunakan endpoint `/api/register` dan `/api/register/verify-otp` untuk alur pendaftaran email baru.
+- [ ] Menggunakan endpoint `/api/register` → `/api/register/verify-otp`; token hanya disimpan setelah verifikasi sukses.
+- [ ] Menyediakan pengiriman ulang OTP melalui `/api/register/resend-otp` dan menampilkan pesan error jika API membalas `503`.
 - [ ] Menggunakan endpoint `/api/auth/google` untuk login Google native, dengan field `mode` (`login` dari halaman Login, `register` dari halaman Sign Up).

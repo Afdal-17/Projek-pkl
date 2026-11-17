@@ -4,8 +4,11 @@ namespace App\Services;
 
 use App\Mail\KodeVerifikasiMail;
 use App\Models\User;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use RuntimeException;
+use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 
 class OtpService
 {
@@ -40,11 +43,15 @@ class OtpService
 
         $kode = $this->buatKode($user);
 
-        Mail::to($user->email)->send(new KodeVerifikasiMail(
-            namaPenerima: $user->nama,
-            kode: $kode,
-            menitBerlaku: self::MASA_BERLAKU_MENIT,
-        ));
+        try {
+            Mail::to($user->email)->send(new KodeVerifikasiMail(
+                namaPenerima: $user->nama,
+                kode: $kode,
+                menitBerlaku: self::MASA_BERLAKU_MENIT,
+            ));
+        } catch (TransportExceptionInterface|RuntimeException $e) {
+            throw new OtpDeliveryException($e);
+        }
     }
 
     /**
@@ -57,17 +64,21 @@ class OtpService
         $kode = $this->buatKode($user);
 
         $pesan = implode("\n", [
-            'Kode Verifikasi ' . config('app.name', 'Finance App'),
+            'Verification Code '.config('app.name', 'Finance App'),
             '',
-            "Halo {$user->nama}, gunakan kode di bawah ini untuk verifikasi nomor telepon Anda:",
+            "Hello {$user->nama}, use the code below to verify your phone number:",
             '',
             $kode,
             '',
-            'Berlaku selama ' . self::MASA_BERLAKU_MENIT . ' menit. Jangan bagikan kode ini kepada siapa pun.',
-            'Jika Anda tidak merasa mendaftar, abaikan pesan ini.',
+            'This code expires in '.self::MASA_BERLAKU_MENIT.' minutes. Do not share it with anyone.',
+            "If you didn't sign up, please ignore this message.",
         ]);
 
-        app(FonnteService::class)->kirim($user->nomor_telepon, $pesan);
+        try {
+            app(FonnteService::class)->kirim($user->nomor_telepon, $pesan);
+        } catch (ConnectionException|RuntimeException $e) {
+            throw new OtpDeliveryException($e);
+        }
     }
 
     /**

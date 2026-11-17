@@ -26,12 +26,14 @@ Salin `.env.example` ke `.env` di server, lalu **wajib** ubah:
 ```bash
 composer install --no-dev --optimize-autoloader
 npm ci && npm run build          # aset Vite (public/build)
-php artisan migrate --force       # termasuk migrasi sessions (SESSION_DRIVER=database)
+php artisan migrate --force       # termasuk perubahan default mata uang USD dan sessions
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 ```
 
+- Migrasi mengubah default `mata_uang` untuk akun baru menjadi `USD`; preferensi
+  yang sudah tersimpan pada akun lama tetap dipertahankan.
 - **Docroot harus folder `public/`** — jangan pernah menaruh project root di web root
   (`index.php`, `.env`, `storage/` akan terekspos).
 - `chmod`/`chown` agar `storage/` dan `bootstrap/cache/` dapat ditulis user web server.
@@ -91,8 +93,9 @@ Rotasi semuanya sebelum / saat deploy:
 7. **Mass-assignment `role`** — `role` dihapus dari `$fillable` User; pembuatan admin
    (seeder & fixture test) memakai `forceCreate`. Kode aplikasi tidak lagi bisa menaikkan
    role lewat input user dalam kondisi apa pun.
-8. **Rate limit OTP per-akun** — `POST /otp/resend` maksimal 6 kirim per 15 menit per
-   akun (sebelumnya hanya throttle per-IP; pelaku banyak IP bisa spam satu nomor korban).
+8. **Rate limit OTP registrasi API** — `POST /api/register/resend-otp` maksimal
+   6 kirim per 15 menit per akun dan 10 request per menit per IP. Verifikasi OTP
+   dibatasi 10 request per menit per IP.
 9. **View demo dilepas** — `View::addLocation(views/demo)` dihapus; semua view demo
    sudah punya pasangan di `views/` utama (diverifikasi), mencegah render view lama
    tanpa dukungan multi-mata-uang.

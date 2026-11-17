@@ -25,7 +25,7 @@ class ProfileUpdateRequest extends FormRequest
             'nama' => $this->input('nama', $this->input('name')),
             'nomor_telepon' => $phone,
             'lokasi' => $location,
-            'mata_uang' => $this->input('mata_uang', $this->input('currency', $this->user()->mata_uang ?? 'IDR')),
+            'mata_uang' => $this->input('mata_uang', $this->input('currency', $this->user()->mata_uang ?? 'USD')),
         ]);
     }
 

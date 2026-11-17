@@ -10,7 +10,7 @@ if (! function_exists('finance_money')) {
      */
     function finance_money($amount, ?string $currency = null): string
     {
-        $currency = \App\Services\CurrencyService::normalize($currency ?? (auth()->user()->mata_uang ?? 'IDR'));
+        $currency = \App\Services\CurrencyService::normalize($currency ?? (auth()->user()->mata_uang ?? 'USD'));
         $display = \App\Services\CurrencyService::fromBase((float) $amount, $currency);
 
         return match ($currency) {
@@ -27,7 +27,7 @@ if (! function_exists('finance_locale')) {
      */
     function finance_locale(?string $currency = null): string
     {
-        $currency = \App\Services\CurrencyService::normalize($currency ?? (auth()->user()->mata_uang ?? 'IDR'));
+        $currency = \App\Services\CurrencyService::normalize($currency ?? (auth()->user()->mata_uang ?? 'USD'));
 
         return match ($currency) {
             'USD' => 'en-US',

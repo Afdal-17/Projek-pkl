@@ -5,11 +5,14 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\FonnteService;
+use App\Services\OtpDeliveryException;
 use App\Services\OtpService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\Rules;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -44,24 +47,34 @@ class RegisteredUserController extends Controller
                 'password' => ['required', 'string', Rules\Password::defaults()],
             ]);
 
-            $user = User::create([
-                'nama' => $request->nama,
-                'nomor_telepon' => $cleanPhone,
-                'email' => $request->filled('email') ? $request->email : null,
-                'password' => Hash::make($request->password),
-                'role' => 'user',
-                'status' => false,
-                'email_verified_at' => null,
-            ]);
+            if (! app(FonnteService::class)->aktif()) {
+                return response()->json([
+                    'message' => 'Pengiriman OTP WhatsApp sedang tidak tersedia. Silakan coba lagi nanti.',
+                ], 503);
+            }
 
-            if ($user->nomor_telepon) {
-                try {
-                    if (app(FonnteService::class)->aktif()) {
-                        app(OtpService::class)->kirimWhatsapp($user);
-                    }
-                } catch (Throwable $e) {
-                    report($e);
-                }
+            try {
+                $user = DB::transaction(function () use ($request, $cleanPhone): User {
+                    $user = User::create([
+                        'nama' => $request->nama,
+                        'nomor_telepon' => $cleanPhone,
+                        'email' => $request->filled('email') ? $request->email : null,
+                        'password' => Hash::make($request->password),
+                        'role' => 'user',
+                        'status' => false,
+                        'email_verified_at' => null,
+                    ]);
+
+                    app(OtpService::class)->kirimWhatsapp($user);
+
+                    return $user;
+                });
+            } catch (OtpDeliveryException $e) {
+                report($e);
+
+                return response()->json([
+                    'message' => 'Gagal mengirim kode OTP WhatsApp. Silakan coba lagi nanti.',
+                ], 503);
             }
 
             return response()->json([
@@ -93,19 +106,27 @@ class RegisteredUserController extends Controller
             'password' => ['required', 'string', Rules\Password::defaults()],
         ]);
 
-        $user = User::create([
-            'nama' => $request->nama,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-            'role' => 'user',
-            'status' => false,
-            'email_verified_at' => null,
-        ]);
-
         try {
-            app(OtpService::class)->kirim($user);
-        } catch (Throwable $e) {
+            $user = DB::transaction(function () use ($request): User {
+                $user = User::create([
+                    'nama' => $request->nama,
+                    'email' => $request->email,
+                    'password' => Hash::make($request->password),
+                    'role' => 'user',
+                    'status' => false,
+                    'email_verified_at' => null,
+                ]);
+
+                app(OtpService::class)->kirim($user);
+
+                return $user;
+            });
+        } catch (OtpDeliveryException $e) {
             report($e);
+
+            return response()->json([
+                'message' => 'Gagal mengirim kode OTP email. Silakan coba lagi nanti.',
+            ], 503);
         }
 
         return response()->json([
@@ -121,7 +142,7 @@ class RegisteredUserController extends Controller
     public function apiVerifyOtp(Request $request): JsonResponse
     {
         $request->validate([
-            'user_id' => ['required', 'exists:users,id_user'],
+            'user_id' => ['required', 'exists:user,id_user'],
             'kode' => ['required', 'string', 'digits:6'],
         ]);
 
@@ -131,8 +152,8 @@ class RegisteredUserController extends Controller
             return response()->json(['message' => 'User tidak ditemukan.'], 404);
         }
 
-        if ($user->email_verified_at !== null) {
-            return response()->json(['message' => 'Email sudah terverifikasi sebelumnya.'], 400);
+        if ($user->otp_verified_at !== null) {
+            return response()->json(['message' => 'Akun sudah terverifikasi sebelumnya.'], 400);
         }
 
         if (blank($user->otp_kode) || ! $user->otp_expires_at || $user->otp_expires_at->isPast()) {
@@ -146,14 +167,16 @@ class RegisteredUserController extends Controller
         if (! Hash::check($request->kode, $user->otp_kode)) {
             $user->increment('otp_attempts');
             $sisa = max(0, OtpService::MAKS_PERCOBAAN - $user->otp_attempts);
+
             return response()->json([
-                'message' => "Kode OTP salah. Sisa percobaan {$sisa} kali."
+                'message' => "Kode OTP salah. Sisa percobaan {$sisa} kali.",
             ], 422);
         }
 
         // OTP benar -> Verifikasi sukses
         $user->forceFill([
             'email_verified_at' => now(),
+            'otp_verified_at' => now(),
             'status' => true,
             'otp_kode' => null,
             'otp_expires_at' => null,
@@ -166,8 +189,62 @@ class RegisteredUserController extends Controller
         return response()->json([
             'message' => 'Verifikasi OTP berhasil. Akun Anda aktif.',
             'token' => $token,
-            'user' => $user
+            'user' => $user,
         ], 200);
+    }
+
+    /**
+     * Kirim ulang OTP registrasi untuk klien API.
+     */
+    public function apiResendOtp(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'user_id' => ['required', 'exists:user,id_user'],
+        ]);
+        $user = User::findOrFail($validated['user_id']);
+
+        if ($user->otp_verified_at !== null) {
+            return response()->json(['message' => 'Akun sudah terverifikasi.'], 400);
+        }
+
+        if (blank($user->otp_kode)) {
+            return response()->json(['message' => 'Tidak ada OTP registrasi yang menunggu verifikasi.'], 422);
+        }
+
+        if (! $user->email && ! $user->nomor_telepon) {
+            return response()->json(['message' => 'Akun tidak memiliki tujuan pengiriman OTP.'], 422);
+        }
+
+        if ($user->nomor_telepon && ! app(FonnteService::class)->aktif()) {
+            return response()->json([
+                'message' => 'Pengiriman OTP WhatsApp sedang tidak tersedia. Silakan coba lagi nanti.',
+            ], 503);
+        }
+
+        $rateLimitKey = 'api-register-otp-resend:'.$user->id_user;
+        if (RateLimiter::tooManyAttempts($rateLimitKey, 6)) {
+            return response()->json([
+                'message' => 'Terlalu banyak permintaan kode. Silakan coba lagi nanti.',
+                'retry_after' => RateLimiter::availableIn($rateLimitKey),
+            ], 429);
+        }
+        RateLimiter::hit($rateLimitKey, 900);
+
+        try {
+            if ($user->nomor_telepon) {
+                app(OtpService::class)->kirimWhatsapp($user);
+            } else {
+                app(OtpService::class)->kirim($user);
+            }
+        } catch (OtpDeliveryException $e) {
+            report($e);
+
+            return response()->json([
+                'message' => 'Gagal mengirim kode OTP. Silakan coba lagi nanti.',
+            ], 503);
+        }
+
+        return response()->json(['message' => 'Kode OTP baru telah dikirim.']);
     }
 
     /**

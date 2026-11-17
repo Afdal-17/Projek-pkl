@@ -80,7 +80,7 @@ class NotifikasiService
         if ($senderId === $recipientId) {
             $template = 'Transfer {jumlah} dari '
                 .$transfer->dompetAsal->nama_dompet.' ke '.$transfer->dompetTujuan->nama_dompet.' berhasil.';
-            $message = str_replace('{jumlah}', finance_money($jumlah, $transfer->dompetAsal->user->mata_uang ?? 'IDR'), $template);
+            $message = str_replace('{jumlah}', finance_money($jumlah, $transfer->dompetAsal->user->mata_uang ?? 'USD'), $template);
 
             Notifikasi::create([
                 'id_user' => $senderId,
@@ -105,8 +105,8 @@ class NotifikasiService
         $recipientTemplate = 'Anda di transfer oleh '.$transfer->dompetAsal->user->nama
             .' sebesar {jumlah}.';
 
-        $senderMessage = str_replace('{jumlah}', finance_money($jumlah, $transfer->dompetAsal->user->mata_uang ?? 'IDR'), $senderTemplate);
-        $recipientMessage = str_replace('{jumlah}', finance_money($jumlah, $transfer->dompetTujuan->user->mata_uang ?? 'IDR'), $recipientTemplate);
+        $senderMessage = str_replace('{jumlah}', finance_money($jumlah, $transfer->dompetAsal->user->mata_uang ?? 'USD'), $senderTemplate);
+        $recipientMessage = str_replace('{jumlah}', finance_money($jumlah, $transfer->dompetTujuan->user->mata_uang ?? 'USD'), $recipientTemplate);
 
         Notifikasi::create([
             'id_user' => $senderId,

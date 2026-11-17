@@ -171,6 +171,7 @@ class GoogleAndPhoneAuthTest extends TestCase
 
         $user = User::where('email', 'newuser@gmail.com')->firstOrFail();
         $this->assertSame('google-new-user', $user->google_id);
+        $this->assertSame('USD', $user->mata_uang);
         $this->assertSame('user', $user->role);
         $this->assertFalse((bool) $user->status);
         $this->assertNull($user->email_verified_at);

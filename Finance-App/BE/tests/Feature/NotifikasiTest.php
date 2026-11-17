@@ -126,6 +126,7 @@ class NotifikasiTest extends TestCase
             'role' => 'user',
             'status' => true,
             'email_verified_at' => now(),
+            'mata_uang' => 'IDR',
         ]);
         $wallet = Dompet::create([
             'id_user' => $user->id_user,

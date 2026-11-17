@@ -4,8 +4,11 @@ namespace Tests\Feature\Auth;
 
 use App\Mail\KodeVerifikasiMail;
 use App\Models\User;
+use App\Services\OtpDeliveryException;
+use App\Services\OtpService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
+use RuntimeException;
 use Tests\TestCase;
 
 class RegistrationTest extends TestCase
@@ -49,5 +52,45 @@ class RegistrationTest extends TestCase
         Mail::assertSent(KodeVerifikasiMail::class, function (KodeVerifikasiMail $mail) use ($user) {
             return $mail->hasTo($user->email) && preg_match('/^\d{6}$/', $mail->kode) === 1;
         });
+    }
+
+    public function test_api_registration_sends_otp_without_authenticating_user(): void
+    {
+        Mail::fake();
+
+        $response = $this->postJson('/api/register', [
+            'nama' => 'Mobile User',
+            'email' => 'mobile@example.com',
+            'password' => 'password123',
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonStructure(['message', 'user_id', 'email'])
+            ->assertJsonMissingPath('token');
+
+        $user = User::where('email', 'mobile@example.com')->firstOrFail();
+        $this->assertSame('USD', $user->mata_uang);
+        $this->assertNotNull($user->otp_kode);
+        $this->assertNull($user->otp_verified_at);
+        $this->assertFalse((bool) $user->status);
+
+        Mail::assertSent(KodeVerifikasiMail::class, fn (KodeVerifikasiMail $mail) => $mail->hasTo($user->email));
+    }
+
+    public function test_api_registration_returns_service_unavailable_and_rolls_back_if_email_otp_fails(): void
+    {
+        $this->mock(OtpService::class)
+            ->shouldReceive('kirim')
+            ->once()
+            ->andThrow(new OtpDeliveryException(new RuntimeException('Mail provider unavailable.')));
+
+        $this->postJson('/api/register', [
+            'nama' => 'Mobile User',
+            'email' => 'mobile@example.com',
+            'password' => 'password123',
+        ])->assertStatus(503)
+            ->assertJsonPath('message', 'Gagal mengirim kode OTP email. Silakan coba lagi nanti.');
+
+        $this->assertDatabaseMissing('user', ['email' => 'mobile@example.com']);
     }
 }

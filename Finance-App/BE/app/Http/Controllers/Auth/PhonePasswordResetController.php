@@ -76,14 +76,14 @@ class PhonePasswordResetController extends Controller
             app(FonnteService::class)->kirim(
                 (string) $user->nomor_telepon,
                 implode("\n", [
-                    'Pemulihan Password '.config('app.name', 'Finance App'),
+                    'Password Recovery '.config('app.name', 'Finance App'),
                     '',
-                    "Halo {$user->nama}, gunakan kode berikut untuk memulihkan password akun Anda:",
+                    "Hello {$user->nama}, use the code below to reset your account password:",
                     '',
                     $otp,
                     '',
-                    'Kode berlaku selama '.self::OTP_TTL_MINUTES.' menit. Jangan bagikan kode ini kepada siapa pun.',
-                    'Jika Anda tidak meminta pemulihan password, abaikan pesan ini.',
+                    'This code expires in '.self::OTP_TTL_MINUTES.' minutes. Do not share it with anyone.',
+                    "If you didn't request a password reset, please ignore this message.",
                 ]),
             );
         } catch (Throwable $e) {

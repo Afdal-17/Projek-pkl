@@ -65,8 +65,8 @@ class PhoneOtpWhatsAppTest extends TestCase
             return str_contains($request->url(), 'api.fonnte.com/send')
                 && $request->header('Authorization')[0] === 'token-tes-fonnte'
                 && $request['target'] === '6281234567890'
-                && str_contains($request['message'], 'Kode Verifikasi')
-                && str_contains($request['message'], 'Berlaku selama 10 menit');
+                && str_contains($request['message'], 'Verification Code')
+                && str_contains($request['message'], 'This code expires in 10 minutes');
         });
     }
 
@@ -89,7 +89,41 @@ class PhoneOtpWhatsAppTest extends TestCase
             ->assertJsonPath('nomor_telepon', '081234567890');
         Http::assertSent(fn ($request) => str_contains($request->url(), 'api.fonnte.com/send')
             && $request['target'] === '6281234567890'
-            && str_contains($request['message'], 'Kode Verifikasi'));
+            && str_contains($request['message'], 'Verification Code'));
+    }
+
+    public function test_api_phone_registration_does_not_create_account_when_fonnte_is_inactive(): void
+    {
+        config(['services.fonnte.token' => null]);
+
+        $this->postJson('/api/register', [
+            'nama' => 'Rina Marlina',
+            'phone' => '081234567890',
+            'password' => 'password123',
+        ])->assertStatus(503)
+            ->assertJsonPath('message', 'Pengiriman OTP WhatsApp sedang tidak tersedia. Silakan coba lagi nanti.');
+
+        $this->assertDatabaseMissing('user', ['nomor_telepon' => '081234567890']);
+    }
+
+    public function test_api_phone_registration_rolls_back_if_whatsapp_delivery_fails(): void
+    {
+        $this->aktifkanFonnte();
+        Http::fake([
+            'api.fonnte.com/*' => Http::response([
+                'status' => false,
+                'reason' => 'target invalid',
+            ]),
+        ]);
+
+        $this->postJson('/api/register', [
+            'nama' => 'Rina Marlina',
+            'phone' => '081234567890',
+            'password' => 'password123',
+        ])->assertStatus(503)
+            ->assertJsonPath('message', 'Gagal mengirim kode OTP WhatsApp. Silakan coba lagi nanti.');
+
+        $this->assertDatabaseMissing('user', ['nomor_telepon' => '081234567890']);
     }
 
     public function test_correct_whatsapp_otp_activates_account_and_logs_in(): void
