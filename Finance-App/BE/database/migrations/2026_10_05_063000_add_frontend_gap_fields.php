@@ -13,7 +13,7 @@ return new class extends Migration
             $table->string('nomor_telepon', 32)->nullable();
             $table->string('lokasi')->nullable();
             $table->string('avatar_path')->nullable();
-            $table->string('mata_uang', 3)->default('IDR');
+            $table->string('mata_uang', 3)->default('USD');
             $table->string('awal_minggu', 10)->default('monday');
             $table->timestamp('last_seen_at')->nullable();
         });

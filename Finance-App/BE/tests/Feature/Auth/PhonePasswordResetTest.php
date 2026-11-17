@@ -64,7 +64,8 @@ class PhonePasswordResetTest extends TestCase
         ])->assertOk();
 
         Http::assertSent(fn ($request) => $request['target'] === '6281234567890'
-            && str_contains($request['message'], 'Pemulihan Password'));
+            && str_contains($request['message'], 'Password Recovery')
+            && str_contains($request['message'], 'This code expires in 10 minutes'));
         $code = $this->kodeYangDikirim();
         $this->assertMatchesRegularExpression('/^\d{6}$/', $code);
 

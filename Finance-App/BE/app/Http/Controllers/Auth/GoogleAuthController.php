@@ -72,7 +72,7 @@ class GoogleAuthController extends Controller
                 'role' => 'user',
                 'status' => false,
                 'email_verified_at' => null,
-                'mata_uang' => 'IDR',
+                'mata_uang' => 'USD',
             ]);
 
             if (! empty($email)) {
@@ -192,7 +192,7 @@ class GoogleAuthController extends Controller
                 'email_verified_at' => now(),
                 'otp_verified_at' => now(),
                 'avatar_path' => $avatarPath,
-                'mata_uang' => 'IDR',
+                'mata_uang' => 'USD',
             ]);
         }
 

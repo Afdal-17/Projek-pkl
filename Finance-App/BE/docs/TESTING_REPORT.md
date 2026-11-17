@@ -12,10 +12,10 @@ Pengujian dilakukan menggunakan **Laravel Testing Suite** (mencakup *Feature Tes
 
 ## 2. Ringkasan Hasil Pengujian Terkini
 
-* **Total Test Suite:** 120 Test Files / Scenarios
-* **Total Assertions (Pemeriksaan Logika):** 608 Assertions
+* **Total Test Suite:** 146 test cases
+* **Total Assertions (Pemeriksaan Logika):** 719 assertions
 * **Status Keseluruhan:** **100% LULUS (PASSED)** 🟢
-* **Durasi Eksekusi:** ~9.2 detik
+* **Durasi Eksekusi:** 24.60 detik
 
 ---
 
@@ -23,7 +23,8 @@ Pengujian dilakukan menggunakan **Laravel Testing Suite** (mencakup *Feature Tes
 
 1. **Modul Autentikasi & Keamanan:**
    * Login API Sanctum (sukses & penolakan password salah).
-   * Verifikasi Email & OTP.
+   * Verifikasi Email & OTP, rate limit kirim ulang, serta kegagalan pengiriman email/WhatsApp.
+   * Pesan OTP WhatsApp berbahasa Inggris.
    * Pembatasan akun yang diblokir (*Banned user check*).
    * Google OAuth & Mobile Google API login.
 
@@ -37,6 +38,7 @@ Pengujian dilakukan menggunakan **Laravel Testing Suite** (mencakup *Feature Tes
    * Validasi saldo mencukupi sebelum transfer diproses.
    * Konversi mata uang otomatis (IDR, USD, EUR) pada transfer lintas mata uang.
    * Pembuatan notifikasi otomatis untuk pengirim dan penerima.
+   * Preferensi mata uang akun baru default USD, dengan IDR tetap sebagai mata uang dasar penyimpanan.
 
 4. **Modul Target Tabungan (`TargetTabungan`):**
    * Pemantauan progres tabungan otomatis mengikuti saldo dompet.

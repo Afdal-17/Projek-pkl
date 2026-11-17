@@ -24,6 +24,7 @@ class DashboardSummaryTest extends TestCase
             'role' => 'user',
             'status' => true,
             'email_verified_at' => now(),
+            'mata_uang' => 'IDR',
         ]);
         $asal = Dompet::create([
             'id_user' => $user->id_user,

@@ -31,7 +31,10 @@ use App\Http\Controllers\UserController;
 // Public API Login, Register & Forgot Password (untuk frontend Vue.js & Mobile)
 Route::post('/login', [AuthenticatedSessionController::class, 'apiStore']);
 Route::post('/register', [RegisteredUserController::class, 'apiStore']);
-Route::post('/register/verify-otp', [RegisteredUserController::class, 'apiVerifyOtp']);
+Route::post('/register/verify-otp', [RegisteredUserController::class, 'apiVerifyOtp'])
+    ->middleware('throttle:10,1');
+Route::post('/register/resend-otp', [RegisteredUserController::class, 'apiResendOtp'])
+    ->middleware('throttle:10,1');
 Route::post('/auth/google', [GoogleAuthController::class, 'apiGoogleLogin']);
 Route::post('/forgot-password', [PasswordResetLinkController::class, 'apiStore']);
 Route::post('/reset-password', [NewPasswordController::class, 'apiStore']);

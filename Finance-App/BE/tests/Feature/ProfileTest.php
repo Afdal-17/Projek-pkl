@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class ProfileTest extends TestCase
@@ -71,6 +72,29 @@ class ProfileTest extends TestCase
         $this->actingAs($user)->deleteJson(route('account.avatar.destroy'))->assertNoContent();
         Storage::disk('public')->assertMissing($avatarPath);
         $this->assertNull($user->fresh()->avatar_path);
+    }
+
+    public function test_account_api_returns_google_avatar_url_without_storage_prefix(): void
+    {
+        $avatarUrl = 'https://lh3.googleusercontent.com/profile-photo';
+        $user = User::factory()->create(['avatar_path' => $avatarUrl]);
+
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/account')
+            ->assertOk()
+            ->assertJsonPath('avatar_url', $avatarUrl);
+    }
+
+    public function test_account_api_returns_local_avatar_url_with_storage_prefix(): void
+    {
+        $user = User::factory()->create(['avatar_path' => 'avatars/profile.png']);
+
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/account')
+            ->assertOk()
+            ->assertJsonPath('avatar_url', asset('storage/avatars/profile.png'));
     }
 
     public function test_profile_information_can_be_updated(): void

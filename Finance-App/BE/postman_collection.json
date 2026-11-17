@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Finance App API - Backend (Laravel)",
-    "description": "API untuk Frontend Web & Mobile.\n\nWAJIB: prefix /api, header Accept: application/json, dan port 8003 (port 8000 = Apache XAMPP, bukan Laravel).\n\nCara pakai: atur variabel baseUrl, lalu jalankan folder '1. Auth & Akun > Login' — token otomatis tersimpan. Lihat API_DOCUMENTATION.md untuk detail.",
+    "description": "API untuk Frontend Web & Mobile.\n\nWAJIB: prefix /api, header Accept: application/json, dan port 8003 (port 8000 = Apache XAMPP, bukan Laravel).\n\nRegistrasi harus diikuti verifikasi OTP sebelum token diterima. OTP WhatsApp berbahasa Inggris. Mata uang default akun baru adalah USD.\n\nCara pakai: atur variabel baseUrl, lalu jalankan folder '1. Auth & Akun > Login' — token otomatis tersimpan. Lihat API_DOCUMENTATION.md untuk detail.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -53,6 +53,19 @@
               "options": { "raw": { "language": "json" } }
             },
             "url": { "raw": "{{baseUrl}}/register/verify-otp", "host": ["{{baseUrl}}"], "path": ["register", "verify-otp"] }
+          }
+        },
+        {
+          "name": "Resend OTP Register",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"user_id\": 1\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/register/resend-otp", "host": ["{{baseUrl}}"], "path": ["register", "resend-otp"] }
           }
         },
         {

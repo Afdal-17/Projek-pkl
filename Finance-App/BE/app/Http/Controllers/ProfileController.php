@@ -22,7 +22,7 @@ class ProfileController extends Controller
 
         return view('admin.profile', [
             'user' => $user,
-            'avatarUrl' => $user->avatar_path ? asset('storage/' . $user->avatar_path) : null,
+            'avatarUrl' => $this->avatarUrl($user->avatar_path),
         ]);
     }
 
@@ -33,13 +33,13 @@ class ProfileController extends Controller
         if ($request->expectsJson()) {
             return response()->json([
                 'user' => $user,
-                'avatar_url' => $user->avatar_path ? asset('storage/'.$user->avatar_path) : null,
+                'avatar_url' => $this->avatarUrl($user->avatar_path),
             ]);
         }
 
         return view('account', [
             'user' => $user,
-            'avatarUrl' => $user->avatar_path ? asset('storage/'.$user->avatar_path) : null,
+            'avatarUrl' => $this->avatarUrl($user->avatar_path),
         ]);
     }
 
@@ -74,7 +74,7 @@ class ProfileController extends Controller
         ]);
 
         $user = $request->user();
-        $oldCurrency = $user->mata_uang ?? 'IDR';
+        $oldCurrency = $user->mata_uang ?? 'USD';
         $newCurrency = $validated['mata_uang'];
 
         if ($oldCurrency !== $newCurrency) {
@@ -114,6 +114,19 @@ class ProfileController extends Controller
         }
 
         return response()->json([], 204);
+    }
+
+    private function avatarUrl(?string $avatarPath): ?string
+    {
+        if ($avatarPath === null || $avatarPath === '') {
+            return null;
+        }
+
+        if (filter_var($avatarPath, FILTER_VALIDATE_URL)) {
+            return parse_url($avatarPath, PHP_URL_SCHEME) === 'https' ? $avatarPath : null;
+        }
+
+        return asset('storage/'.$avatarPath);
     }
 
     /**

@@ -82,6 +82,64 @@ class OtpVerificationTest extends TestCase
         $this->assertNull(session('otp_user_id'));
     }
 
+    public function test_api_correct_otp_verifies_user_and_returns_sanctum_token(): void
+    {
+        $user = $this->userPendingOtp();
+        $kode = app(OtpService::class)->buatKode($user);
+
+        $response = $this->postJson('/api/register/verify-otp', [
+            'user_id' => $user->id_user,
+            'kode' => $kode,
+        ]);
+
+        $response->assertOk()
+            ->assertJsonStructure(['message', 'token', 'user' => ['id_user']])
+            ->assertJsonPath('user.id_user', $user->id_user);
+
+        $user->refresh();
+        $this->assertNotNull($user->email_verified_at);
+        $this->assertNotNull($user->otp_verified_at);
+        $this->assertTrue((bool) $user->status);
+        $this->assertNull($user->otp_kode);
+    }
+
+    public function test_api_otp_verification_returns_validation_error_for_unknown_user_id(): void
+    {
+        $this->postJson('/api/register/verify-otp', [
+            'user_id' => 999999,
+            'kode' => '123456',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('user_id');
+    }
+
+    public function test_api_resend_sends_new_otp_to_registered_email(): void
+    {
+        Mail::fake();
+
+        $user = $this->userPendingOtp();
+        app(OtpService::class)->buatKode($user);
+
+        $this->postJson('/api/register/resend-otp', [
+            'user_id' => $user->id_user,
+        ])->assertOk()
+            ->assertJsonPath('message', 'Kode OTP baru telah dikirim.');
+
+        Mail::assertSent(KodeVerifikasiMail::class, fn (KodeVerifikasiMail $mail) => $mail->hasTo($user->email));
+    }
+
+    public function test_api_resend_rejects_accounts_without_pending_registration_otp(): void
+    {
+        Mail::fake();
+        $user = $this->userPendingOtp();
+
+        $this->postJson('/api/register/resend-otp', [
+            'user_id' => $user->id_user,
+        ])->assertUnprocessable()
+            ->assertJsonPath('message', 'Tidak ada OTP registrasi yang menunggu verifikasi.');
+
+        Mail::assertNothingSent();
+    }
+
     public function test_wrong_otp_increments_attempts_and_reports_remaining(): void
     {
         $user = $this->userPendingOtp();

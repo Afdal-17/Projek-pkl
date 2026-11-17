@@ -135,6 +135,7 @@ membalas `422`.
 | POST | `/api/login` | Login, mengembalikan token + data user |
 | POST | `/api/register` | Registrasi via email (OTP email) atau nomor telepon (OTP WhatsApp) |
 | POST | `/api/register/verify-otp` | Verifikasi 6 digit kode OTP (mengaktifkan akun & mengembalikan token) |
+| POST | `/api/register/resend-otp` | Kirim ulang OTP registrasi (body: `user_id`; batas 6 per 15 menit per akun dan 10 per menit per IP) |
 | POST | `/api/auth/google` | Login / Register via Google (wajib field `mode`: `login`\|`register`) |
 | POST | `/api/forgot-password` | Kirim token/link reset password ke email |
 | POST | `/api/reset-password` | Ganti password baru menggunakan token reset |
@@ -148,14 +149,34 @@ membalas `422`.
 | POST | `/account/avatar` | Upload avatar (multipart `avatar`, jpg/png maks 2 MB) |
 | DELETE | `/account/avatar` | Hapus avatar → **204** |
 
+Registrasi email maupun telepon tidak memberikan token sebelum OTP berhasil
+diverifikasi. Pengiriman OTP melalui WhatsApp menggunakan pesan berbahasa Inggris.
+Jika pengiriman OTP registrasi gagal atau Fonnte belum dikonfigurasi untuk
+registrasi telepon, endpoint `/api/register` mengembalikan **503** dan akun baru
+tidak disimpan. OTP berlaku 10 menit dan maksimal 5 percobaan; verifikasi dibatasi
+10 request per menit per IP.
+
+Kirim ulang OTP dengan `POST /api/register/resend-otp`:
+
+```json
+{ "user_id": 12 }
+```
+
+Sukses membalas `200`; pengiriman gagal membalas `503`, sedangkan batas per akun
+atau IP membalas `429`. OTP WhatsApp untuk registrasi dan pemulihan password
+dikirim dalam bahasa Inggris.
+
 ```json
 PATCH /api/account
-{ "nama": "Nama Baru", "mata_uang": "IDR" }
+{ "nama": "Nama Baru", "mata_uang": "USD" }
 
-200 OK  { "status": "profile-updated", "currency": "IDR" }
+200 OK  { "status": "profile-updated", "currency": "USD" }
 ```
 
 > Tidak ada field `password` di endpoint ini — ubah password lewat halaman web Breeze.
+> Preferensi tampilan akun baru secara default adalah USD; preferensi yang sudah
+> tersimpan tidak diubah. Nilai keuangan tetap disimpan dalam IDR sebagai mata
+> uang dasar.
 
 ---
 
@@ -407,6 +428,7 @@ GET /api/notifications?read=0
 | **405** | Transaksi transfer diubah/dihapus | Tidak bisa — memang immutable |
 | **419** | **URL tanpa prefix `/api`** → CSRF token mismatch | Perbaiki base URL |
 | **422** | Validasi / saldo kurang / duplikat 30 detik / OTP salah atau kedaluwarsa / rate limit login | Baca `errors` |
+| **503** | Pengiriman OTP registrasi melalui email/WhatsApp gagal atau Fonnte belum dikonfigurasi | Perbaiki konfigurasi provider lalu coba registrasi kembali |
 | **429** | Throttle endpoint (mis. pemulihan nomor telepon) | Tunggu sesuai `Retry-After`, lalu coba kembali |
 | **403** | (Apache XAMPP di port 8000) | Pakai port 8003 |
 

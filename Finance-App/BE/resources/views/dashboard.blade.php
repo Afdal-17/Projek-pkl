@@ -4,7 +4,7 @@
 
 @section('content')
 @php
-    $currency = auth()->user()->mata_uang ?? 'IDR';
+    $currency = auth()->user()->mata_uang ?? 'USD';
     $currencySymbols = ['IDR' => 'Rp', 'USD' => '$', 'EUR' => '€'];
     $currencySymbol = $currencySymbols[$currency] ?? 'Rp';
     $decimalSeparator = $currency === 'USD' ? '.' : ',';

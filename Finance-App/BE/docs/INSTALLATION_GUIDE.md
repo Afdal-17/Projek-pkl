@@ -53,6 +53,8 @@ Sebelum menjalankan proyek, pastikan komputer Anda telah terinstal:
    ```bash
    php artisan migrate:fresh --seed
    ```
+   Preferensi tampilan akun baru (termasuk akun demo) default-nya USD; seluruh
+   nominal keuangan tetap disimpan backend dalam IDR sebagai mata uang dasar.
 
 7. **Jalankan Server Backend**:
    ```bash

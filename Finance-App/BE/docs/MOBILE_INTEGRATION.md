@@ -126,7 +126,9 @@ Accept: application/json
 melalui WhatsApp/Fonnte, termasuk ketika email opsional juga diberikan.
 Nomor perlu dapat menerima WhatsApp dan `FONNTE_TOKEN` backend harus valid.
 Respons → `201 Created` berisi `user_id` dan `nomor_telepon`; pengguna kemudian
-memasukkan OTP enam digit pada endpoint verifikasi berikut.
+memasukkan OTP enam digit pada endpoint verifikasi berikut. Jika Fonnte belum
+dikonfigurasi atau pengiriman WhatsApp gagal, API membalas `503` dan akun tidak
+dibuat. Pesan OTP WhatsApp dikirim dalam bahasa Inggris.
 
 ---
 
@@ -157,6 +159,16 @@ Accept: application/json
   }
 }
 ```
+
+Jika kode belum diterima, kirim ulang menggunakan `POST /api/register/resend-otp`
+dengan body `{ "user_id": 12 }`. Endpoint dibatasi per akun dan per IP. Jika
+provider email/WhatsApp gagal atau WhatsApp belum dikonfigurasi, registrasi atau
+pengiriman ulang mengembalikan `503`; klien tidak boleh menganggap OTP terkirim.
+Registrasi yang gagal mengirim OTP tidak menyimpan akun sehingga pengguna dapat
+mencoba mendaftar kembali. OTP berlaku 10 menit dan maksimal 5 percobaan; endpoint
+verifikasi maksimal 10 request/menit per IP, sementara kirim ulang maksimal 10
+request/menit per IP dan 6 kali/15 menit per akun. Jangan menyimpan token sampai
+endpoint verifikasi membalas `200`.
 
 ---
 
@@ -955,6 +967,8 @@ Dengan begitu perilakunya deterministik dan tidak bergantung pada saldo dompet y
 | DELETE | `/api/account/avatar` | — |
 
 **Mata uang yang didukung:** `IDR`, `USD`, `EUR` (cek `ProfileController::switchCurrency`).
+Default akun baru adalah `USD`. Akun yang sudah memiliki preferensi tersimpan
+tidak otomatis diubah; backend tetap menyimpan nominal keuangan dalam IDR.
 
 > Upload avatar pakai **multipart**, BUKAN JSON:
 > ```dart
@@ -1077,6 +1091,12 @@ class ApiClient {
 
 ### 8.3 Registrasi & Verifikasi OTP Email
 
+Registrasi Mobile menggunakan `POST /register`, lalu meminta kode enam digit
+lewat email. Simpan `user_id` dari respons; jangan membuat sesi/token sampai
+`POST /register/verify-otp` berhasil. Jika email OTP gagal dikirim, API
+mengembalikan `503`. Kode dapat dikirim ulang memakai
+`POST /register/resend-otp` dengan `{ 'user_id': userId }`.
+
 ```dart
 // 1. Request Register
 Future<int?> registerEmail({
@@ -1126,6 +1146,10 @@ Future<String?> verifyOtp({
   }
 }
 ```
+
+Jika pengguna tidak menerima OTP, kirim ulang dengan `POST /register/resend-otp`
+dan body `{'user_id': userId}`. Tangani `503` sebagai kegagalan pengiriman (jangan
+mulai countdown sukses), serta `429` sebagai batas permintaan yang tercapai.
 
 ### 8.4 Login / Register Google
 
@@ -1266,6 +1290,8 @@ Sebelum laporan "sudah terhubung", pastikan semua tercentang:
 - [ ] `POST /api/logout` menghapus token dari penyimpanan lokal
 
 ### Fitur
+- [ ] Registrasi meminta OTP dan token hanya disimpan setelah OTP tervalidasi.
+- [ ] Pengiriman ulang memakai `/api/register/resend-otp`; tangani respons `503`/`429`.
 - [ ] Alur pemulihan telepon memanggil `/api/forgot-password/phone`, `/verify`, lalu `/api/reset-password/phone`.
 - [ ] `reset_token` hanya disimpan sementara dan dibuang setelah reset selesai.
 - [ ] Respons generik `200` pada permintaan OTP tidak dianggap sebagai bukti kode pasti terkirim.
