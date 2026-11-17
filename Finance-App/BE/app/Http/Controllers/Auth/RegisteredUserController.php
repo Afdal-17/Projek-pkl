@@ -63,6 +63,7 @@ class RegisteredUserController extends Controller
                         'role' => 'user',
                         'status' => false,
                         'email_verified_at' => null,
+                        'mata_uang' => 'USD',
                     ]);
 
                     app(OtpService::class)->kirimWhatsapp($user);
@@ -115,6 +116,7 @@ class RegisteredUserController extends Controller
                     'role' => 'user',
                     'status' => false,
                     'email_verified_at' => null,
+                    'mata_uang' => 'USD',
                 ]);
 
                 app(OtpService::class)->kirim($user);
@@ -291,6 +293,7 @@ class RegisteredUserController extends Controller
                 'role' => 'user',
                 'status' => false,
                 'email_verified_at' => null,
+                'mata_uang' => 'USD',
             ]);
 
             // Register via nomor telepon: kirim kode OTP ke WhatsApp (Fonnte).
@@ -348,6 +351,7 @@ class RegisteredUserController extends Controller
             'role' => 'user',
             'status' => false,
             'email_verified_at' => null,
+            'mata_uang' => 'USD',
         ]);
 
         return $this->kirimOtpDanArahkan($request, $user);

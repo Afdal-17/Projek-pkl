@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/auth_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/feedback.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
 
@@ -115,8 +116,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     }
   }
 
-  void _onKeyDown(int index, RawKeyEvent event) {
-    if (event is RawKeyDownEvent &&
+  void _onKeyDown(int index, KeyEvent event) {
+    if (event is KeyDownEvent &&
         event.logicalKey == LogicalKeyboardKey.backspace) {
       if (_controllers[index].text.isEmpty && index > 0) {
         _controllers[index - 1].clear();
@@ -169,21 +170,28 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     });
 
     if (widget.userId != null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please check your inbox or spam folder for your 6-digit OTP code.'),
-            duration: Duration(seconds: 3),
-          ),
+      final success = await AuthService.resendRegisterOtp(widget.userId!);
+      if (!mounted) return;
+      if (success) {
+        showAppPopup(
+          context,
+          'A new 6-digit OTP code has been sent to your email. Please check your inbox or spam folder.',
+          title: 'OTP Resent',
+          type: PopupType.info,
         );
+        _startCountdown();
+      } else {
+        setState(() {
+          _errorMessage = AuthService.lastRegisterError ?? 'Failed to resend verification code.';
+        });
       }
     } else {
       await AuthService.resendOtp(widget.targetPhone);
+      _startCountdown();
     }
 
     if (!mounted) return;
     setState(() => _isLoading = false);
-    _startCountdown();
   }
 
   @override
@@ -296,9 +304,9 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                       return SizedBox(
                         width: 44,
                         height: 54,
-                        child: RawKeyboardListener(
+                        child: KeyboardListener(
                           focusNode: FocusNode(),
-                          onKey: (event) => _onKeyDown(i, event),
+                          onKeyEvent: (event) => _onKeyDown(i, event),
                           child: TextField(
                             controller: _controllers[i],
                             focusNode: _focusNodes[i],

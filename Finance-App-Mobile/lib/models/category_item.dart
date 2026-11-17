@@ -22,6 +22,7 @@ const Map<String, CategoryIcon> categoryIcons = {
   'cash': CategoryIcon(Icons.payments_outlined, 'Cash icon'),
   'dollar': CategoryIcon(Icons.attach_money_rounded, 'Dollar icon'),
   'target': CategoryIcon(Icons.track_changes_rounded, 'Target icon'),
+  'transfer': CategoryIcon(Icons.swap_horiz_rounded, 'Transfer icon'),
   'person': CategoryIcon(Icons.person_outline_rounded, 'Person icon'),
   'shield': CategoryIcon(Icons.shield_outlined, 'Shield icon'),
   'settings': CategoryIcon(Icons.settings_outlined, 'Settings icon'),
@@ -65,18 +66,5 @@ class CategoryItem {
   }
 }
 
-/// Data contoh. Nanti diganti dengan data dari backend.
-final List<CategoryItem> sampleCategories = [
-  const CategoryItem(
-    id: '1',
-    name: 'Makan',
-    type: CategoryType.expense,
-    iconKey: 'food',
-  ),
-  const CategoryItem(
-    id: '2',
-    name: 'Music Conser',
-    type: CategoryType.expense,
-    emoji: '🎵',
-  ),
-];
+/// Daftar kategori bawaan jika belum ada dari backend
+const List<CategoryItem> sampleCategories = [];

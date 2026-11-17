@@ -5,12 +5,10 @@ import 'api_service.dart';
 class CategoryService {
   CategoryService._();
 
-  static const String _categoriesEndpoint = '${ApiConfig.baseUrl}/categories';
-
   /// Mengambil semua kategori dari backend (`GET /api/categories`)
   /// Response: [{id, name, type, icon, count}]
   static Future<ApiResponse> fetchCategories() async {
-    return await ApiService.get(_categoriesEndpoint);
+    return await ApiService.get(ApiConfig.categoriesEndpoint);
   }
 
   /// Tambah kategori baru (`POST /api/categories`)
@@ -32,7 +30,7 @@ class CategoryService {
       'jenis': jenis,
       if (icon != null && icon.isNotEmpty) 'icon': icon,
     };
-    return await ApiService.post(_categoriesEndpoint, body: body);
+    return await ApiService.post(ApiConfig.categoriesEndpoint, body: body);
   }
 
   /// Edit kategori (`PATCH /api/categories/{id}`)
@@ -51,11 +49,11 @@ class CategoryService {
     }
     if (icon != null) body['icon'] = icon;
 
-    return await ApiService.patch('$_categoriesEndpoint/$id', body: body);
+    return await ApiService.patch(ApiConfig.categoryEndpoint(id), body: body);
   }
 
   /// Hapus kategori (`DELETE /api/categories/{id}`)
   static Future<ApiResponse> deleteCategory(dynamic id) async {
-    return await ApiService.delete('$_categoriesEndpoint/$id');
+    return await ApiService.delete(ApiConfig.categoryEndpoint(id));
   }
 }

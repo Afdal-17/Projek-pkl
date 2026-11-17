@@ -12,12 +12,24 @@ class ApiConfig {
   // ─── Endpoints ───────────────────────────────────────────────
   // Autentikasi & Akun
   static const String loginEndpoint = '$baseUrl/login';
+  static const String logoutEndpoint = '$baseUrl/logout';
   static const String registerEndpoint = '$baseUrl/register';
   static const String registerVerifyOtpEndpoint = '$baseUrl/register/verify-otp';
+  static const String registerResendOtpEndpoint = '$baseUrl/register/resend-otp';
+  static const String forgotPasswordEndpoint = '$baseUrl/forgot-password';
+  static const String resetPasswordEndpoint = '$baseUrl/reset-password';
+  static const String forgotPasswordPhoneEndpoint = '$baseUrl/forgot-password/phone';
+  static const String forgotPasswordPhoneVerifyEndpoint = '$baseUrl/forgot-password/phone/verify';
+  static const String resetPasswordPhoneEndpoint = '$baseUrl/reset-password/phone';
   static const String passwordEndpoint = '$baseUrl/password';
   static const String userEndpoint = '$baseUrl/user';
+  static const String accountEndpoint = '$baseUrl/account';
+  static const String accountAvatarEndpoint = '$baseUrl/account/avatar';
   static const String googleAuthEndpoint = '$baseUrl/auth/google';
   static const String switchCurrencyEndpoint = '$baseUrl/account/currency';
+
+  // Dashboard
+  static const String dashboardSummaryEndpoint = '$baseUrl/dashboard/summary';
 
   // Dompet
   static const String dompetEndpoint = '$baseUrl/dompet';
@@ -30,7 +42,13 @@ class ApiConfig {
 
   // Transaksi & Tabungan
   static const String transactionsEndpoint = '$baseUrl/transactions';
+  static String transactionEndpoint(dynamic id) => '$baseUrl/transactions/$id';
   static const String savingEndpoint = '$baseUrl/saving';
+  static String savingGoalEndpoint(dynamic id) => '$baseUrl/saving/$id';
+
+  // Kategori Transaksi
+  static const String categoriesEndpoint = '$baseUrl/categories';
+  static String categoryEndpoint(dynamic id) => '$baseUrl/categories/$id';
 
   // Notifikasi
   static const String notificationsEndpoint = '$baseUrl/notifications';

@@ -42,9 +42,11 @@ class RegistrationTest extends TestCase
             'status' => false,
             'email_verified_at' => null,
             'otp_verified_at' => null,
+            'mata_uang' => 'USD',
         ]);
 
         $user = User::where('email', 'test@example.com')->firstOrFail();
+        $this->assertSame('USD', $user->mata_uang);
 
         $this->assertNotNull($user->otp_kode, 'Kode OTP harus tersimpan (hashed) setelah registrasi.');
         $this->assertNotNull($user->otp_expires_at, 'Kode OTP harus memiliki masa berlaku.');

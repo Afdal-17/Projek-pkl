@@ -151,6 +151,26 @@ void main() {
   group('WalletPickerSheet Tests', () {
     testWidgets('WalletPickerSheet displays only user wallets and allows selection', (tester) async {
       Wallet? pickedWallet;
+      const testWallets = [
+        Wallet(
+          name: 'Cash',
+          type: 'Physical wallet',
+          balanceIdr: 100000,
+          isPrimary: true,
+          icon: Icons.account_balance_wallet_outlined,
+          color: Colors.green,
+          background: Colors.greenAccent,
+        ),
+        Wallet(
+          name: 'BCA',
+          type: 'Bank account',
+          balanceIdr: 500000,
+          isPrimary: false,
+          icon: Icons.account_balance_outlined,
+          color: Colors.blue,
+          background: Colors.lightBlueAccent,
+        ),
+      ];
 
       await tester.pumpWidget(
         MaterialApp(
@@ -160,6 +180,7 @@ void main() {
                 onPressed: () async {
                   pickedWallet = await showWalletPickerSheet(
                     context: context,
+                    wallets: testWallets,
                     showBalance: true,
                   );
                 },
@@ -174,7 +195,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Select Wallet'), findsOneWidget);
-      for (final w in DummyData.wallets) {
+      for (final w in testWallets) {
         expect(find.text(w.name), findsOneWidget);
       }
 

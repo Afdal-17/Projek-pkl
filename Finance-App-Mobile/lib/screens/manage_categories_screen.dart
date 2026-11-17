@@ -6,6 +6,8 @@ import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_header.dart';
 import '../widgets/category_form_sheet.dart';
+import '../utils/app_translator.dart';
+import '../utils/feedback.dart';
 
 const _sortNameAz = 'Name A-Z';
 const _sortRecent = 'Recently Added';
@@ -57,7 +59,8 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
           for (final item in rawList) {
             final map = Map<String, dynamic>.from(item as Map);
             final id = (map['id'] ?? map['id_kategori'] ?? '').toString();
-            final name = (map['name'] ?? map['nama_kategori'] ?? map['nama'] ?? '').toString();
+            final rawName = (map['name'] ?? map['nama_kategori'] ?? map['nama'] ?? '').toString();
+            final name = AppTranslator.translateCategory(rawName);
             final typeStr = (map['type'] ?? map['jenis'] ?? '').toString().toLowerCase();
             final type = (typeStr == 'income' || typeStr == 'pemasukan')
                 ? CategoryType.income
@@ -87,27 +90,21 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
 
       // Jika response gagal (misal server ngrok offline / 401 unauthenticated)
       if (showFeedbackOnFailure && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(res.message ?? 'Server backend tidak dapat dihubungi (Offline).'),
-            backgroundColor: AppColors.expense,
-            duration: const Duration(seconds: 3),
-          ),
+        showAppPopup(
+          context,
+          res.message ?? 'Server backend is currently offline or unreachable.',
+          type: PopupType.error,
         );
       }
 
       if (mounted) {
         setState(() {
-          if (_items.isEmpty) {
-            _items = List<CategoryItem>.of(sampleCategories);
-          }
           _isLoading = false;
         });
       }
     } catch (_) {
       if (mounted) {
         setState(() {
-          if (_items.isEmpty) _items = List<CategoryItem>.of(sampleCategories);
           _isLoading = false;
         });
       }
@@ -145,14 +142,6 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
     if (result == null || !mounted) return;
 
     if (existing == null) {
-      // Tampilkan indikator loading atau snackbar proses
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Menyimpan kategori ke server...'),
-          duration: Duration(seconds: 1),
-        ),
-      );
-
       final res = await CategoryService.createCategory(
         name: result.name,
         type: result.isIncome ? 'income' : 'expense',
@@ -162,22 +151,18 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
       if (!mounted) return;
 
       if (res.success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Kategori berhasil disimpan ke server!'),
-            backgroundColor: Color(0xFF10B981),
-          ),
+        showAppPopup(
+          context,
+          'Category created successfully!',
+          type: PopupType.success,
         );
         _loadCategories();
       } else {
-        // Jangan timpa jika gagal, tambahkan ke list tampilan tapi ingatkan user
         setState(() => _items.add(result));
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(res.message ?? 'Gagal terhubung ke backend. Periksa server ngrok.'),
-            backgroundColor: AppColors.expense,
-            duration: const Duration(seconds: 4),
-          ),
+        showAppPopup(
+          context,
+          res.message ?? 'Failed to connect to backend server.',
+          type: PopupType.error,
         );
       }
     } else {
@@ -191,11 +176,10 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
       if (!mounted) return;
 
       if (res.success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Kategori berhasil diperbarui!'),
-            backgroundColor: Color(0xFF10B981),
-          ),
+        showAppPopup(
+          context,
+          'Category updated successfully!',
+          type: PopupType.success,
         );
         _loadCategories();
       } else {
@@ -203,11 +187,10 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
         if (i != -1) {
           setState(() => _items[i] = result);
         }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(res.message ?? 'Gagal memperbarui ke server.'),
-            backgroundColor: AppColors.expense,
-          ),
+        showAppPopup(
+          context,
+          res.message ?? 'Failed to update category on server.',
+          type: PopupType.error,
         );
       }
     }
@@ -432,7 +415,7 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
         color: AppColors.brand,
         backgroundColor: Colors.white,
         onRefresh: () => _loadCategories(showFeedbackOnFailure: true),
-        child: _isLoading
+        child: (_isLoading && _items.isEmpty)
             ? const Center(
                 child: CircularProgressIndicator(color: AppColors.brand),
               )

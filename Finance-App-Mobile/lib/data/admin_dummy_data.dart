@@ -1,12 +1,14 @@
 import 'package:flutter/foundation.dart';
 import '../models/admin_user.dart';
 import '../services/admin_service.dart';
+import '../services/api_config.dart';
+import '../utils/refresh_notifier.dart';
 
 /// Data untuk Admin Dashboard, Verify Users, Manage Users & Admin Profile,
 /// terhubung langsung ke REST API backend Laravel dengan fallback lokal.
 class AdminDummyData {
   /// URL Endpoint RESTful API Backend Laravel
-  static String get apiBaseUrl => 'https://sinuous-fame-jazz.ngrok-free.dev/api';
+  static String get apiBaseUrl => ApiConfig.baseUrl;
   AdminDummyData._();
 
   static int totalUsers = 0;
@@ -28,10 +30,21 @@ class AdminDummyData {
 
   // ─── Admin Profile State ───
   static String adminName = 'Admin';
-  static String adminEmail = 'admin@finance.app';
-  static String adminPhone = '081234567890';
-  static String adminLocation = 'Indonesia';
+  static String adminEmail = '';
+  static String adminPhone = '';
+  static String adminLocation = '';
   static dynamic adminAvatarFile; // File? jika dipilih dari device
+
+  /// Reset data profil admin di memori saat logout / ganti akun
+  static void reset() {
+    adminAvatarFile = null;
+    adminName = 'Admin';
+    adminEmail = '';
+    adminPhone = '';
+    adminLocation = '';
+    managedUsers.value = [];
+    unverifiedUsers.value = [];
+  }
 
   /// Daftar semua pengguna untuk "Admin - User Management" (Dimuat langsung dari API)
   static final ValueNotifier<List<AdminUser>> managedUsers =
@@ -41,17 +54,33 @@ class AdminDummyData {
   static final ValueNotifier<List<AdminUser>> unverifiedUsers =
       ValueNotifier<List<AdminUser>>([]);
 
-  /// Memuat data live dari REST API backend Laravel
-  static Future<void> loadFromApi() async {
+  static bool _isFetching = false;
+  static bool get isFetching => _isFetching;
+
+  /// Memuat data live dari REST API backend Laravel secara paralel dengan perlindungan Data Preservation
+  static Future<void> loadFromApi({bool force = false}) async {
+    if (_isFetching && !force) return;
+    _isFetching = true;
+
     try {
+      // Menjalankan request secara paralel untuk mempercepat loading dashboard
+      final results = await Future.wait([
+        AdminService.fetchDashboard(),
+        AdminService.fetchUsers(),
+        AdminService.fetchVerifyUsers(),
+      ]);
+
+      final dash = results[0] as Map<String, dynamic>?;
+      final users = results[1] as List<AdminUser>?;
+      final unverified = results[2] as List<AdminUser>?;
+
       // 1. Dashboard summary & chart
-      final dash = await AdminService.fetchDashboard();
       if (dash != null) {
         final summary = dash['summary'] as Map<String, dynamic>?;
         if (summary != null) {
-          totalUsers = (summary['total_user'] as num?)?.toInt() ?? 0;
-          onlineUsers = (summary['user_online'] as num?)?.toInt() ?? 0;
-          newUsersThisWeek = (summary['user_baru_minggu_ini'] as num?)?.toInt() ?? 0;
+          totalUsers = (summary['total_user'] as num?)?.toInt() ?? totalUsers;
+          onlineUsers = (summary['user_online'] as num?)?.toInt() ?? onlineUsers;
+          newUsersThisWeek = (summary['user_baru_minggu_ini'] as num?)?.toInt() ?? newUsersThisWeek;
         }
 
         final chart = dash['chart'] as Map<String, dynamic>?;
@@ -64,29 +93,28 @@ class AdminDummyData {
         final days = (dash['days'] as List?)?.map((e) => e.toString()).toList();
         if (days != null && days.isNotEmpty) chartDays = days;
       } else {
-        // Fallback jika API belum ada respons, sinkronkan dengan jumlah user aktual
-        totalUsers = managedUsers.value.length;
-        onlineUsers = managedUsers.value.where((u) => u.isActive && !u.isBanned).length;
-        if (totalUsers == 0) {
-          onlineUsers = 0;
-          newUsersThisWeek = 0;
-          chartTotalUsers = [0, 0, 0, 0, 0, 0, 0];
-          chartNewUsers = [0, 0, 0, 0, 0, 0, 0];
+        // Fallback jika API belum ada respons:
+        // PERTAHANKAN DATA (Data Preservation). Jangan pernah reset ke 0 jika sebelumnya sudah ada data!
+        if (totalUsers == 0 && managedUsers.value.isNotEmpty) {
+          totalUsers = managedUsers.value.length;
+          onlineUsers = managedUsers.value.where((u) => u.isActive && !u.isBanned).length;
         }
       }
 
-      // 2. All managed users
-      final users = await AdminService.fetchUsers();
-      if (users.isNotEmpty) {
+      // 2. All managed users: perbarui hanya jika request sukses (users != null)
+      if (users != null) {
         managedUsers.value = users;
       }
 
-      // 3. Unverified users
-      final unverified = await AdminService.fetchVerifyUsers();
-      if (unverified.isNotEmpty) {
+      // 3. Unverified users: perbarui hanya jika request sukses (unverified != null)
+      if (unverified != null) {
         unverifiedUsers.value = unverified;
       }
-    } catch (_) {}
+    } catch (_) {
+      // Pertahankan data saat terjadi error
+    } finally {
+      _isFetching = false;
+    }
   }
 
   /// Verifikasi pengguna (meniru AdminController@verify di Laravel)
@@ -112,6 +140,7 @@ class AdminDummyData {
       managedUsers.value = mList;
     }
 
+    AppRefreshNotifier.notifyDataChanged();
     return true;
   }
 
@@ -128,6 +157,7 @@ class AdminDummyData {
     mList[index].isActive = false;
     mList[index].banReason = reason.trim().isEmpty ? 'Account suspended by administrator' : reason.trim();
     managedUsers.value = mList;
+    AppRefreshNotifier.notifyDataChanged();
     return true;
   }
 
@@ -144,6 +174,7 @@ class AdminDummyData {
     mList[index].isActive = true;
     mList[index].banReason = null;
     managedUsers.value = mList;
+    AppRefreshNotifier.notifyDataChanged();
     return true;
   }
 
@@ -166,6 +197,7 @@ class AdminDummyData {
       chartTotalUsers = [0, 0, 0, 0, 0, 0, 0];
       chartNewUsers = [0, 0, 0, 0, 0, 0, 0];
     }
+    AppRefreshNotifier.notifyDataChanged();
     return true;
   }
 

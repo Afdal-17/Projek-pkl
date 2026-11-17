@@ -5,6 +5,7 @@ import '../../theme/app_colors.dart';
 import '../../widgets/admin_activity_chart.dart';
 import '../../widgets/admin_header.dart';
 import '../../widgets/app_card.dart';
+import '../../utils/refresh_notifier.dart';
 import 'admin_profile_screen.dart';
 import 'admin_users_screen.dart';
 import 'admin_verify_users_screen.dart';
@@ -22,13 +23,45 @@ class AdminDashboardScreen extends StatefulWidget {
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   int _currentIndex = 0;
+  late final Widget _verifyScreen;
+  late final Widget _usersScreen;
+  late final Widget _profileScreen;
 
   void _goToTab(int index) {
-    setState(() => _currentIndex = index);
+    if (_currentIndex != index) {
+      setState(() => _currentIndex = index);
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _verifyScreen = AdminVerifyUsersScreen(onExitAdmin: widget.onExitAdmin);
+    _usersScreen = AdminUsersScreen(onExitAdmin: widget.onExitAdmin);
+    _profileScreen = AdminProfileScreen(onExitAdmin: widget.onExitAdmin);
+
+    AppRefreshNotifier.refreshTick.addListener(_onAutoRefresh);
+    AdminDummyData.loadFromApi().then((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  void _onAutoRefresh() {
+    if (mounted) {
+      AdminDummyData.loadFromApi().then((_) {
+        if (mounted) setState(() {});
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    AppRefreshNotifier.refreshTick.removeListener(_onAutoRefresh);
+    super.dispose();
   }
 
   Future<void> _handleRefresh() async {
-    await Future.delayed(const Duration(milliseconds: 600));
+    await AdminDummyData.loadFromApi(force: true);
     if (mounted) {
       setState(() {});
     }
@@ -38,9 +71,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Widget build(BuildContext context) {
     final pages = <Widget>[
       _buildDashboardTab(),
-      AdminVerifyUsersScreen(onExitAdmin: widget.onExitAdmin),
-      AdminUsersScreen(onExitAdmin: widget.onExitAdmin),
-      AdminProfileScreen(onExitAdmin: widget.onExitAdmin),
+      _verifyScreen,
+      _usersScreen,
+      _profileScreen,
     ];
 
     return Scaffold(

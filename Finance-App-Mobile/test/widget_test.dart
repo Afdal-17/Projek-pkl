@@ -22,7 +22,7 @@ void main() {
       final before = tester.widget<NavigationBar>(find.byType(NavigationBar));
       expect(before.destinations.length, 4);
       expect(before.selectedIndex, 0);
-      expect(find.text('Dashboard'), findsOneWidget);
+      expect(find.text('Home'), findsOneWidget);
 
       await tester.tap(find.byIcon(Icons.savings_outlined));
       await tester.pump(const Duration(milliseconds: 500));

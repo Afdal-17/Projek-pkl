@@ -1,5 +1,7 @@
 import 'api_config.dart';
 import 'api_service.dart';
+import 'auth_service.dart';
+import '../utils/currency.dart';
 
 /// Service untuk pengelolaan dompet (Wallets) melalui RESTful API backend Laravel
 class WalletService {
@@ -8,6 +10,11 @@ class WalletService {
   /// Mengambil daftar dompet user dari backend (`/api/dompet`)
   static Future<ApiResponse> fetchWallets() async {
     return await ApiService.get(ApiConfig.dompetEndpoint);
+  }
+
+  /// Mengambil detail dompet beserta riwayat transaksinya (`GET /api/dompet/{id}`)
+  static Future<ApiResponse> fetchWalletDetails(dynamic walletId) async {
+    return await ApiService.get('${ApiConfig.dompetEndpoint}/$walletId');
   }
 
   /// Toggle status penerima transfer dompet (`/api/dompet/{id}/toggle-transfer`)
@@ -28,6 +35,11 @@ class WalletService {
     String? currency,
     String? color,
   }) async {
+    // Sinkronisasi preferensi mata uang ke backend sebelum mengirim saldo awal
+    try {
+      await AuthService.syncCurrencyToBackend(preferredCurrency.value);
+    } catch (_) {}
+
     String jenis = 'digital';
     final catLower = category.toLowerCase();
     if (catLower.contains('physical') || catLower.contains('cash')) {
@@ -39,7 +51,7 @@ class WalletService {
     final body = <String, dynamic>{
       'nama_dompet': name,
       'jenis': jenis,
-      'saldo_awal': initialBalance,
+      'saldo_awal': double.parse(initialBalance.toStringAsFixed(2)),
       if (color != null && color.isNotEmpty) 'warna': color,
     };
 
@@ -59,6 +71,11 @@ class WalletService {
     String? color,
     String? description,
   }) async {
+    // Sinkronisasi preferensi mata uang ke backend sebelum mengirim saldo update
+    try {
+      await AuthService.syncCurrencyToBackend(preferredCurrency.value);
+    } catch (_) {}
+
     String jenis = 'digital';
     final catLower = category.toLowerCase();
     if (catLower.contains('physical') || catLower.contains('cash')) {
@@ -70,9 +87,9 @@ class WalletService {
     final body = <String, dynamic>{
       'nama_dompet': name,
       'jenis': jenis,
-      'saldo': balance,
+      'saldo': double.parse(balance.toStringAsFixed(2)),
       'warna': (color != null && color.isNotEmpty) ? color : 'brand',
-      if (description != null) 'deskripsi': description,
+      'deskripsi': ?description,
     };
 
     return await ApiService.patch(

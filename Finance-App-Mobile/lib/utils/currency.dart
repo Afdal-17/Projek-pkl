@@ -1,11 +1,14 @@
 import 'package:flutter/foundation.dart';
+import 'refresh_notifier.dart';
 
 /// Mata uang yang bisa dipilih user (sesuai halaman Finance preferences di web).
 const List<String> supportedCurrencies = ['USD', 'IDR', 'EUR'];
 
-/// Mata uang default mobile adalah USD. Nilainya berubah saat user memilih di Profil.
-/// Catatan: pilihan ini saat ini hanya disimpan di perangkat sampai API tersambung.
-final ValueNotifier<String> preferredCurrency = ValueNotifier<String>('USD');
+/// Mata uang default mobile adalah USD ($). Nilainya berubah saat user memilih di Profil.
+final ValueNotifier<String> preferredCurrency = ValueNotifier<String>('USD')
+  ..addListener(() {
+    AppRefreshNotifier.notifyDataChanged(immediate: true);
+  });
 
 String currencyName(String code) => switch (code) {
       'USD' => 'US Dollar',
@@ -31,10 +34,13 @@ String _group(String digits, String separator) {
   return buffer.toString();
 }
 
-/// Format nominal sesuai mata uang:
-/// USD $1,234.50 | EUR €1.234,50 | IDR Rp 1.234.567
-String formatCurrency(double amount, String code) {
-  final decimals = code == 'IDR' ? 0 : 2;
+/// Format nominal sesuai mata uang standar perbankan & akuntansi:
+/// - USD: pemisah ribuan ',' dan desimal '.' -> $1,234.50
+/// - EUR: pemisah ribuan '.' dan desimal ',' -> €1.234,50
+/// - IDR: pemisah ribuan '.' dan desimal ',' -> Rp 1.234.567 (atau Rp 20.000,05 jika ada desimal/sen)
+String formatCurrency(double amount, String code, {bool alwaysShowDecimals = false}) {
+  final hasCents = (amount.abs() * 100).round() % 100 != 0;
+  final decimals = (code == 'IDR' && !hasCents && !alwaysShowDecimals) ? 0 : 2;
   final thousands = code == 'USD' ? ',' : '.';
   final decimal = code == 'USD' ? '.' : ',';
   final negative = amount < 0;

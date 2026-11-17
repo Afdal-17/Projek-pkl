@@ -4,6 +4,7 @@ import '../../models/admin_user.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/admin_header.dart';
 import '../../widgets/app_card.dart';
+import '../../utils/refresh_notifier.dart';
 
 /// Halaman Admin - User Management (mengikuti Image 1, 2, 3, dan 4).
 class AdminUsersScreen extends StatefulWidget {
@@ -22,6 +23,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   @override
   void initState() {
     super.initState();
+    AppRefreshNotifier.refreshTick.addListener(_onAutoRefresh);
     AdminDummyData.loadFromApi();
     _searchCtrl.addListener(() {
       setState(() {
@@ -30,14 +32,21 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     });
   }
 
+  void _onAutoRefresh() {
+    if (mounted) {
+      AdminDummyData.loadFromApi();
+    }
+  }
+
   @override
   void dispose() {
+    AppRefreshNotifier.refreshTick.removeListener(_onAutoRefresh);
     _searchCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _handleRefresh() async {
-    await AdminDummyData.loadFromApi();
+    await AdminDummyData.loadFromApi(force: true);
     if (mounted) {
       setState(() {});
     }
@@ -164,18 +173,16 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
       final reason = reasonCtrl.text.trim();
       final success = await AdminDummyData.suspendUser(user.id, reason);
       if (success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${user.name} has been suspended.'),
-            backgroundColor: const Color(0xFFDC2626),
-          ),
+        _showInfoPopup(
+          title: 'User Suspended',
+          message: '${user.name} has been suspended.',
+          isSuccess: true,
         );
       } else if (!success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to suspend ${user.name}. Please try again.'),
-            backgroundColor: Colors.orange,
-          ),
+        _showInfoPopup(
+          title: 'Operation Failed',
+          message: 'Failed to suspend ${user.name}. Please try again.',
+          isSuccess: false,
         );
       }
     }
@@ -271,22 +278,120 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     );
   }
 
+  /// Dialog Pop up Info / Feedback operasi admin
+  void _showInfoPopup({
+    required String title,
+    required String message,
+    bool isSuccess = true,
+  }) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        contentPadding: const EdgeInsets.fromLTRB(22, 22, 22, 22),
+        content: SizedBox(
+          width: 320,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: isSuccess ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  isSuccess ? Icons.check_circle_rounded : Icons.info_outline_rounded,
+                  color: isSuccess ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+                  size: 26,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.ink,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Color(0xFF4B5563),
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.dark,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text('OK', style: TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _unbanUser(AdminUser user) async {
-    final success = await AdminDummyData.unbanUser(user.id);
-    if (success && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${user.name} has been unbanned and can log in now.'),
-          backgroundColor: const Color(0xFF16A34A),
-        ),
-      );
-    } else if (!success && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to unban ${user.name}. Please try again.'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Unban User?', style: TextStyle(fontWeight: FontWeight.w800)),
+        content: Text('Are you sure you want to unban ${user.name}? They will be able to log in again.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.muted, fontWeight: FontWeight.w600)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF16A34A),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Unban', style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && mounted) {
+      final success = await AdminDummyData.unbanUser(user.id);
+      if (success && mounted) {
+        _showInfoPopup(
+          title: 'User Unbanned',
+          message: '${user.name} has been unbanned and can log in now.',
+          isSuccess: true,
+        );
+      } else if (!success && mounted) {
+        _showInfoPopup(
+          title: 'Operation Failed',
+          message: 'Failed to unban ${user.name}. Please try again.',
+          isSuccess: false,
+        );
+      }
     }
   }
 
@@ -319,18 +424,16 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     if (confirm == true && mounted) {
       final success = await AdminDummyData.deleteUser(user.id);
       if (success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${user.name} has been deleted.'),
-            backgroundColor: AppColors.dark,
-          ),
+        _showInfoPopup(
+          title: 'User Deleted',
+          message: '${user.name} has been deleted.',
+          isSuccess: true,
         );
       } else if (!success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to delete ${user.name}. Please try again.'),
-            backgroundColor: Colors.orange,
-          ),
+        _showInfoPopup(
+          title: 'Operation Failed',
+          message: 'Failed to delete ${user.name}. Please try again.',
+          isSuccess: false,
         );
       }
     }

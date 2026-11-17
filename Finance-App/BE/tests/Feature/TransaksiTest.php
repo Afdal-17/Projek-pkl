@@ -22,6 +22,7 @@ class TransaksiTest extends TestCase
             'role' => 'user',
             'status' => true,
             'email_verified_at' => now(),
+            'mata_uang' => 'IDR',
         ]);
         $dompet = Dompet::create([
             'id_user' => $user->id_user,
@@ -76,6 +77,7 @@ class TransaksiTest extends TestCase
             'role' => 'user',
             'status' => true,
             'email_verified_at' => now(),
+            'mata_uang' => 'IDR',
         ]);
         $dompet = Dompet::create([
             'id_user' => $user->id_user,
@@ -119,6 +121,7 @@ class TransaksiTest extends TestCase
             'role' => 'user',
             'status' => true,
             'email_verified_at' => now(),
+            'mata_uang' => 'IDR',
         ]);
         $wallet = Dompet::create([
             'id_user' => $user->id_user,

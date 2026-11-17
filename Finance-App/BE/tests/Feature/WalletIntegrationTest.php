@@ -23,6 +23,7 @@ class WalletIntegrationTest extends TestCase
             'role' => 'user',
             'status' => true,
             'email_verified_at' => now(),
+            'mata_uang' => 'IDR',
         ]);
         $wallet = Dompet::create([
             'id_user' => $user->id_user,
@@ -94,6 +95,7 @@ class WalletIntegrationTest extends TestCase
             'role' => 'user',
             'status' => true,
             'email_verified_at' => now(),
+            'mata_uang' => 'IDR',
         ]);
 
         $this->actingAs($user)->postJson(route('dompet.store'), [
@@ -127,6 +129,7 @@ class WalletIntegrationTest extends TestCase
             'role' => 'user',
             'status' => true,
             'email_verified_at' => now(),
+            'mata_uang' => 'IDR',
         ]);
 
         // Test without saldo_awal field provided
@@ -157,6 +160,7 @@ class WalletIntegrationTest extends TestCase
             'role' => 'user',
             'status' => true,
             'email_verified_at' => now(),
+            'mata_uang' => 'IDR',
         ]);
 
         $this->actingAs($user)->post(route('dompet.store'), [
@@ -188,6 +192,7 @@ class WalletIntegrationTest extends TestCase
             'role' => 'user',
             'status' => true,
             'email_verified_at' => now(),
+            'mata_uang' => 'IDR',
         ]);
 
         $response = $this->actingAs($user)->post(route('dompet.store'), [
@@ -214,6 +219,7 @@ class WalletIntegrationTest extends TestCase
             'role' => 'user',
             'status' => true,
             'email_verified_at' => now(),
+            'mata_uang' => 'IDR',
         ]);
 
         $this->actingAs($user)->post(route('dompet.store'), [

@@ -8,8 +8,12 @@ class TransferUser {
     required this.email,
     this.avatar = Icons.person_rounded,
     this.verified = false,
+    this.hasAnyWallet = false,
+    this.isBanned = false,
     this.walletName,
     this.statusText,
+    this.targetWalletId,
+    this.wallets = const [],
   });
 
   final String id;
@@ -17,6 +21,10 @@ class TransferUser {
   final String email;
   final IconData avatar;
   final bool verified;
+  final bool hasAnyWallet;
+  final bool isBanned;
   final String? walletName;
   final String? statusText;
+  final int? targetWalletId;
+  final List<dynamic> wallets;
 }

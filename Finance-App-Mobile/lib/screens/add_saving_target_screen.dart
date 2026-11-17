@@ -5,10 +5,12 @@ import '../models/wallet.dart';
 import '../services/notification_service.dart';
 import '../services/saving_service.dart';
 import '../services/wallet_service.dart';
+import '../services/auth_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/amount_format.dart';
 import '../utils/currency.dart';
 import '../utils/feedback.dart';
+import '../utils/refresh_notifier.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_header.dart';
 
@@ -85,24 +87,10 @@ class _AddSavingTargetScreenState extends State<AddSavingTargetScreen> {
         }
       }
 
-      if (loaded.isEmpty) {
-        loaded = [
-          const Wallet(
-            name: 'Cash',
-            type: 'Physical wallet',
-            balanceIdr: 0,
-            isPrimary: true,
-            icon: Icons.payments_outlined,
-            color: AppColors.income,
-            background: AppColors.incomeSoft,
-          )
-        ];
-      }
-
       if (mounted) {
         setState(() {
           _wallets = loaded;
-          _selectedWallet = _wallets.first;
+          _selectedWallet = _wallets.isNotEmpty ? _wallets.first : null;
           _isLoadingWallets = false;
         });
       }
@@ -126,33 +114,38 @@ class _AddSavingTargetScreenState extends State<AddSavingTargetScreen> {
 
     final name = _nameCtrl.text.trim();
     if (name.isEmpty || _targetAmount <= 0) {
-      showComingSoon(context, 'Please enter a target name and amount.');
+      showAppPopup(
+        context,
+        'Please enter a target name and a valid target amount.',
+        type: PopupType.warning,
+      );
       return;
     }
 
     if (_selectedWallet == null) {
-      showComingSoon(context, 'Please select a wallet.');
+      showAppPopup(
+        context,
+        'Please select a wallet to continue.',
+        type: PopupType.warning,
+      );
       return;
     }
 
     setState(() => _isSubmitting = true);
 
-    // Convert display amount back to IDR for storage
     final curr = preferredCurrency.value;
-    final rateFromIdr = <String, double>{
-      'IDR': 1.0,
-      'USD': 0.0000645,
-      'EUR': 0.0000555,
-    };
-    final rate = rateFromIdr[curr] ?? 1.0;
-    final targetIdr = rate > 0 ? _targetAmount / rate : _targetAmount;
-    final initialIdr = rate > 0 ? _initialAmount / rate : _initialAmount;
+    await AuthService.syncCurrencyToBackend(curr);
+
+    // Backend TargetTabunganController sudah otomatis memanggil CurrencyService::toBase()
+    // berdasarkan preferensi mata uang user yang sudah disinkronkan di atas.
+    final cleanTarget = double.parse(_targetAmount.toStringAsFixed(2));
+    final cleanInitial = double.parse(_initialAmount.clamp(0, _targetAmount).toStringAsFixed(2));
 
     final res = await SavingService.createSaving(
       walletId: _selectedWallet!.id ?? 1,
       name: name,
-      targetAmount: targetIdr,
-      initialAmount: initialIdr.clamp(0, targetIdr),
+      targetAmount: cleanTarget,
+      initialAmount: cleanInitial,
       description: _descCtrl.text.trim(),
     );
 
@@ -164,8 +157,8 @@ class _AddSavingTargetScreenState extends State<AddSavingTargetScreen> {
         name: name,
         description: _descCtrl.text.trim(),
         walletName: _selectedWallet!.name,
-        savedIdr: initialIdr.clamp(0, targetIdr),
-        targetIdr: targetIdr,
+        savedIdr: cleanInitial,
+        targetIdr: cleanTarget,
       );
 
       NotificationService.notifySavingGoal(
@@ -175,9 +168,14 @@ class _AddSavingTargetScreenState extends State<AddSavingTargetScreen> {
         goal: newGoal,
       );
 
+      AppRefreshNotifier.notifyDataChanged();
       Navigator.of(context).pop(true);
     } else {
-      showComingSoon(context, res.message ?? 'Failed to create saving target.');
+      showAppPopup(
+        context,
+        res.message ?? 'Failed to create savings goal. Please try again.',
+        type: PopupType.error,
+      );
     }
   }
 
@@ -359,7 +357,17 @@ class _AddSavingTargetScreenState extends State<AddSavingTargetScreen> {
                               ],
                             ),
                             child: Column(
-                              children: _wallets.map((w) {
+                              children: _wallets.isEmpty
+                                  ? [
+                                      const Padding(
+                                        padding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                                        child: Text(
+                                          'No wallets available. Please create a wallet first.',
+                                          style: TextStyle(fontSize: 13, color: AppColors.muted),
+                                        ),
+                                      ),
+                                    ]
+                                  : _wallets.map((w) {
                                 final isSelected = _selectedWallet?.name == w.name;
                                 final bal = DummyData.money(w.balanceIdr).displayAmount;
                                 final balStr = formatCurrency(bal, currCode);

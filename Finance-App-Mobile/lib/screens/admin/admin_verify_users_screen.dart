@@ -4,6 +4,7 @@ import '../../models/admin_user.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/admin_header.dart';
 import '../../widgets/app_card.dart';
+import '../../utils/refresh_notifier.dart';
 
 /// Halaman Admin Verify Users (mengikuti Image 3 dari verify-users.blade.php web).
 class AdminVerifyUsersScreen extends StatefulWidget {
@@ -22,6 +23,7 @@ class _AdminVerifyUsersScreenState extends State<AdminVerifyUsersScreen> {
   @override
   void initState() {
     super.initState();
+    AppRefreshNotifier.refreshTick.addListener(_onAutoRefresh);
     AdminDummyData.loadFromApi();
     _searchCtrl.addListener(() {
       setState(() {
@@ -30,14 +32,21 @@ class _AdminVerifyUsersScreenState extends State<AdminVerifyUsersScreen> {
     });
   }
 
+  void _onAutoRefresh() {
+    if (mounted) {
+      AdminDummyData.loadFromApi();
+    }
+  }
+
   @override
   void dispose() {
+    AppRefreshNotifier.refreshTick.removeListener(_onAutoRefresh);
     _searchCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _handleRefresh() async {
-    await AdminDummyData.loadFromApi();
+    await AdminDummyData.loadFromApi(force: true);
     if (mounted) {
       setState(() {});
     }
@@ -78,15 +87,91 @@ class _AdminVerifyUsersScreenState extends State<AdminVerifyUsersScreen> {
 
     if (confirmed == true && mounted) {
       final success = await AdminDummyData.verifyUser(user.id);
-      if (!success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to verify ${user.name}. Please try again.'),
-            backgroundColor: Colors.orange,
-          ),
+      if (success && mounted) {
+        _showInfoPopup(
+          title: 'User Verified',
+          message: "${user.name}'s account has been verified.",
+          isSuccess: true,
+        );
+      } else if (!success && mounted) {
+        _showInfoPopup(
+          title: 'Operation Failed',
+          message: 'Failed to verify ${user.name}. Please try again.',
+          isSuccess: false,
         );
       }
     }
+  }
+
+  void _showInfoPopup({
+    required String title,
+    required String message,
+    bool isSuccess = true,
+  }) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        contentPadding: const EdgeInsets.fromLTRB(22, 22, 22, 22),
+        content: SizedBox(
+          width: 320,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: isSuccess ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  isSuccess ? Icons.check_circle_rounded : Icons.info_outline_rounded,
+                  color: isSuccess ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+                  size: 26,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.ink,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Color(0xFF4B5563),
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.dark,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text('OK', style: TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override

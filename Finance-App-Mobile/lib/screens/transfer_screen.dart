@@ -9,6 +9,7 @@ import '../theme/app_colors.dart';
 import '../utils/amount_format.dart';
 import '../utils/currency.dart';
 import '../utils/feedback.dart';
+import '../utils/refresh_notifier.dart';
 import '../widgets/app_header.dart';
 
 enum _TransferMode { wallet, user }
@@ -27,6 +28,9 @@ class _TransferScreenState extends State<TransferScreen> {
   String? _toUserId;
   String? _toUserName;
   String? _toUserWallet;
+  int? _toWalletId;
+  List<Map<String, dynamic>> _toRecipientWallets = [];
+  bool _isRecipientWalletDropdownOpen = false;
   double _amount = 0;
 
   bool _isFromDropdownOpen = false;
@@ -36,6 +40,7 @@ class _TransferScreenState extends State<TransferScreen> {
   final _searchCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
   List<TransferUser> _searchResults = [];
+  bool _isSearching = false;
   List<Wallet> _wallets = [];
   bool _isLoading = false;
 
@@ -89,10 +94,6 @@ class _TransferScreenState extends State<TransferScreen> {
         }
       }
 
-      if (loaded.isEmpty) {
-        loaded = List<Wallet>.of(DummyData.wallets);
-      }
-
       if (mounted) {
         setState(() {
           _wallets = loaded;
@@ -104,19 +105,7 @@ class _TransferScreenState extends State<TransferScreen> {
           }
         });
       }
-    } catch (_) {
-      if (mounted && _wallets.isEmpty) {
-        setState(() {
-          _wallets = List<Wallet>.of(DummyData.wallets);
-          if (_wallets.isNotEmpty) {
-            _fromWallet = _wallets.first.name;
-            if (_wallets.length > 1) {
-              _toWallet = _wallets[1].name;
-            }
-          }
-        });
-      }
-    }
+    } catch (_) {}
   }
 
   @override
@@ -136,6 +125,9 @@ class _TransferScreenState extends State<TransferScreen> {
       _toUserId = null;
       _toUserName = null;
       _toUserWallet = null;
+      _toWalletId = null;
+      _toRecipientWallets = [];
+      _isRecipientWalletDropdownOpen = false;
       _searchCtrl.clear();
       _searchResults = [];
     });
@@ -152,22 +144,57 @@ class _TransferScreenState extends State<TransferScreen> {
   Future<void> _searchUsers(String query) async {
     final trimmed = query.trim();
     if (trimmed.isEmpty) {
-      setState(() => _searchResults = []);
+      setState(() {
+        _searchResults = [];
+        _isSearching = false;
+      });
       return;
     }
+    setState(() => _isSearching = true);
     final results = await TransferService.searchUsersFromApi(trimmed);
     if (mounted) {
-      setState(() => _searchResults = results);
+      setState(() {
+        _searchResults = results;
+        _isSearching = false;
+      });
     }
   }
 
   void _selectUser(TransferUser user) {
-    if (user.walletName == null) return;
+    if (!user.verified || user.targetWalletId == null) {
+      return;
+    }
+
+    final walletsList = <Map<String, dynamic>>[];
+    for (final w in user.wallets) {
+      if (w is Map) {
+        walletsList.add(Map<String, dynamic>.from(w));
+      }
+    }
+
+    final firstWallet = walletsList.isNotEmpty ? walletsList.first : null;
+    final firstWalletId = firstWallet != null
+        ? (firstWallet['id'] is int
+            ? firstWallet['id'] as int
+            : int.tryParse(firstWallet['id'].toString()))
+        : user.targetWalletId;
+    final firstWalletName = firstWallet != null
+        ? firstWallet['name']?.toString()
+        : user.walletName;
+
     setState(() {
       _toUserId = user.id;
       _toUserName = user.name;
-      _toUserWallet = user.walletName!;
+      _toUserWallet = firstWalletName ?? 'Wallet';
+      _toWalletId = firstWalletId;
+      _toRecipientWallets = walletsList.isNotEmpty
+          ? walletsList
+          : [
+              {'id': firstWalletId ?? 1, 'name': firstWalletName ?? 'Wallet'}
+            ];
+      _isRecipientWalletDropdownOpen = false;
       _searchResults = [];
+      _isSearching = false;
       _searchCtrl.text = user.name;
     });
   }
@@ -177,8 +204,12 @@ class _TransferScreenState extends State<TransferScreen> {
       _toUserId = null;
       _toUserName = null;
       _toUserWallet = null;
+      _toWalletId = null;
+      _toRecipientWallets = [];
+      _isRecipientWalletDropdownOpen = false;
       _searchCtrl.clear();
       _searchResults = [];
+      _isSearching = false;
     });
   }
 
@@ -194,10 +225,14 @@ class _TransferScreenState extends State<TransferScreen> {
   Future<void> _handleTransfer() async {
     if (_isLoading) return;
 
-    if (_fromWallet == null) {
+    final fromWalletObj = _findWallet(_fromWallet);
+    if (fromWalletObj == null || fromWalletObj.id == null) {
       showComingSoon(context, 'Please select a source wallet.');
       return;
     }
+
+    int? destinationWalletId;
+    String destDisplayName;
 
     if (_mode == _TransferMode.wallet) {
       if (_toWallet == null) {
@@ -211,64 +246,91 @@ class _TransferScreenState extends State<TransferScreen> {
         );
         return;
       }
-    } else {
-      if (_toUserId == null || _toUserWallet == null) {
-        showComingSoon(context, 'Please select a verified recipient.');
+      final toWalletObj = _findWallet(_toWallet);
+      if (toWalletObj == null || toWalletObj.id == null) {
+        showComingSoon(context, 'Destination wallet not found.');
         return;
       }
+      destinationWalletId = toWalletObj.id as int?;
+      destDisplayName = _toWallet!;
+    } else {
+      if (_toUserId == null || _toWalletId == null) {
+        showComingSoon(
+          context,
+          'Please select a verified recipient with an active receiving wallet.',
+        );
+        return;
+      }
+      destinationWalletId = _toWalletId;
+      destDisplayName = '$_toUserName (${_toUserWallet ?? "Wallet"})';
     }
 
+    if (destinationWalletId == null) {
+      showComingSoon(context, 'Destination wallet could not be resolved.');
+      return;
+    }
+
+    final parsedAmount = AmountFormat.parse(_amountCtrl.text.trim());
+    _amount = parsedAmount;
     if (_amount <= 0) {
       showComingSoon(context, 'Please enter a valid amount.');
       return;
     }
 
-    final fromWalletObj = _findWallet(_fromWallet);
-    if (fromWalletObj != null) {
-      final availableDisplayBalance =
-          DummyData.money(fromWalletObj.balanceIdr).displayAmount;
-      if (_amount > availableDisplayBalance) {
-        showComingSoon(
-          context,
-          'Insufficient balance in $_fromWallet (Available: ${DummyData.money(fromWalletObj.balanceIdr).text}).',
-        );
-        return;
-      }
+    final availableDisplayBalance =
+        DummyData.money(fromWalletObj.balanceIdr).displayAmount;
+    if (_amount > availableDisplayBalance) {
+      showAppPopup(
+        context,
+        'Insufficient balance in $_fromWallet (Available: ${DummyData.money(fromWalletObj.balanceIdr).text}).',
+        title: 'Insufficient Balance',
+        type: PopupType.warning,
+      );
+      return;
     }
 
     setState(() => _isLoading = true);
 
-    final success = _mode == _TransferMode.wallet
-        ? await TransferService.transferWallet(
-            fromWallet: _fromWallet!,
-            toWallet: _toWallet!,
-            amount: _amount,
-          )
-        : await TransferService.transferUser(
-            fromWallet: _fromWallet!,
-            toUserId: _toUserId!,
-            toWalletName: _toUserWallet!,
-            amount: _amount,
-          );
+    final fromWalletId = fromWalletObj.id is int
+        ? fromWalletObj.id as int
+        : int.tryParse(fromWalletObj.id.toString()) ?? 1;
+
+    final res = await TransferService.executeTransfer(
+      fromWalletId: fromWalletId,
+      toWalletId: destinationWalletId,
+      amount: _amount,
+      note: 'Transfer to $destDisplayName',
+    );
 
     if (!mounted) return;
     setState(() => _isLoading = false);
 
     final currCode = preferredCurrency.value;
     final amtStr = formatCurrency(_amount, currCode);
-    final destName = _mode == _TransferMode.wallet
-        ? _toWallet!
-        : '$_toUserName ($_toUserWallet)';
 
-    if (success) {
+    if (res.success) {
+      AppRefreshNotifier.notifyDataChanged();
       NotificationService.notifyTransfer(
         context: context,
         title: 'Transfer success!',
-        message: 'Transfer of $amtStr from $_fromWallet to $destName completed.',
+        message: 'Transfer of $amtStr from $_fromWallet to $destDisplayName completed.',
       );
-      Navigator.of(context).pop();
+      showAppPopup(
+        context,
+        'Transfer of $amtStr to $destDisplayName was completed successfully.',
+        title: 'Transfer Success',
+        type: PopupType.success,
+        onConfirm: () {
+          if (mounted) Navigator.of(context).pop(true);
+        },
+      );
     } else {
-      showComingSoon(context, 'Transfer failed. Try again.');
+      showAppPopup(
+        context,
+        res.message ?? 'Transfer failed. Please check your balance or recipient details.',
+        title: 'Transfer Failed',
+        type: PopupType.error,
+      );
     }
   }
 
@@ -282,10 +344,13 @@ class _TransferScreenState extends State<TransferScreen> {
           appBar: const AppHeader(showBackButton: true),
           body: GestureDetector(
             onTap: () {
-              if (_isFromDropdownOpen || _isToDropdownOpen) {
+              if (_isFromDropdownOpen ||
+                  _isToDropdownOpen ||
+                  _isRecipientWalletDropdownOpen) {
                 setState(() {
                   _isFromDropdownOpen = false;
                   _isToDropdownOpen = false;
+                  _isRecipientWalletDropdownOpen = false;
                 });
               }
             },
@@ -651,35 +716,37 @@ class _TransferScreenState extends State<TransferScreen> {
     );
   }
 
-  /// Bagian pencarian / kartu penerima di mode Transfer User (Image 3 & Image 5)
+  /// Bagian pencarian / kartu penerima di mode Transfer User (Matches Web Screenshot 1 & 2)
   Widget _userDestinationSection() {
     if (_toUserId != null) {
-      // Penerima Terpilih (Verified Recipient Card)
+      // Penerima Terpilih (Verified Recipient Card - Matches Web Screenshot 2)
       return Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: AppColors.brandSoft,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.brand.withValues(alpha: 0.3)),
+          color: const Color(0xFFF5F7FF),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.brand.withValues(alpha: 0.25)),
         ),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Top Row: Avatar + Name + Subtitle + Verified Badge + Close 'X'
             Row(
               children: [
                 Container(
-                  width: 36,
-                  height: 36,
+                  width: 38,
+                  height: 38,
                   decoration: const BoxDecoration(
                     shape: BoxShape.circle,
                     color: AppColors.brand,
                   ),
                   child: const Icon(
                     Icons.person_rounded,
-                    size: 18,
+                    size: 20,
                     color: Colors.white,
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -687,7 +754,7 @@ class _TransferScreenState extends State<TransferScreen> {
                       Text(
                         _toUserName ?? '',
                         style: const TextStyle(
-                          fontSize: 14,
+                          fontSize: 15,
                           fontWeight: FontWeight.w700,
                           color: AppColors.ink,
                         ),
@@ -696,87 +763,174 @@ class _TransferScreenState extends State<TransferScreen> {
                       const SizedBox(height: 2),
                       const Text(
                         'Recipient found & verified',
-                        style: TextStyle(fontSize: 11, color: AppColors.muted),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF64748B),
+                        ),
                       ),
                     ],
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: AppColors.incomeSoft,
+                    color: const Color(0xFFDCFCE7),
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: const Text(
                     'Verified',
                     style: TextStyle(
                       fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.income,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF15803D),
                     ),
                   ),
                 ),
-                const SizedBox(width: 6),
-                GestureDetector(
+                const SizedBox(width: 8),
+                InkWell(
                   onTap: _clearRecipient,
+                  borderRadius: BorderRadius.circular(999),
                   child: const Padding(
                     padding: EdgeInsets.all(4),
                     child: Icon(
                       Icons.close_rounded,
                       size: 18,
-                      color: AppColors.muted,
+                      color: Color(0xFF64748B),
                     ),
                   ),
                 ),
               ],
             ),
-            if (_toUserWallet != null) ...[
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  const Text(
-                    'Destination wallet',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.muted,
-                    ),
+
+            const SizedBox(height: 12),
+            const Divider(height: 1, color: Color(0xFFE2E8F0)),
+            const SizedBox(height: 12),
+
+            // Destination Wallet Selector Dropdown (Matches Screenshot 2)
+            const Text(
+              'Destination wallet',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF64748B),
+              ),
+            ),
+            const SizedBox(height: 6),
+
+            // Dropdown trigger button
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                if (_toRecipientWallets.length > 1) {
+                  setState(() {
+                    _isRecipientWalletDropdownOpen = !_isRecipientWalletDropdownOpen;
+                  });
+                }
+              },
+              child: Container(
+                height: 44,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: _isRecipientWalletDropdownOpen
+                        ? AppColors.brand
+                        : const Color(0xFFCBD5E1),
+                    width: _isRecipientWalletDropdownOpen ? 1.5 : 1.0,
                   ),
-                  const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.account_balance_wallet_outlined,
+                      size: 16,
+                      color: AppColors.brand,
                     ),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _toUserWallet ?? 'Select wallet',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.ink,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (_toRecipientWallets.length > 1)
+                      Icon(
+                        _isRecipientWalletDropdownOpen
+                            ? Icons.keyboard_arrow_up_rounded
+                            : Icons.keyboard_arrow_down_rounded,
+                        size: 20,
+                        color: const Color(0xFF64748B),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+
+            // Dropdown Popup List (Matches Screenshot 2)
+            if (_isRecipientWalletDropdownOpen && _toRecipientWallets.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: _toRecipientWallets.map((w) {
+                    final id = w['id'] is int ? w['id'] as int : int.tryParse(w['id'].toString());
+                    final name = (w['name'] ?? 'Wallet').toString();
+                    final isSelected = id == _toWalletId;
+
+                    return InkWell(
+                      onTap: () {
+                        setState(() {
+                          _toWalletId = id;
+                          _toUserWallet = name;
+                          _isRecipientWalletDropdownOpen = false;
+                        });
+                      },
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.line),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.account_balance_wallet_outlined,
-                          size: 14,
-                          color: AppColors.brand,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: isSelected ? const Color(0xFFEEF2FF) : Colors.transparent,
                         ),
-                        const SizedBox(width: 6),
-                        Text(
-                          _toUserWallet!,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.ink,
-                          ),
+                        child: Row(
+                          children: [
+                            Text(
+                              name,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                                color: isSelected ? AppColors.brand : AppColors.ink,
+                              ),
+                            ),
+                            const Spacer(),
+                            if (isSelected)
+                              const Icon(
+                                Icons.check_rounded,
+                                size: 18,
+                                color: AppColors.brand,
+                              ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
-                ],
+                      ),
+                    );
+                  }).toList(),
+                ),
               ),
             ],
           ],
@@ -784,21 +938,21 @@ class _TransferScreenState extends State<TransferScreen> {
       );
     }
 
-    // Input Pencarian (Pill Input - rounded-full di web - Image 3 & Image 5)
+    // Input Pencarian (Pill Input - rounded-full di web - Matches Screenshot 1)
     return Column(
       children: [
         Container(
-          height: 44,
+          height: 46,
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(999),
             border: Border.all(
-              color: _searchResults.isNotEmpty
+              color: _searchResults.isNotEmpty || _searchCtrl.text.isNotEmpty
                   ? AppColors.brand
-                  : AppColors.line,
-              width: _searchResults.isNotEmpty ? 1.5 : 1.0,
+                  : const Color(0xFFCBD5E1),
+              width: _searchResults.isNotEmpty || _searchCtrl.text.isNotEmpty ? 1.5 : 1.0,
             ),
-            boxShadow: _searchResults.isNotEmpty
+            boxShadow: _searchResults.isNotEmpty || _searchCtrl.text.isNotEmpty
                 ? [
                     BoxShadow(
                       color: AppColors.brand.withValues(alpha: 0.15),
@@ -814,31 +968,43 @@ class _TransferScreenState extends State<TransferScreen> {
             style: const TextStyle(fontSize: 14, color: AppColors.ink),
             decoration: InputDecoration(
               hintText: 'Search username or email',
-              hintStyle: const TextStyle(color: AppColors.muted, fontSize: 13),
+              hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
               prefixIcon: const Icon(
                 Icons.person_outline_rounded,
                 color: AppColors.brand,
                 size: 18,
               ),
-              suffixIcon: const Icon(
-                Icons.search_rounded,
-                color: AppColors.muted,
-                size: 18,
-              ),
+              suffixIcon: _isSearching
+                  ? const Padding(
+                      padding: EdgeInsets.all(13),
+                      child: SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.brand,
+                        ),
+                      ),
+                    )
+                  : const Icon(
+                      Icons.search_rounded,
+                      color: Color(0xFF94A3B8),
+                      size: 18,
+                    ),
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(vertical: 12),
             ),
           ),
         ),
 
-        // Live Search Results List (Image 5)
+        // Live Search Results List (Matches Screenshot 1)
         if (_searchResults.isNotEmpty) ...[
           const SizedBox(height: 6),
           Container(
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.line),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.08),
@@ -848,16 +1014,40 @@ class _TransferScreenState extends State<TransferScreen> {
               ],
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(14),
               child: Column(
                 children: [
                   for (int i = 0; i < _searchResults.length; i++) ...[
                     _searchUserTile(_searchResults[i]),
                     if (i < _searchResults.length - 1)
-                      const Divider(height: 1, color: AppColors.line),
+                      const Divider(height: 1, color: Color(0xFFF1F5F9)),
                   ],
                 ],
               ),
+            ),
+          ),
+        ] else if (!_isSearching &&
+            _searchCtrl.text.trim().isNotEmpty &&
+            _toUserId == null) ...[
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline_rounded, size: 18, color: AppColors.muted),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'No recipient found for "${_searchCtrl.text.trim()}".',
+                    style: const TextStyle(fontSize: 13, color: AppColors.muted),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -865,64 +1055,108 @@ class _TransferScreenState extends State<TransferScreen> {
     );
   }
 
-  /// Tile hasil pencarian user (Image 5)
+  /// Tile hasil pencarian user (Matches Screenshot 1)
   Widget _searchUserTile(TransferUser user) {
-    final canTransfer = user.verified && user.walletName != null;
+    final canTransfer = user.verified && user.targetWalletId != null;
 
     return InkWell(
-      onTap: canTransfer ? () => _selectUser(user) : null,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-        child: Row(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.brandSoft,
-              ),
-              child: const Icon(
-                Icons.person_outline_rounded,
-                size: 18,
-                color: AppColors.brand,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                user.name,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.ink,
+      onTap: () {
+        if (canTransfer) {
+          _selectUser(user);
+        } else if (user.isBanned) {
+          showAppPopup(
+            context,
+            'This user account is suspended.',
+            type: PopupType.warning,
+          );
+        } else if (!user.hasAnyWallet) {
+          showAppPopup(
+            context,
+            'This user does not have a wallet yet.',
+            type: PopupType.warning,
+          );
+        } else {
+          showAppPopup(
+            context,
+            'This user has not enabled any wallet to receive transfers.',
+            type: PopupType.warning,
+          );
+        }
+      },
+      child: Opacity(
+        opacity: canTransfer ? 1.0 : 0.55,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: user.isBanned
+                      ? const Color(0xFFFEE2E2)
+                      : const Color(0xFFEEF2FF),
                 ),
-                overflow: TextOverflow.ellipsis,
+                child: Icon(
+                  Icons.person_outline_rounded,
+                  size: 18,
+                  color: user.isBanned
+                      ? const Color(0xFFEF4444)
+                      : AppColors.brand,
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            // Pill status / wallet di sebelah kanan
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: canTransfer
-                    ? const Color(0xFFF1F5F9)
-                    : AppColors.expenseSoft,
-                borderRadius: BorderRadius.circular(999),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      user.name,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.ink,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (user.email.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        user.email,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF64748B),
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ],
+                ),
               ),
-              child: Text(
-                user.statusText ??
-                    (canTransfer ? user.walletName! : "Don't have a wallet"),
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
+              const SizedBox(width: 8),
+              // Pill status / wallet di sebelah kanan (Matches Screenshot 1)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
                   color: canTransfer
-                      ? const Color(0xFF475569)
-                      : AppColors.expense,
+                      ? const Color(0xFFF1F5F9)
+                      : const Color(0xFFFEE2E2),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  user.statusText ?? (canTransfer ? user.walletName! : "Don't have a wallet"),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: canTransfer
+                        ? const Color(0xFF475569)
+                        : const Color(0xFFDC2626),
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1029,8 +1263,7 @@ class _TransferScreenState extends State<TransferScreen> {
             ),
           ),
           onChanged: (val) {
-            final parsed =
-                double.tryParse(val.replaceAll(',', '')) ?? 0;
+            final parsed = AmountFormat.parse(val);
             setState(() => _amount = parsed);
           },
         ),

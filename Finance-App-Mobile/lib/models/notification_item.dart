@@ -8,6 +8,7 @@ class NotificationItem {
     required this.message,
     required this.category,
     required this.timestamp,
+    this.timeAgoStr,
     this.isRead = false,
     this.icon = Icons.notifications_none_rounded,
     this.iconBg = const Color(0xFFEEF2FF),
@@ -21,6 +22,7 @@ class NotificationItem {
   final String message;
   final String category; // 'Goal', 'Transfer', 'Transaction', 'Verification', 'System'
   final DateTime timestamp;
+  final String? timeAgoStr;
   bool isRead;
   final IconData icon;
   final Color iconBg;
@@ -29,6 +31,9 @@ class NotificationItem {
   final String? activityDetail;
 
   String get timeAgo {
+    if (timeAgoStr != null && timeAgoStr!.isNotEmpty) {
+      return timeAgoStr!;
+    }
     final now = DateTime.now();
     final diff = now.difference(timestamp);
 

@@ -1,12 +1,13 @@
 import 'dart:typed_data';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../data/admin_dummy_data.dart';
 import '../../services/api_config.dart';
 import '../../services/api_service.dart';
+import '../../services/auth_service.dart';
 import '../../services/profile_service.dart';
 import '../../theme/app_colors.dart';
+import '../../utils/feedback.dart';
 import '../../widgets/admin_header.dart';
 import '../../widgets/app_card.dart';
 
@@ -41,6 +42,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   bool _obscureConfirm = true;
 
   Uint8List? _avatarFile;
+  String? _avatarUrl;
   final _picker = ImagePicker();
 
   bool _isSaving = false;
@@ -51,14 +53,28 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _nameCtrl = TextEditingController(text: AdminDummyData.adminName);
-    _emailCtrl = TextEditingController(text: AdminDummyData.adminEmail);
-    _phoneCtrl = TextEditingController(text: AdminDummyData.adminPhone);
-    _locationCtrl = TextEditingController(text: AdminDummyData.adminLocation);
+    _nameCtrl = TextEditingController();
+    _emailCtrl = TextEditingController();
+    _phoneCtrl = TextEditingController();
+    _locationCtrl = TextEditingController();
     if (AdminDummyData.adminAvatarFile is Uint8List) {
       _avatarFile = AdminDummyData.adminAvatarFile as Uint8List;
     }
-    _loadProfileFromApi();
+    _initLocalAndLoad();
+  }
+
+  Future<void> _initLocalAndLoad() async {
+    final storedName = await AuthService.getUserName();
+    final storedEmail = await AuthService.getUserEmail();
+    final storedPhone = await AuthService.getUserPhone();
+    if (mounted) {
+      setState(() {
+        if (storedName != null && storedName.isNotEmpty) _nameCtrl.text = storedName;
+        if (storedEmail != null && storedEmail.isNotEmpty) _emailCtrl.text = storedEmail;
+        if (storedPhone != null && storedPhone.isNotEmpty) _phoneCtrl.text = storedPhone;
+      });
+    }
+    await _loadProfileFromApi();
   }
 
   Future<void> _loadProfileFromApi() async {
@@ -66,16 +82,21 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
       final res = await ProfileService.fetchProfile();
       if (res.success && res.data is Map) {
         final map = res.data as Map;
-        final name = (map['nama'] ?? map['name'])?.toString();
-        final email = map['email']?.toString();
-        final phone = (map['nomor_telepon'] ?? map['phone'])?.toString();
-        final loc = (map['lokasi'] ?? map['location'])?.toString();
+        final rootUser = (map['user'] is Map) ? map['user'] as Map : map;
+        final name = (rootUser['nama'] ?? rootUser['name'] ?? '').toString();
+        final email = (rootUser['email'] ?? '').toString();
+        final phone = (rootUser['nomor_telepon'] ?? rootUser['phone'] ?? rootUser['no_hp'] ?? '').toString();
+        final loc = (rootUser['lokasi'] ?? rootUser['location'] ?? rootUser['alamat'] ?? '').toString();
+        final rawAvatar = map['avatar_url'] ?? rootUser['avatar_url'] ?? rootUser['avatar_path'];
+        final resolvedAvatar = ProfileService.resolveAvatarUrl(rawAvatar);
+
         if (mounted) {
           setState(() {
-            if (name != null && name.isNotEmpty) _nameCtrl.text = name;
-            if (email != null && email.isNotEmpty) _emailCtrl.text = email;
-            if (phone != null && phone.isNotEmpty) _phoneCtrl.text = phone;
-            if (loc != null && loc.isNotEmpty) _locationCtrl.text = loc;
+            _avatarUrl = resolvedAvatar;
+            if (name.isNotEmpty) _nameCtrl.text = name;
+            if (email.isNotEmpty) _emailCtrl.text = email;
+            _phoneCtrl.text = phone;
+            _locationCtrl.text = loc;
           });
         }
       }
@@ -95,15 +116,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   }
 
   Future<void> _handleRefresh() async {
-    await Future.delayed(const Duration(milliseconds: 600));
-    if (mounted) {
-      setState(() {
-        _nameCtrl.text = AdminDummyData.adminName;
-        _emailCtrl.text = AdminDummyData.adminEmail;
-        _phoneCtrl.text = AdminDummyData.adminPhone;
-        _locationCtrl.text = AdminDummyData.adminLocation;
-      });
-    }
+    await _loadProfileFromApi();
   }
 
   Future<void> _pickPhoto() async {
@@ -158,7 +171,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
               contentPadding: EdgeInsets.zero,
               onTap: () => Navigator.of(ctx).pop(ImageSource.gallery),
             ),
-            if (_avatarFile != null) ...[
+            if (_avatarFile != null || (_avatarUrl != null && _avatarUrl!.isNotEmpty)) ...[
               ListTile(
                 leading: Container(
                   width: 40,
@@ -196,30 +209,115 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
         _avatarFile = bytes;
         AdminDummyData.adminAvatarFile = _avatarFile;
       });
+      final res = await ProfileService.uploadAvatar(bytes, filename: picked.name);
+      if (mounted) {
+        if (res.success) {
+          if (res.data is Map) {
+            final resMap = res.data as Map;
+            final newUrl = resMap['avatar_url'] ?? resMap['avatar_path'];
+            if (newUrl != null) {
+              setState(() {
+                _avatarUrl = ProfileService.resolveAvatarUrl(newUrl);
+              });
+            }
+          }
+          showAppPopup(context, 'Profile photo updated successfully', type: PopupType.success);
+        } else {
+          showAppPopup(context, res.message ?? 'Failed to upload photo to server', type: PopupType.error);
+        }
+      }
     }
   }
 
-  void _removePhoto() {
+  Future<void> _removePhoto() async {
     setState(() {
       _avatarFile = null;
+      _avatarUrl = null;
       AdminDummyData.adminAvatarFile = null;
     });
+    final res = await ProfileService.deleteAvatar();
+    if (mounted) {
+      if (res.success) {
+        showAppPopup(context, 'Profile photo removed', type: PopupType.success);
+      } else {
+        showAppPopup(context, 'Failed to remove photo on server', type: PopupType.error);
+      }
+    }
+  }
+
+  Widget _buildAvatarImage() {
+    if (_avatarFile != null) {
+      return Image.memory(
+        _avatarFile!,
+        width: 88,
+        height: 88,
+        fit: BoxFit.cover,
+      );
+    }
+    if (_avatarUrl != null && _avatarUrl!.isNotEmpty) {
+      return Image.network(
+        _avatarUrl!,
+        headers: const {ApiConfig.ngrokHeaderKey: ApiConfig.ngrokHeaderValue},
+        width: 88,
+        height: 88,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => const Center(
+          child: Text(
+            'A',
+            style: TextStyle(
+              fontSize: 34,
+              fontWeight: FontWeight.w800,
+              color: AppColors.brand,
+            ),
+          ),
+        ),
+      );
+    }
+    return const Center(
+      child: Text(
+        'A',
+        style: TextStyle(
+          fontSize: 34,
+          fontWeight: FontWeight.w800,
+          color: AppColors.brand,
+        ),
+      ),
+    );
   }
 
   Future<void> _saveProfile() async {
     setState(() => _isSaving = true);
 
+    bool apiSuccess = false;
+    String? apiMsg;
     try {
-      await ProfileService.updateProfile(
+      final res = await ProfileService.updateProfile(
         name: _nameCtrl.text.trim(),
         email: _emailCtrl.text.trim(),
         phone: _phoneCtrl.text.trim(),
         location: _locationCtrl.text.trim(),
       );
-    } catch (_) {}
+      apiSuccess = res.success;
+      apiMsg = res.message;
+    } catch (e) {
+      apiSuccess = false;
+      apiMsg = e.toString();
+    }
+
+    if (!apiSuccess) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        showAppPopup(
+          context,
+          apiMsg ?? 'Failed to save profile. Please try again.',
+          type: PopupType.error,
+        );
+      }
+      return;
+    }
 
     AdminDummyData.adminName = _nameCtrl.text.trim().isEmpty ? 'Admin' : _nameCtrl.text.trim();
-    AdminDummyData.adminEmail = _emailCtrl.text.trim().isEmpty ? 'admin@finance.app' : _emailCtrl.text.trim();
+    AdminDummyData.adminEmail = _emailCtrl.text.trim();
     AdminDummyData.adminPhone = _phoneCtrl.text.trim();
     AdminDummyData.adminLocation = _locationCtrl.text.trim();
     AdminDummyData.adminAvatarFile = _avatarFile;
@@ -229,6 +327,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
         _isSaving = false;
         _isSaved = true;
       });
+      showAppPopup(context, 'Profile updated successfully', type: PopupType.success);
 
       await Future.delayed(const Duration(milliseconds: 1500));
       if (mounted) {
@@ -243,20 +342,26 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
     final cp = _confirmPassCtrl.text;
 
     if (cur.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter your current password.')),
+      showAppPopup(
+        context,
+        'Please enter your current password.',
+        type: PopupType.warning,
       );
       return;
     }
     if (np.length < 8) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('New password must be at least 8 characters.')),
+      showAppPopup(
+        context,
+        'New password must be at least 8 characters.',
+        type: PopupType.warning,
       );
       return;
     }
     if (np != cp) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('New passwords do not match.')),
+      showAppPopup(
+        context,
+        'New passwords do not match.',
+        type: PopupType.warning,
       );
       return;
     }
@@ -290,17 +395,19 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
         }
       } else {
         setState(() => _isUpdatingPassword = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(res.message ?? 'Failed to update password. Please check your current password.'),
-          ),
+        showAppPopup(
+          context,
+          res.message ?? 'Failed to update password. Please check your current password.',
+          type: PopupType.error,
         );
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isUpdatingPassword = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}')),
+        showAppPopup(
+          context,
+          'Error: ${e.toString()}',
+          type: PopupType.error,
         );
       }
     }
@@ -535,24 +642,11 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                               offset: const Offset(0, 4),
                             ),
                           ],
-                          image: _avatarFile != null
-                              ? DecorationImage(
-                                  image: MemoryImage(_avatarFile!),
-                                  fit: BoxFit.cover,
-                                )
-                              : null,
                         ),
                         alignment: Alignment.center,
-                        child: _avatarFile == null
-                            ? const Text(
-                                'A',
-                                style: TextStyle(
-                                  fontSize: 34,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.brand,
-                                ),
-                              )
-                            : null,
+                        child: ClipOval(
+                          child: _buildAvatarImage(),
+                        ),
                       ),
                       // Camera badge kecil di sudut avatar
                       Positioned(
@@ -588,67 +682,72 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                 const SizedBox(height: 8),
 
                 // Tombol aksi Tambah/Ganti Foto dan Hapus Foto
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    GestureDetector(
-                      onTap: _pickPhoto,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFEEF2FF),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              _avatarFile != null ? Icons.edit_outlined : Icons.add_a_photo_outlined,
-                              size: 14,
-                              color: AppColors.brand,
+                Builder(
+                  builder: (context) {
+                    final bool hasPhoto = _avatarFile != null || (_avatarUrl != null && _avatarUrl!.isNotEmpty);
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        GestureDetector(
+                          onTap: _pickPhoto,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEEF2FF),
+                              borderRadius: BorderRadius.circular(999),
                             ),
-                            const SizedBox(width: 6),
-                            Text(
-                              _avatarFile != null ? 'Change photo' : 'Add photo',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.brand,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    if (_avatarFile != null) ...[
-                      const SizedBox(width: 8),
-                      GestureDetector(
-                        onTap: _removePhoto,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFEE2E2),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.delete_outline_rounded, size: 14, color: AppColors.expense),
-                              SizedBox(width: 4),
-                              Text(
-                                'Remove',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.expense,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  hasPhoto ? Icons.edit_outlined : Icons.add_a_photo_outlined,
+                                  size: 14,
+                                  color: AppColors.brand,
                                 ),
-                              ),
-                            ],
+                                const SizedBox(width: 6),
+                                Text(
+                                  hasPhoto ? 'Change photo' : 'Add photo',
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.brand,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ],
+                        if (hasPhoto) ...[
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: _removePhoto,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFEE2E2),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.delete_outline_rounded, size: 14, color: AppColors.expense),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Remove',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.expense,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 6),
                 const Text(

@@ -4,6 +4,7 @@ import '../models/notification_item.dart';
 import '../models/saving_goal.dart';
 import '../screens/notifications_screen.dart';
 import '../theme/app_colors.dart';
+import '../utils/app_translator.dart';
 import 'api_config.dart';
 import 'api_service.dart';
 
@@ -12,6 +13,10 @@ class NotificationService {
 
   static final ValueNotifier<List<NotificationItem>> notifications =
       ValueNotifier<List<NotificationItem>>([]);
+
+  static void reset() {
+    notifications.value = [];
+  }
 
   static int get unreadCount =>
       notifications.value.where((n) => !n.isRead).length;
@@ -28,15 +33,19 @@ class NotificationService {
           rawList = res.data;
         }
 
-        if (rawList is List) {
+        if (rawList is List && rawList.isNotEmpty) {
           final list = <NotificationItem>[];
           for (final item in rawList) {
             if (item is! Map) continue;
             final map = Map<String, dynamic>.from(item);
             final id = (map['id'] ?? map['id_notifikasi'] ?? '').toString();
             final type = (map['type'] ?? map['tipe'] ?? 'transaction').toString().toLowerCase();
-            final title = (map['title'] ?? map['judul'] ?? 'Notification').toString();
-            final text = (map['text'] ?? map['pesan'] ?? '').toString();
+            final rawTitle = (map['title'] ?? map['judul'] ?? 'Notification').toString();
+            final rawText = (map['text'] ?? map['pesan'] ?? '').toString();
+            final scope = (map['scope'] ?? '').toString();
+
+            final title = translateNotificationTitle(rawTitle);
+            final text = translateNotificationText(rawText);
             final isRead = map['read'] == true ||
                 map['read'] == 1 ||
                 map['sudah_dibaca'] == true ||
@@ -47,12 +56,24 @@ class NotificationService {
             Color iconColor = AppColors.income;
             Color iconBg = AppColors.incomeSoft;
 
-            if (type == 'saving' || type == 'target') {
+            SavingGoal? goal;
+            if (map['goal'] is Map) {
+              final g = Map<String, dynamic>.from(map['goal'] as Map);
+              goal = SavingGoal(
+                name: g['name']?.toString() ?? 'Savings Goal',
+                description: g['note']?.toString() ?? g['description']?.toString() ?? 'Target tabungan',
+                walletName: g['wallet']?.toString() ?? 'Wallet',
+                savedIdr: (double.tryParse(g['saved']?.toString() ?? '0') ?? 0) * 19500.0,
+                targetIdr: (double.tryParse(g['target']?.toString() ?? '0') ?? 0) * 19500.0,
+              );
+            }
+
+            if (type == 'saving' || type == 'target' || title.toLowerCase().contains('goal')) {
               category = 'Goal';
               icon = Icons.track_changes_rounded;
               iconColor = AppColors.brand;
               iconBg = const Color(0xFFEEF2FF);
-            } else if (type == 'transfer') {
+            } else if (type == 'transfer' || title.toLowerCase().contains('transfer')) {
               category = 'Transfer';
               icon = Icons.swap_horiz_rounded;
               iconColor = AppColors.brand;
@@ -66,10 +87,14 @@ class NotificationService {
                 message: text,
                 category: category,
                 timestamp: DateTime.now(),
+                timeAgoStr: scope.isNotEmpty ? scope : null,
                 isRead: isRead,
                 icon: icon,
                 iconBg: iconBg,
                 iconColor: iconColor,
+                goal: goal,
+                activityDetail:
+                    'This activity was added to your history. You can view it again in Transactions.',
               ),
             );
           }
@@ -78,6 +103,8 @@ class NotificationService {
       }
     } catch (_) {}
   }
+
+  static List<NotificationItem> _buildDefaultList() => [];
 
   static void markAsRead(String id) {
     final list = List<NotificationItem>.from(notifications.value);
@@ -142,7 +169,7 @@ class NotificationService {
   }) {
     final notif = NotificationItem(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
-      title: 'Savings goal updated',
+      title: 'Savings goal reached 🤩',
       message: message,
       category: 'Goal',
       timestamp: DateTime.now(),
@@ -212,6 +239,26 @@ class NotificationService {
     overlay.insert(entry);
 
     dismissTimer = Timer(const Duration(seconds: 4), () => removeBanner());
+  }
+
+  static String translateNotificationText(String raw) {
+    return AppTranslator.translateNotification(raw);
+  }
+
+  static String translateNotificationTitle(String raw) {
+    var text = raw.trim();
+    final lower = text.toLowerCase();
+    if (lower.contains('tercapai') ||
+        lower.contains('reached') ||
+        lower.contains('target') ||
+        lower.contains('tabungan') ||
+        lower.contains('goal') ||
+        lower.contains('saving')) {
+      return 'Savings goal reached 🤩';
+    }
+    if (lower.contains('transaksi')) return 'Transaction update';
+    if (lower.contains('transfer')) return 'Transfer update';
+    return text.isEmpty ? 'Notification' : text;
   }
 }
 

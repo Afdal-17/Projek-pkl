@@ -12,9 +12,11 @@ class ResetPasswordScreen extends StatefulWidget {
   const ResetPasswordScreen({
     super.key,
     this.initialEmail,
+    this.initialToken,
   });
 
   final String? initialEmail;
+  final String? initialToken;
 
   @override
   State<ResetPasswordScreen> createState() => _ResetPasswordScreenState();
@@ -22,6 +24,7 @@ class ResetPasswordScreen extends StatefulWidget {
 
 class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   late final TextEditingController _emailController;
+  late final TextEditingController _tokenController;
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
@@ -37,11 +40,15 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     _emailController = TextEditingController(
       text: widget.initialEmail ?? '',
     );
+    _tokenController = TextEditingController(
+      text: widget.initialToken ?? '',
+    );
   }
 
   @override
   void dispose() {
     _emailController.dispose();
+    _tokenController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
@@ -49,6 +56,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
 
   Future<void> _handleResetPassword() async {
     final email = _emailController.text.trim();
+    final token = _tokenController.text.trim();
     final newPassword = _passwordController.text;
     final confirmPassword = _confirmPasswordController.text;
 
@@ -56,6 +64,11 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
 
     if (email.isEmpty || !email.contains('@')) {
       setState(() => _errorMessage = 'Please enter a valid email address.');
+      return;
+    }
+
+    if (token.isEmpty) {
+      setState(() => _errorMessage = 'Please enter the reset token from your email.');
       return;
     }
 
@@ -74,9 +87,10 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     setState(() => _isLoading = true);
 
     final success = await AuthService.resetPassword(
-      email,
-      newPassword,
-      confirmPassword,
+      email: email,
+      token: token,
+      newPassword: newPassword,
+      confirmPassword: confirmPassword,
     );
 
     if (!mounted) return;
@@ -86,7 +100,8 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       setState(() => _isSuccess = true);
     } else {
       setState(() {
-        _errorMessage = 'Failed to reset password. Please try again.';
+        _errorMessage = AuthService.lastResetPasswordError ??
+            'Failed to reset password. Please check your token and try again.';
       });
     }
   }
@@ -233,6 +248,22 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
           style: _inter(15, FontWeight.w400, AppColors.ink),
           decoration: _fieldDecoration(
             hint: 'name@example.com',
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Reset Token / Code field
+        Text(
+          'Reset Token / Code',
+          style: _inter(14, FontWeight.w500, AppColors.ink),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _tokenController,
+          enabled: !_isLoading,
+          style: _inter(15, FontWeight.w400, AppColors.ink),
+          decoration: _fieldDecoration(
+            hint: 'Paste the reset token from your email',
           ),
         ),
         const SizedBox(height: 16),

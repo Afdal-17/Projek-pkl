@@ -32,9 +32,43 @@ class AmountFormat {
   }
 
   /// Teks yang sudah diformat kembali ke angka numerik (double).
-  /// Menghilangkan pemisah ribuan dan menyelaraskan koma/titik desimal.
+  /// Menghilangkan pemisah ribuan dan menyelaraskan koma/titik desimal secara aman.
   static double parse(String text) {
-    final clean = text.replaceAll(thousandSep, '').replaceAll(decimalSep, '.');
+    if (text.trim().isEmpty) return 0;
+    String clean = text.trim();
+
+    final commaCount = ','.allMatches(clean).length;
+    final dotCount = '.'.allMatches(clean).length;
+
+    if (commaCount > 1) {
+      clean = clean.replaceAll(',', '');
+    }
+    if (dotCount > 1) {
+      clean = clean.replaceAll('.', '');
+    }
+
+    if (clean.contains(',') && clean.contains('.')) {
+      final lastComma = clean.lastIndexOf(',');
+      final lastDot = clean.lastIndexOf('.');
+      if (lastComma > lastDot) {
+        clean = clean.replaceAll('.', '').replaceAll(',', '.');
+      } else {
+        clean = clean.replaceAll(',', '');
+      }
+    } else if (clean.contains(',')) {
+      final parts = clean.split(',');
+      if (parts.length == 2 && parts[1].length == 3) {
+        clean = clean.replaceAll(',', '');
+      } else {
+        clean = clean.replaceAll(',', '.');
+      }
+    } else if (clean.contains('.')) {
+      final parts = clean.split('.');
+      if (parts.length == 2 && parts[1].length == 3) {
+        clean = clean.replaceAll('.', '');
+      }
+    }
+
     return double.tryParse(clean) ?? 0;
   }
 }

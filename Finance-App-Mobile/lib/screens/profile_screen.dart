@@ -6,6 +6,8 @@ import '../services/auth_service.dart';
 import '../services/profile_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/currency.dart';
+import '../utils/feedback.dart';
+import '../utils/refresh_notifier.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_header.dart';
 import 'notifications_screen.dart';
@@ -43,6 +45,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isCurrencyDropdownOpen = false;
 
   Uint8List? _profileImage;
+  String? _avatarUrl;
   final _picker = ImagePicker();
 
   bool _isSaving = false;
@@ -93,20 +96,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final phone = data['nomor_telepon'] ?? data['phone'] ?? data['no_hp'] ?? '';
         final location = data['lokasi'] ?? data['location'] ?? data['alamat'] ?? '';
         final currency = data['mata_uang'] ?? data['currency'] ?? '';
+        final rawAvatar = rootData['avatar_url'] ?? data['avatar_url'] ?? data['avatar_path'];
+        final resolvedAvatar = ProfileService.resolveAvatarUrl(rawAvatar);
 
         setState(() {
+          _avatarUrl = resolvedAvatar;
           if (name.toString().isNotEmpty) {
             _nameCtrl.text = name.toString();
           }
           if (email.toString().isNotEmpty) {
             _emailCtrl.text = email.toString();
           }
-          if (phone.toString().isNotEmpty) {
-            _phoneCtrl.text = phone.toString();
-          }
-          if (location.toString().isNotEmpty) {
-            _locationCtrl.text = location.toString();
-          }
+          _phoneCtrl.text = phone.toString();
+          _locationCtrl.text = location.toString();
           if (currency.toString().isNotEmpty) {
             _selectedCurrency = currency.toString();
             preferredCurrency.value = currency.toString();
@@ -132,14 +134,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
     await _loadProfile();
   }
 
-  void _removePhoto() {
+  Future<void> _removePhoto() async {
     setState(() {
       _profileImage = null;
+      _avatarUrl = null;
       DummyData.userAvatarFile = null;
     });
+    final res = await ProfileService.deleteAvatar();
+    if (mounted) {
+      if (res.success) {
+        showAppPopup(context, 'Profile photo removed', type: PopupType.success);
+      } else {
+        showAppPopup(context, 'Failed to remove photo on server', type: PopupType.error);
+      }
+    }
   }
 
   Future<void> _pickPhoto() async {
+    final bool hasExistingPhoto = _profileImage != null || (_avatarUrl != null && _avatarUrl!.isNotEmpty);
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
       backgroundColor: Colors.white,
@@ -191,7 +203,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               contentPadding: EdgeInsets.zero,
               onTap: () => Navigator.of(ctx).pop(ImageSource.gallery),
             ),
-            if (_profileImage != null) ...[
+            if (hasExistingPhoto) ...[
               ListTile(
                 leading: Container(
                   width: 40,
@@ -229,7 +241,58 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _profileImage = bytes;
         DummyData.userAvatarFile = _profileImage;
       });
+      final res = await ProfileService.uploadAvatar(bytes, filename: picked.name);
+      if (mounted) {
+        if (res.success) {
+          if (res.data is Map) {
+            final resMap = res.data as Map;
+            final newUrl = resMap['avatar_url'] ?? resMap['avatar_path'];
+            if (newUrl != null) {
+              setState(() {
+                _avatarUrl = ProfileService.resolveAvatarUrl(newUrl);
+              });
+            }
+          }
+          showAppPopup(context, 'Profile photo updated successfully', type: PopupType.success);
+        } else {
+          showAppPopup(context, res.message ?? 'Failed to upload photo to server', type: PopupType.error);
+        }
+      }
     }
+  }
+
+  Widget _buildAvatarImage() {
+    if (_profileImage != null) {
+      return Image.memory(
+        _profileImage!,
+        width: 86,
+        height: 86,
+        fit: BoxFit.cover,
+      );
+    }
+    if (_avatarUrl != null && _avatarUrl!.isNotEmpty) {
+      return Image.network(
+        _avatarUrl!,
+        headers: const {ApiConfig.ngrokHeaderKey: ApiConfig.ngrokHeaderValue},
+        width: 86,
+        height: 86,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => const Center(
+          child: Icon(
+            Icons.person_rounded,
+            size: 52,
+            color: Color(0xFF8C7E72),
+          ),
+        ),
+      );
+    }
+    return const Center(
+      child: Icon(
+        Icons.person_rounded,
+        size: 52,
+        color: Color(0xFF8C7E72),
+      ),
+    );
   }
 
   Future<void> _saveProfile() async {
@@ -253,11 +316,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (!apiSuccess) {
       if (mounted) {
         setState(() => _isSaving = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to save profile. Please try again.'),
-            backgroundColor: Color(0xFFDC2626),
-          ),
+        showAppPopup(
+          context,
+          'Failed to save profile. Please try again.',
+          type: PopupType.error,
         );
       }
       return;
@@ -271,6 +333,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       DummyData.userLocation = _locationCtrl.text.trim();
       DummyData.userAvatarFile = _profileImage;
     });
+
+    if (_selectedCurrency != preferredCurrency.value) {
+      preferredCurrency.value = _selectedCurrency;
+    }
 
     await Future.delayed(const Duration(milliseconds: 300));
     if (mounted) {
@@ -297,7 +363,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     if (mounted) {
       if (success) {
+        await DummyData.fetchLiveRates();
         preferredCurrency.value = _selectedCurrency;
+        AppRefreshNotifier.notifyDataChanged(immediate: true);
+
         setState(() {
           _isPreferencesSaving = false;
           _isPreferencesSaved = true;
@@ -312,11 +381,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _isPreferencesSaving = false;
           _selectedCurrency = previousCurrency;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to update currency preference. Please try again.'),
-            backgroundColor: Color(0xFFDC2626),
-          ),
+        showAppPopup(
+          context,
+          'Failed to update currency preference. Please try again.',
+          type: PopupType.error,
         );
       }
     }
@@ -365,20 +433,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final cp = _confirmPassCtrl.text;
 
     if (cur.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter your current password.')),
+      showAppPopup(
+        context,
+        'Please enter your current password.',
+        type: PopupType.warning,
       );
       return;
     }
     if (np.length < 8) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('New password must be at least 8 characters.')),
+      showAppPopup(
+        context,
+        'New password must be at least 8 characters.',
+        type: PopupType.warning,
       );
       return;
     }
     if (np != cp) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('New passwords do not match.')),
+      showAppPopup(
+        context,
+        'New passwords do not match.',
+        type: PopupType.warning,
       );
       return;
     }
@@ -412,17 +486,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }
       } else {
         setState(() => _isUpdatingPassword = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(res.message ?? 'Failed to update password. Please check your current password.'),
-          ),
+        showAppPopup(
+          context,
+          res.message ?? 'Failed to update password. Please check your current password.',
+          type: PopupType.error,
         );
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isUpdatingPassword = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}')),
+        showAppPopup(
+          context,
+          'Error: ${e.toString()}',
+          type: PopupType.error,
         );
       }
     }
@@ -640,22 +716,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               offset: const Offset(0, 4),
                             ),
                           ],
-                          image: _profileImage != null
-                              ? DecorationImage(
-                                  image: MemoryImage(_profileImage!),
-                                  fit: BoxFit.cover,
-                                )
-                              : null,
                         ),
-                        child: _profileImage == null
-                            ? const Center(
-                                child: Icon(
-                                  Icons.person_rounded,
-                                  size: 52,
-                                  color: Color(0xFF8C7E72),
-                                ),
-                              )
-                            : null,
+                        child: ClipOval(
+                          child: _buildAvatarImage(),
+                        ),
                       ),
                       // Camera badge
                       Positioned(
@@ -689,67 +753,72 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    GestureDetector(
-                      onTap: _pickPhoto,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFEEF2FF),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              _profileImage != null ? Icons.edit_outlined : Icons.add_a_photo_outlined,
-                              size: 14,
-                              color: AppColors.brand,
+                Builder(
+                  builder: (context) {
+                    final bool hasPhoto = _profileImage != null || (_avatarUrl != null && _avatarUrl!.isNotEmpty);
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        GestureDetector(
+                          onTap: _pickPhoto,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEEF2FF),
+                              borderRadius: BorderRadius.circular(999),
                             ),
-                            const SizedBox(width: 6),
-                            Text(
-                              _profileImage != null ? 'Change photo' : 'Add photo',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.brand,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    if (_profileImage != null) ...[
-                      const SizedBox(width: 8),
-                      GestureDetector(
-                        onTap: _removePhoto,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFEE2E2),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.delete_outline_rounded, size: 14, color: AppColors.expense),
-                              SizedBox(width: 4),
-                              Text(
-                                'Remove',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.expense,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  hasPhoto ? Icons.edit_outlined : Icons.add_a_photo_outlined,
+                                  size: 14,
+                                  color: AppColors.brand,
                                 ),
-                              ),
-                            ],
+                                const SizedBox(width: 6),
+                                Text(
+                                  hasPhoto ? 'Change photo' : 'Add photo',
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.brand,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ],
+                        if (hasPhoto) ...[
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: _removePhoto,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFEE2E2),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.delete_outline_rounded, size: 14, color: AppColors.expense),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Remove',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.expense,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 6),
                 const Text(
@@ -1230,6 +1299,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 _selectedCurrency = entry.key;
                                 _isCurrencyDropdownOpen = false;
                               });
+                              _savePreferences();
                             },
                           ),
                         ],

@@ -55,6 +55,7 @@ class PhoneOtpWhatsAppTest extends TestCase
         $this->assertGuest();
 
         $user = User::where('nomor_telepon', '081234567890')->firstOrFail();
+        $this->assertSame('USD', $user->mata_uang);
         $this->assertFalse((bool) $user->status);
         $this->assertNotNull($user->otp_kode);
         $this->assertNull($user->otp_verified_at);
@@ -87,6 +88,9 @@ class PhoneOtpWhatsAppTest extends TestCase
 
         $response->assertCreated()
             ->assertJsonPath('nomor_telepon', '081234567890');
+
+        $user = User::where('nomor_telepon', '081234567890')->firstOrFail();
+        $this->assertSame('USD', $user->mata_uang);
         Http::assertSent(fn ($request) => str_contains($request->url(), 'api.fonnte.com/send')
             && $request['target'] === '6281234567890'
             && str_contains($request['message'], 'Verification Code'));
@@ -223,6 +227,7 @@ class PhoneOtpWhatsAppTest extends TestCase
         $response->assertSessionHas('status');
 
         $user = User::where('nomor_telepon', '081234567890')->firstOrFail();
+        $this->assertSame('USD', $user->mata_uang);
         $this->assertFalse((bool) $user->status);
         // Kode OTP dibersihkan agar login-gate tidak mengblokir alur fallback admin
         $this->assertNull($user->otp_kode);

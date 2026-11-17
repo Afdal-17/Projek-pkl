@@ -13,7 +13,7 @@ Future<Wallet?> showWalletPickerSheet({
   String subtitle = 'Choose a wallet from your personal account',
   bool showBalance = true,
 }) {
-  final userWallets = wallets ?? DummyData.wallets;
+  final userWallets = wallets ?? const <Wallet>[];
 
   return showModalBottomSheet<Wallet>(
     context: context,
@@ -78,7 +78,18 @@ Future<Wallet?> showWalletPickerSheet({
             const SizedBox(height: 16),
 
             // List dompet pengguna (hanya dompet milik user)
-            ConstrainedBox(
+            if (userWallets.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: Text(
+                    'No wallets available. Please create a wallet first.',
+                    style: TextStyle(color: AppColors.muted, fontSize: 14),
+                  ),
+                ),
+              )
+            else
+              ConstrainedBox(
               constraints: BoxConstraints(
                 maxHeight: MediaQuery.of(context).size.height * 0.45,
               ),

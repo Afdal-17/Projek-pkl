@@ -6,6 +6,7 @@ import 'screens/profile_screen.dart';
 import 'screens/savings_screen.dart';
 import 'screens/transactions_screen.dart';
 import 'services/auth_service.dart';
+import 'services/notification_service.dart';
 import 'theme/app_theme.dart';
 import 'utils/currency.dart';
 
@@ -59,6 +60,8 @@ class _AuthWrapperState extends State<_AuthWrapper> {
   }
 
   void _handleLoginSuccess() async {
+    NotificationService.reset();
+    NotificationService.fetchNotifications();
     final isAdmin = await AuthService.isAdmin();
     if (mounted) {
       setState(() {
@@ -70,6 +73,7 @@ class _AuthWrapperState extends State<_AuthWrapper> {
 
   void _handleLogout() {
     AuthService.logout();
+    NotificationService.reset();
     setState(() {
       _isLoggedIn = false;
       _isAdmin = false;
@@ -108,26 +112,29 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int _index = 0;
+  late final List<Widget> _pages = [
+    const HomeScreen(),
+    const TransactionsScreen(),
+    const SavingsScreen(),
+    ProfileScreen(onLogout: widget.onLogout),
+  ];
 
-  void _goTo(int index) => setState(() => _index = index);
+  void _goTo(int index) {
+    if (_index != index) {
+      setState(() => _index = index);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<String>(
       valueListenable: preferredCurrency,
       builder: (context, _, _) {
-        final pages = <Widget>[
-          const HomeScreen(),
-          const TransactionsScreen(),
-          const SavingsScreen(),
-          ProfileScreen(onLogout: widget.onLogout),
-        ];
-
         return Scaffold(
           backgroundColor: Colors.white,
           body: SafeArea(
             bottom: false,
-            child: IndexedStack(index: _index, children: pages),
+            child: IndexedStack(index: _index, children: _pages),
           ),
           bottomNavigationBar: NavigationBar(
             selectedIndex: _index,

@@ -3,7 +3,9 @@ import '../data/dummy_data.dart';
 import '../models/saving_goal.dart';
 import '../services/saving_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/app_translator.dart';
 import '../utils/currency.dart';
+import '../utils/refresh_notifier.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_header.dart';
@@ -19,19 +21,39 @@ class SavingsScreen extends StatefulWidget {
 class _SavingsScreenState extends State<SavingsScreen> {
   List<SavingGoal> _goals = [];
   bool _isLoading = true;
+  bool _isFetching = false;
 
   @override
   void initState() {
     super.initState();
+    AppRefreshNotifier.refreshTick.addListener(_onAutoRefresh);
     _loadSavings();
   }
 
-  Future<void> _loadSavings() async {
+  void _onAutoRefresh() {
+    if (mounted) {
+      _loadSavings(isRefresh: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    AppRefreshNotifier.refreshTick.removeListener(_onAutoRefresh);
+    super.dispose();
+  }
+
+  Future<void> _loadSavings({bool isRefresh = false}) async {
+    if (_isFetching) return;
+    _isFetching = true;
+
+    if (!isRefresh && _goals.isEmpty) {
+      setState(() => _isLoading = true);
+    }
     try {
       final res = await SavingService.fetchSavings();
       if (!mounted) return;
 
-      List<SavingGoal> loaded = [];
+      List<SavingGoal>? loaded;
       if (res.success && res.data != null) {
         dynamic rawList;
         if (res.data is Map && res.data['data'] != null) {
@@ -41,11 +63,14 @@ class _SavingsScreenState extends State<SavingsScreen> {
         }
 
         if (rawList is List) {
+          final list = <SavingGoal>[];
           for (final item in rawList) {
             final map = Map<String, dynamic>.from(item as Map);
             final id = map['id_tabungan'] ?? map['id'];
-            final name = map['nama_target'] ?? map['name'] ?? 'Target';
-            final desc = map['keterangan'] ?? map['description'] ?? '';
+            final rawName = (map['nama_target'] ?? map['name'] ?? 'Target').toString();
+            final rawDesc = (map['note'] ?? map['deskripsi'] ?? map['keterangan'] ?? map['description'] ?? '').toString();
+            final name = AppTranslator.translateTransactionName(rawName);
+            final desc = AppTranslator.translateTransactionName(rawDesc);
             final wallet = map['nama_dompet'] ?? map['wallet'] ?? 'Cash';
             final targetRaw = map['jumlah_target'] ?? map['target'] ?? 0;
             final savedRaw = map['jumlah_terkumpul'] ?? map['saved'] ?? 0;
@@ -56,7 +81,7 @@ class _SavingsScreenState extends State<SavingsScreen> {
                 ? savedRaw.toDouble()
                 : (double.tryParse(savedRaw.toString()) ?? 0.0);
 
-            loaded.add(SavingGoal(
+            list.add(SavingGoal(
               id: id,
               name: name.toString(),
               description: desc.toString(),
@@ -65,22 +90,28 @@ class _SavingsScreenState extends State<SavingsScreen> {
               targetIdr: target,
             ));
           }
+          loaded = list;
         }
       }
 
       if (mounted) {
         setState(() {
-          _goals = loaded;
+          // Pertahankan tabungan yang sudah tampil jika request refresh sementara gagal
+          if (loaded != null) {
+            _goals = loaded;
+          }
           _isLoading = false;
         });
       }
     } catch (_) {
       if (mounted) setState(() => _isLoading = false);
+    } finally {
+      _isFetching = false;
     }
   }
 
   Future<void> _handleRefresh() async {
-    await _loadSavings();
+    await _loadSavings(isRefresh: true);
   }
 
   void _openAddTarget() async {
@@ -89,6 +120,7 @@ class _SavingsScreenState extends State<SavingsScreen> {
     );
     if (added == true) {
       _loadSavings();
+      AppRefreshNotifier.notifyDataChanged();
     }
   }
 
@@ -104,6 +136,7 @@ class _SavingsScreenState extends State<SavingsScreen> {
             await SavingService.deleteSaving(goal.id);
           }
           _loadSavings();
+          AppRefreshNotifier.notifyDataChanged();
         },
       ),
     );
@@ -145,7 +178,7 @@ class _SavingsScreenState extends State<SavingsScreen> {
                 child: RefreshIndicator(
                   onRefresh: _handleRefresh,
                   color: AppColors.brand,
-                  child: _isLoading
+                  child: (_isLoading && _goals.isEmpty)
                       ? const Center(child: CircularProgressIndicator(color: AppColors.brand))
                       : ListView(
                           physics: const AlwaysScrollableScrollPhysics(),

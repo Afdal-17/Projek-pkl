@@ -12,6 +12,9 @@ import '../widgets/app_header.dart';
 import '../widgets/wallet_card.dart';
 import '../widgets/wallet_form_sheet.dart';
 import 'wallet_history_screen.dart';
+import '../utils/feedback.dart';
+import '../utils/currency.dart';
+import '../utils/refresh_notifier.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -23,6 +26,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   List<Wallet> _wallets = [];
   bool _isLoading = true;
+  bool _isFetching = false;
   String? _primaryName;
   String _lastUpdatedText = 'Updated just now';
   double _monthlyIncome = 0;
@@ -31,15 +35,52 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    AppRefreshNotifier.refreshTick.addListener(_onAutoRefresh);
+    preferredCurrency.addListener(_onCurrencyChanged);
     _loadData();
   }
 
-  Future<void> _loadData() async {
+  void _onCurrencyChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void _onAutoRefresh() {
+    if (mounted) {
+      _loadData(isRefresh: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    AppRefreshNotifier.refreshTick.removeListener(_onAutoRefresh);
+    preferredCurrency.removeListener(_onCurrencyChanged);
+    super.dispose();
+  }
+
+  Future<void> _loadData({bool isRefresh = false}) async {
+    if (_isFetching) return;
+    _isFetching = true;
+
+    if (!isRefresh && _wallets.isEmpty) {
+      setState(() => _isLoading = true);
+    }
     try {
-      final walletRes = await WalletService.fetchWallets();
+      // Ambil kurs secara asynchronous tanpa memblokir pemuatan dompet & transaksi
+      DummyData.fetchLiveRates().catchError((_) {});
+
+      // Panggil API dompet dan transaksi secara paralel untuk mempercepat loading
+      final results = await Future.wait([
+        WalletService.fetchWallets(),
+        TransactionService.fetchTransactions(perPage: 100),
+      ]);
       if (!mounted) return;
 
-      List<Wallet> loadedWallets = [];
+      final walletRes = results[0];
+      final txRes = results[1];
+
+      List<Wallet>? newWallets;
       if (walletRes.success && walletRes.data != null) {
         dynamic rawList;
         if (walletRes.data is Map && walletRes.data['data'] != null) {
@@ -49,17 +90,20 @@ class _HomeScreenState extends State<HomeScreen> {
         }
 
         if (rawList is List) {
-          loadedWallets = rawList.map((item) {
+          newWallets = rawList.map((item) {
             final map = Map<String, dynamic>.from(item as Map);
             return _walletFromJson(map);
           }).toList();
         }
       }
 
-      // Fetch transactions for monthly summary
-      double inc = 0;
-      double exp = 0;
-      final txRes = await TransactionService.fetchTransactions();
+      // Pertahankan dompet yang sudah ada jika request refresh sementara gagal
+      final activeWallets = newWallets ?? _wallets;
+
+      // Hitung ringkasan transaksi bulanan
+      double? newInc;
+      double? newExp;
+
       if (txRes.success && txRes.data != null) {
         dynamic rawTxList;
         if (txRes.data is Map && txRes.data['data'] != null) {
@@ -69,26 +113,96 @@ class _HomeScreenState extends State<HomeScreen> {
         }
 
         if (rawTxList is List) {
+          double inc = 0;
+          double exp = 0;
+          final seenTxIds = <dynamic>{};
+
+          final now = DateTime.now();
+          final currentYear = now.year;
+          final currentMonth = now.month;
+
+          final myWalletNames = activeWallets.map((w) => w.name.trim().toLowerCase()).toSet();
+
           for (final t in rawTxList) {
+            if (t is! Map) continue;
+
+            // 1. Hindari duplikasi perhitungan
+            final txId = t['id'] ?? t['id_transaksi'];
+            if (txId != null) {
+              if (seenTxIds.contains(txId)) continue;
+              seenTxIds.add(txId);
+            }
+
+            // 2. Pastikan hanya transaksi bulan dan tahun berjalan yang dihitung
+            final dateStr = (t['date'] ?? t['tanggal'])?.toString();
+            if (dateStr != null && dateStr.isNotEmpty) {
+              final parsed = DateTime.tryParse(dateStr);
+              if (parsed != null) {
+                if (parsed.year != currentYear || parsed.month != currentMonth) {
+                  continue; // Lewati transaksi bulan sebelumnya
+                }
+              }
+            }
+
             final amtRaw = t['amount'] ?? t['nominal'] ?? 0;
             final amt = (amtRaw is num)
-                ? amtRaw.toDouble()
-                : (double.tryParse(amtRaw.toString()) ?? 0.0);
-            final type = (t['type'] ?? t['jenis'] ?? '').toString().toLowerCase();
-            if (type == 'income') {
-              inc += amt;
-            } else if (type == 'expense') {
-              exp += amt;
+                ? amtRaw.toDouble().abs()
+                : (double.tryParse(amtRaw.toString())?.abs() ?? 0.0);
+
+            final type = (t['type'] ?? '').toString().toLowerCase();
+            final jenis = (t['jenis'] ?? '').toString().toLowerCase();
+            final category = (t['category'] ?? t['kategori'] ?? '').toString().toLowerCase();
+
+            final isTransfer = type == 'transfer' || category == 'transfer';
+
+            if (isTransfer) {
+              final to = (t['to'] ?? '').toString().trim().toLowerCase();
+              final wallet = (t['wallet'] ?? '').toString().trim().toLowerCase();
+
+              final isToMyWallet = myWalletNames.contains(to);
+              final isFromMyWallet = myWalletNames.contains(wallet);
+
+              // Transfer antar dompet milik sendiri -> TIDAK dihitung sebagai pengeluaran maupun pemasukan
+              if (isFromMyWallet && isToMyWallet) {
+                continue;
+              }
+
+              // Transfer ke pengguna lain (pengeluaran):
+              // Sumber adalah dompet user, tujuan bukan dompet user
+              if (jenis == 'pengeluaran' || (!isToMyWallet && isFromMyWallet)) {
+                exp += amt;
+              } else if (jenis == 'pemasukan' || (isToMyWallet && !isFromMyWallet)) {
+                // Transfer masuk dari pengguna lain (pemasukan)
+                inc += amt;
+              }
+            } else {
+              // Transaksi biasa (non-transfer)
+              final isIncome = type == 'income' || jenis == 'pemasukan';
+              final isExpense = type == 'expense' || jenis == 'pengeluaran';
+              if (isIncome) {
+                inc += amt;
+              } else if (isExpense) {
+                exp += amt;
+              }
             }
           }
+
+          newInc = inc;
+          newExp = exp;
         }
       }
 
       if (mounted) {
         setState(() {
-          _wallets = loadedWallets;
-          _monthlyIncome = inc;
-          _monthlyExpense = exp;
+          if (newWallets != null) {
+            _wallets = newWallets;
+          }
+          if (newInc != null) {
+            _monthlyIncome = newInc;
+          }
+          if (newExp != null) {
+            _monthlyExpense = newExp;
+          }
           _isLoading = false;
           _lastUpdatedText = 'Updated just now';
 
@@ -107,6 +221,8 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    } finally {
+      _isFetching = false;
     }
   }
 
@@ -193,7 +309,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _handleRefresh() async {
-    await _loadData();
+    await _loadData(isRefresh: true);
   }
 
   void _setPrimary(Wallet wallet) {
@@ -201,7 +317,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   String _hexFromColor(Color color) {
-    final hex = color.value.toRadixString(16).padLeft(8, '0');
+    final hex = color.toARGB32().toRadixString(16).padLeft(8, '0');
     return '#${hex.substring(2)}';
   }
 
@@ -228,11 +344,10 @@ class _HomeScreenState extends State<HomeScreen> {
         color: _hexFromColor(result.color),
       );
       if (!res.success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(res.message ?? 'Gagal menambahkan dompet ke server.'),
-            backgroundColor: AppColors.expense,
-          ),
+        showAppPopup(
+          context,
+          res.message ?? 'Failed to add wallet to server.',
+          type: PopupType.error,
         );
       }
     } else {
@@ -245,17 +360,17 @@ class _HomeScreenState extends State<HomeScreen> {
           color: _hexFromColor(result.color),
         );
         if (!res.success && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(res.message ?? 'Gagal memperbarui dompet.'),
-              backgroundColor: AppColors.expense,
-            ),
+          showAppPopup(
+            context,
+            res.message ?? 'Failed to update wallet.',
+            type: PopupType.error,
           );
         }
       }
     }
 
     await _loadData();
+    AppRefreshNotifier.notifyDataChanged();
   }
 
   Future<void> _confirmDelete(Wallet wallet) async {
@@ -275,6 +390,7 @@ class _HomeScreenState extends State<HomeScreen> {
         await WalletService.deleteWallet(wallet.id);
       }
       await _loadData();
+      AppRefreshNotifier.notifyDataChanged();
     }
   }
 
@@ -295,7 +411,7 @@ class _HomeScreenState extends State<HomeScreen> {
               strokeWidth: 3.2,
               displacement: 40.0,
               onRefresh: _handleRefresh,
-              child: _isLoading
+              child: (_isLoading && _wallets.isEmpty)
                   ? const Center(
                       child: CircularProgressIndicator(color: AppColors.brand),
                     )

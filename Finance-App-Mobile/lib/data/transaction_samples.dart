@@ -43,17 +43,4 @@ TransactionItem _tx({
   );
 }
 
-final List<TransactionItem> sampleTransactions = [
-  _tx(title: 'Transfer from Dzaky family', category: 'Transfer', dateLabel: '24 October', amount: 0.49, wallet: 'BCA'),
-  _tx(title: 'Transfer from Rofi Ng...', category: 'Transfer', dateLabel: '24 October', amount: 0.00, wallet: 'BRI'),
-  _tx(title: 'Transfer from Rofi Ng...', category: 'Transfer', dateLabel: '24 October', amount: 0.10, wallet: 'BRI'),
-  _tx(title: 'Transfer from Rofi N...', category: 'Transfer', dateLabel: '24 October', amount: 98.43, wallet: 'BRI'),
-  _tx(title: 'Transfer from 07 Dzaky', category: 'Transfer', dateLabel: '24 October', amount: 0.49, wallet: 'BRI'),
-  _tx(title: 'Transfer from Rofi', category: 'Transfer', dateLabel: '24 October', amount: 20086.94, wallet: 'BRI'),
-  _tx(title: 'Transfer from Afdal', category: 'Transfer', dateLabel: '24 October', amount: 0.59, wallet: 'Cash'),
-  _tx(title: 'Grocery shopping', category: 'Makan', dateLabel: '15 October', amount: -0.98, wallet: 'opo'),
-  _tx(title: 'Transfer to opo', category: 'Transfer', dateLabel: '15 October', amount: -9.84, wallet: 'Cash'),
-  _tx(title: 'Transfer to opo', category: 'Transfer', dateLabel: '15 October', amount: -9.84, wallet: 'Cash'),
-  _tx(title: 'Ticket Music', category: 'Music Conser', dateLabel: '14 October', amount: -246.07, wallet: 'Cash'),
-  
-];
+final List<TransactionItem> sampleTransactions = const [];

@@ -24,40 +24,4 @@ class WalletTransaction {
 
 /// Data contoh sementara. Nanti diganti dengan data dari dummy_data.dart
 /// atau dari backend.
-List<WalletTransaction> dummyTransactionsFor(String walletName) {
-  if (walletName != 'Cash') return const [];
-
-  return const [
-    WalletTransaction(
-      title: 'Transfer from Afdal',
-      category: 'Transfer',
-      date: '2026-10-24',
-      amount: 0.59,
-      icon: Icons.swap_horiz_rounded,
-      isTransfer: true,
-    ),
-    WalletTransaction(
-      title: 'Transfer to opo',
-      category: 'Transfer',
-      date: '2026-10-15',
-      amount: -9.84,
-      icon: Icons.swap_horiz_rounded,
-      isTransfer: true,
-    ),
-    WalletTransaction(
-      title: 'Transfer to opo',
-      category: 'Transfer',
-      date: '2026-10-15',
-      amount: -9.84,
-      icon: Icons.swap_horiz_rounded,
-      isTransfer: true,
-    ),
-    WalletTransaction(
-      title: 'Ticket Music',
-      category: 'Music Conser',
-      date: '2026-10-14',
-      amount: -246.07,
-      icon: Icons.confirmation_number_outlined,
-    ),
-  ];
-}
+List<WalletTransaction> dummyTransactionsFor(String walletName) => const [];

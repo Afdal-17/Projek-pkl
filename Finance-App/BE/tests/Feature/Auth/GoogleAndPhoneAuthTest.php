@@ -230,4 +230,141 @@ class GoogleAndPhoneAuthTest extends TestCase
         $this->assertAuthenticatedAs($existingUser);
         $response->assertRedirect(route('user.dashboard'));
     }
+
+    public function test_api_google_login_rejected_when_not_registered_in_login_mode(): void
+    {
+        $response = $this->postJson('/api/auth/google', [
+            'email' => 'unregistered.google@gmail.com',
+            'google_id' => 'gid-unregistered-123',
+            'nama' => 'Unregistered User',
+            'mode' => 'login',
+        ]);
+
+        $response->assertStatus(404)
+            ->assertJsonPath('message', 'Akun tidak ditemukan. Silakan melakukan registrasi terlebih dahulu.');
+    }
+
+    public function test_api_google_register_creates_unverified_user_sends_otp_and_returns_no_token(): void
+    {
+        Mail::fake();
+
+        $response = $this->postJson('/api/auth/google', [
+            'email' => 'new.mobile.google@gmail.com',
+            'google_id' => 'gid-mobile-999',
+            'nama' => 'Mobile Google User',
+            'avatar_path' => 'https://lh3.googleusercontent.com/avatar',
+            'mode' => 'register',
+        ]);
+
+        $response->assertStatus(201)
+            ->assertJson([
+                'requires_otp' => true,
+                'email' => 'new.mobile.google@gmail.com',
+            ])
+            ->assertJsonMissing(['token']);
+
+        $user = User::where('email', 'new.mobile.google@gmail.com')->firstOrFail();
+        $this->assertSame('USD', $user->mata_uang);
+        $this->assertFalse((bool) $user->status);
+        $this->assertNull($user->email_verified_at);
+        $this->assertNull($user->otp_verified_at);
+        $this->assertNotNull($user->otp_kode);
+
+        Mail::assertSent(KodeVerifikasiMail::class, function (KodeVerifikasiMail $mail) {
+            return $mail->hasTo('new.mobile.google@gmail.com');
+        });
+    }
+
+    public function test_api_google_registered_user_can_verify_otp_and_receive_token(): void
+    {
+        Mail::fake();
+
+        // 1. Registrasi via Google
+        $regResponse = $this->postJson('/api/auth/google', [
+            'email' => 'verify.google@gmail.com',
+            'google_id' => 'gid-verify-123',
+            'nama' => 'Verify Google User',
+            'mode' => 'register',
+        ]);
+
+        $regResponse->assertStatus(201)->assertJsonMissing(['token']);
+        $userId = $regResponse->json('user_id');
+
+        $user = User::findOrFail($userId);
+        $otp = app(OtpService::class)->buatKode($user);
+
+        // 2. Verifikasi OTP via /api/register/verify-otp
+        $verifyResponse = $this->postJson('/api/register/verify-otp', [
+            'user_id' => $userId,
+            'kode' => $otp,
+        ]);
+
+        $verifyResponse->assertStatus(200)
+            ->assertJsonStructure(['message', 'token', 'user'])
+            ->assertJsonPath('user.email', 'verify.google@gmail.com');
+
+        $fresh = $user->fresh();
+        $this->assertTrue((bool) $fresh->status);
+        $this->assertNotNull($fresh->email_verified_at);
+        $this->assertNotNull($fresh->otp_verified_at);
+        $this->assertNull($fresh->otp_kode);
+    }
+
+    public function test_api_google_unverified_user_logging_in_again_requires_otp_without_token(): void
+    {
+        Mail::fake();
+
+        $unverifiedUser = User::create([
+            'nama' => 'Unverified Google Member',
+            'email' => 'unverified.member@gmail.com',
+            'google_id' => 'gid-unverified-456',
+            'password' => Hash::make('secret123'),
+            'role' => 'user',
+            'status' => false,
+            'email_verified_at' => null,
+            'otp_verified_at' => null,
+            'mata_uang' => 'USD',
+        ]);
+
+        $response = $this->postJson('/api/auth/google', [
+            'email' => 'unverified.member@gmail.com',
+            'google_id' => 'gid-unverified-456',
+            'mode' => 'login',
+        ]);
+
+        $response->assertStatus(200)
+            ->assertJson([
+                'requires_otp' => true,
+                'user_id' => $unverifiedUser->id_user,
+                'email' => 'unverified.member@gmail.com',
+            ])
+            ->assertJsonMissing(['token']);
+    }
+
+    public function test_api_google_verified_user_logs_in_directly_with_token(): void
+    {
+        $verifiedUser = User::create([
+            'nama' => 'Verified Google Member',
+            'email' => 'verified.member@gmail.com',
+            'google_id' => 'gid-verified-789',
+            'password' => Hash::make('secret123'),
+            'role' => 'user',
+            'status' => true,
+            'email_verified_at' => now(),
+            'otp_verified_at' => now(),
+            'mata_uang' => 'USD',
+        ]);
+
+        $response = $this->postJson('/api/auth/google', [
+            'email' => 'verified.member@gmail.com',
+            'google_id' => 'gid-verified-789',
+            'mode' => 'login',
+        ]);
+
+        $response->assertStatus(200)
+            ->assertJsonStructure(['message', 'token', 'user'])
+            ->assertJsonPath('user.email', 'verified.member@gmail.com');
+
+        $this->assertNotNull($response->json('token'));
+    }
 }

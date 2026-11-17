@@ -7,9 +7,11 @@ import '../services/notification_service.dart';
 import '../services/transaction_service.dart';
 import '../services/wallet_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/app_translator.dart';
 import '../utils/amount_format.dart';
 import '../utils/currency.dart';
 import '../utils/feedback.dart';
+import '../utils/refresh_notifier.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_header.dart';
 import '../widgets/transaction_type_toggle.dart';
@@ -120,7 +122,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           for (final c in rawCat) {
             final map = Map<String, dynamic>.from(c as Map);
             final id = (map['id'] ?? map['id_kategori'] ?? '').toString();
-            final name = (map['name'] ?? map['nama_kategori'] ?? map['nama'] ?? '').toString();
+            final rawName = (map['name'] ?? map['nama_kategori'] ?? map['nama'] ?? '').toString();
+            final name = AppTranslator.translateCategory(rawName);
             final typeStr = (map['type'] ?? map['jenis'] ?? '').toString().toLowerCase();
             final type = typeStr == 'income' ? CategoryType.income : CategoryType.expense;
             final iconKey = map['icon']?.toString();
@@ -144,7 +147,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       if (mounted) {
         setState(() {
           _wallets = loadedWallets;
-          _selectedWallet = _wallets.first;
+          _selectedWallet = _wallets.isNotEmpty ? _wallets.first : null;
           _categories = loadedCats;
           _isLoading = false;
           _syncCategoryWithType();
@@ -234,6 +237,17 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       return;
     }
 
+    final available = DummyData.money(_selectedWallet!.balanceIdr).displayAmount;
+    if (!_isIncome && _amount > available) {
+      showAppPopup(
+        context,
+        'Insufficient balance in ${_selectedWallet!.name}. Available: ${DummyData.money(_selectedWallet!.balanceIdr).text}.',
+        title: 'Insufficient Balance',
+        type: PopupType.warning,
+      );
+      return;
+    }
+
     setState(() => _isSubmitting = true);
 
     final dateStr =
@@ -262,6 +276,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         isIncome: _isIncome,
       );
 
+      AppRefreshNotifier.notifyDataChanged();
       Navigator.of(context).pop(true);
     } else {
       showComingSoon(context, res.message ?? 'Failed to save transaction to server.');
@@ -719,7 +734,17 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                               ],
                             ),
                             child: Column(
-                              children: _wallets.map((w) {
+                              children: _wallets.isEmpty
+                                  ? [
+                                      const Padding(
+                                        padding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                                        child: Text(
+                                          'No wallets available. Please create a wallet first.',
+                                          style: TextStyle(fontSize: 13, color: AppColors.muted),
+                                        ),
+                                      ),
+                                    ]
+                                  : _wallets.map((w) {
                                 final isSelected = _selectedWallet?.name == w.name;
                                 final b = DummyData.money(w.balanceIdr).displayAmount;
                                 final formattedBal = formatCurrency(b, currCode);

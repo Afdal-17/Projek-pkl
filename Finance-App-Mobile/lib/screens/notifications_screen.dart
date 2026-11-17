@@ -4,7 +4,6 @@ import '../models/notification_item.dart';
 import '../services/notification_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/currency.dart';
-import '../widgets/app_card.dart';
 import '../widgets/app_header.dart';
 
 class NotificationsScreen extends StatefulWidget {
@@ -19,7 +18,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   String _selectedCategory = 'All'; // 'All', 'Goal', 'Transfer', 'Transaction', 'Verification', 'System'
   bool _isCategoryDropdownOpen = false;
   final TextEditingController _searchCtrl = TextEditingController();
-  final Set<String> _expandedIds = {};
+  final Set<String> _expandedIds = {'notif-1'};
 
   final List<String> _categories = [
     'All',
@@ -77,10 +76,36 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
             return Scaffold(
               backgroundColor: AppColors.page,
-              appBar: const AppHeader(showBackButton: true),
+              appBar: AppHeader(
+                showBackButton: true,
+                action: unreadCount > 0
+                    ? InkWell(
+                        onTap: () => NotificationService.markAllAsRead(),
+                        borderRadius: BorderRadius.circular(8),
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.done_all_rounded, size: 16, color: AppColors.brand),
+                              SizedBox(width: 4),
+                              Text(
+                                'Mark all read',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.brand,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
               body: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
                 children: [
                   const Text(
                     'Notifications',
@@ -93,23 +118,25 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   ),
                   const SizedBox(height: 4),
                   const Text(
-                    'Stay up to date with your money activity.',
+                    'Alerts for your financial activities and system.',
                     style: TextStyle(fontSize: 14, color: AppColors.muted),
                   ),
                   const SizedBox(height: 18),
 
                   // ─── Filter Tabs (All, Unread, Read) ───
-                  Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFFE5E7EB)),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: _segmentTab(
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFE5E7EB)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _segmentTab(
                             title: 'All',
                             count: allCount,
                             badgeColor: const Color(0xFF4F46E5),
@@ -117,9 +144,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             isSelected: _filterTab == 'all',
                             onTap: () => setState(() => _filterTab = 'all'),
                           ),
-                        ),
-                        Expanded(
-                          child: _segmentTab(
+                          Container(
+                            height: 16,
+                            width: 1,
+                            color: const Color(0xFFE5E7EB),
+                            margin: const EdgeInsets.symmetric(horizontal: 3),
+                          ),
+                          _segmentTab(
                             title: 'Unread',
                             count: unreadCount,
                             badgeColor: const Color(0xFFDC2626),
@@ -127,47 +158,23 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             isSelected: _filterTab == 'unread',
                             onTap: () => setState(() => _filterTab = 'unread'),
                           ),
-                        ),
-                        Expanded(
-                          child: _segmentTab(
+                          Container(
+                            height: 16,
+                            width: 1,
+                            color: const Color(0xFFE5E7EB),
+                            margin: const EdgeInsets.symmetric(horizontal: 3),
+                          ),
+                          _segmentTab(
                             title: 'Read',
                             isSelected: _filterTab == 'read',
                             onTap: () => setState(() => _filterTab = 'read'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 14),
-
-                  // ─── Mark all as read ───
-                  InkWell(
-                    onTap: () {
-                      NotificationService.markAllAsRead();
-                    },
-                    borderRadius: BorderRadius.circular(8),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: const [
-                          Icon(Icons.check_rounded, size: 16, color: AppColors.brand),
-                          SizedBox(width: 6),
-                          Text(
-                            'Mark all as read',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.brand,
-                            ),
                           ),
                         ],
                       ),
                     ),
                   ),
 
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 16),
 
                   // ─── Search Bar & Category Dropdown ───
                   Row(
@@ -303,7 +310,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   // ─── Notification Items ───
                   if (filtered.isEmpty)
                     Container(
-                      padding: const EdgeInsets.symmetric(vertical: 40),
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFE5E7EB)),
+                      ),
                       alignment: Alignment.center,
                       child: Column(
                         children: [
@@ -323,28 +336,37 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       ),
                     )
                   else
-                    ...filtered.map((item) {
-                      final isExpanded = _expandedIds.contains(item.id);
-
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _notificationCard(
-                          item: item,
-                          isExpanded: isExpanded,
-                          currCode: currCode,
-                          onToggleExpand: () {
-                            setState(() {
-                              if (isExpanded) {
-                                _expandedIds.remove(item.id);
-                              } else {
-                                _expandedIds.add(item.id);
-                                NotificationService.markAsRead(item.id);
-                              }
-                            });
-                          },
-                        ),
-                      );
-                    }),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFE5E7EB)),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: Column(
+                        children: [
+                          for (int i = 0; i < filtered.length; i++) ...[
+                            if (i > 0)
+                              const Divider(height: 1, thickness: 1, color: Color(0xFFE5E7EB)),
+                            _notificationRow(
+                              item: filtered[i],
+                              isExpanded: _expandedIds.contains(filtered[i].id),
+                              currCode: currCode,
+                              onToggleExpand: () {
+                                setState(() {
+                                  if (_expandedIds.contains(filtered[i].id)) {
+                                    _expandedIds.remove(filtered[i].id);
+                                  } else {
+                                    _expandedIds.add(filtered[i].id);
+                                    NotificationService.markAsRead(filtered[i].id);
+                                  }
+                                });
+                              },
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
                 ],
               ),
             );
@@ -365,23 +387,23 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
           color: isSelected ? const Color(0xFFEEF2FF) : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               title,
               style: TextStyle(
                 fontSize: 14,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                 color: isSelected ? AppColors.brand : AppColors.muted,
               ),
             ),
-            if (count != null) ...[
+            if (count != null && count > 0) ...[
               const SizedBox(width: 6),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
@@ -405,148 +427,162 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  Widget _notificationCard({
+  Widget _notificationRow({
     required NotificationItem item,
     required bool isExpanded,
     required String currCode,
     required VoidCallback onToggleExpand,
   }) {
-    return AppCard(
-      padding: const EdgeInsets.all(16),
+    final isGoal = item.category.toLowerCase() == 'goal' || item.goal != null;
+
+    return InkWell(
+      onTap: onToggleExpand,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Row 1: Title + [Goal badge] ... timeAgo
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            item.title,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.ink,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (!item.isRead) ...[
-                          const SizedBox(width: 6),
-                          Container(
-                            width: 7,
-                            height: 7,
-                            decoration: const BoxDecoration(
-                              color: AppColors.brand,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    if (item.category == 'Goal') ...[
-                      const SizedBox(height: 6),
+                    if (!item.isRead) ...[
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFEEF2FF),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: const Text(
-                          'Goal',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.brand,
-                          ),
+                        width: 7,
+                        height: 7,
+                        margin: const EdgeInsets.only(right: 8),
+                        decoration: const BoxDecoration(
+                          color: AppColors.brand,
+                          shape: BoxShape.circle,
                         ),
                       ),
                     ],
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              (isGoal && !item.title.contains('🤩'))
+                                  ? '${item.title} 🤩'
+                                  : item.title,
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: item.isRead ? FontWeight.w700 : FontWeight.w800,
+                                color: AppColors.ink,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (isGoal) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEEF2FF),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text(
+                                'Goal',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.brand,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      item.timeAgo,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.muted,
+                      ),
+                    ),
                   ],
                 ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                item.timeAgo,
-                style: const TextStyle(fontSize: 12, color: AppColors.muted),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Text(
-                  item.message,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF4B5563),
-                    height: 1.4,
-                  ),
+                const SizedBox(height: 6),
+                // Row 2: Message ... Accordion Chevron
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        item.message,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF4B5563),
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(
+                      isExpanded
+                          ? Icons.keyboard_arrow_up_rounded
+                          : Icons.keyboard_arrow_down_rounded,
+                      color: AppColors.muted,
+                      size: 20,
+                    ),
+                  ],
                 ),
-              ),
-              IconButton(
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                onPressed: onToggleExpand,
-                icon: Icon(
-                  isExpanded
-                      ? Icons.keyboard_arrow_up_rounded
-                      : Icons.keyboard_arrow_down_rounded,
-                  color: AppColors.muted,
-                  size: 20,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
 
-          // ─── Expanded Details (Screenshot 3 & 4) ───
-          if (isExpanded) ...[
-            const SizedBox(height: 12),
-            if (item.goal != null)
-              _buildGoalDetailCard(item.goal!, currCode)
-            else if (item.activityDetail != null)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF9FAFB),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE5E7EB)),
-                ),
-                child: Text(
-                  item.activityDetail!,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF4B5563),
-                    height: 1.4,
-                  ),
-                ),
-              ),
-          ],
+          // Expanded Details (Goal or Activity Detail)
+          if (isExpanded)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: isGoal
+                  ? _buildGoalDetailCard(item.goal, currCode)
+                  : _buildActivityDetailCard(item.activityDetail),
+            ),
         ],
       ),
     );
   }
 
   Widget _buildGoalDetailCard(dynamic goal, String currCode) {
-    final savedDisplay = DummyData.money(goal.savedIdr).displayAmount;
-    final targetDisplay = DummyData.money(goal.targetIdr).displayAmount;
-    final progress = targetDisplay > 0 ? (savedDisplay / targetDisplay).clamp(0.0, 1.0) : 0.0;
+    final goalName = (goal?.name != null && goal.name.toString().isNotEmpty)
+        ? goal.name.toString()
+        : 'New Laptop';
+    final goalNote = (goal?.description != null && goal.description.toString().isNotEmpty)
+        ? goal.description.toString()
+        : 'butuh laptop buat belajar';
+
+    double savedDisplay;
+    double targetDisplay;
+    if (goal != null && goal.targetIdr > 0) {
+      savedDisplay = DummyData.money(goal.savedIdr).displayAmount;
+      targetDisplay = DummyData.money(goal.targetIdr).displayAmount;
+    } else {
+      savedDisplay = 98.88;
+      targetDisplay = 98.88;
+    }
+
+    final progress = targetDisplay > 0 ? (savedDisplay / targetDisplay).clamp(0.0, 1.0) : 1.0;
     final percent = (progress * 100).round();
+    final rawSaved = formatCurrency(savedDisplay, currCode);
+    final rawTarget = formatCurrency(targetDisplay, currCode);
+    final savedStr = currCode == 'EUR'
+        ? '${rawSaved.replaceAll('€', '').trim()} €'
+        : rawSaved;
+    final targetStr = currCode == 'EUR'
+        ? '${rawTarget.replaceAll('€', '').trim()} €'
+        : rawTarget;
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFF3F4F6).withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        color: const Color(0xFFF3F4F6),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -554,35 +590,35 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           Row(
             children: [
               Container(
-                width: 40,
-                height: 40,
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: const Color(0xFFE5E7EB)),
                 ),
                 child: const Icon(
                   Icons.track_changes_rounded,
-                  size: 20,
+                  size: 22,
                   color: AppColors.brand,
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      goal.name,
+                      goalName,
                       style: const TextStyle(
                         fontSize: 14,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w700,
                         color: AppColors.ink,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      goal.description,
+                      goalNote,
                       style: const TextStyle(fontSize: 12, color: AppColors.muted),
                     ),
                   ],
@@ -599,44 +635,85 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   '$percent%',
                   style: const TextStyle(
                     fontSize: 12,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                     color: AppColors.brand,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           Text(
-            '${formatCurrency(savedDisplay, currCode)} saved',
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.muted),
+            '$savedStr saved',
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF6B7280),
+            ),
           ),
           const SizedBox(height: 6),
           ClipRRect(
             borderRadius: BorderRadius.circular(999),
             child: LinearProgressIndicator(
               value: progress,
-              minHeight: 6,
+              minHeight: 8,
               backgroundColor: const Color(0xFFE5E7EB),
               valueColor: const AlwaysStoppedAnimation<Color>(AppColors.brand),
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(
-                '${formatCurrency(savedDisplay, currCode)} of ${formatCurrency(targetDisplay, currCode)}',
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.ink),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    savedStr,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.ink,
+                    ),
+                  ),
+                  Text(
+                    'of $targetStr',
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      color: AppColors.muted,
+                    ),
+                  ),
+                ],
               ),
               const Icon(
                 Icons.check_rounded,
-                size: 20,
+                size: 22,
                 color: Color(0xFF10B981),
               ),
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildActivityDetailCard(String? activityDetail) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF3F4F6),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Text(
+        activityDetail ??
+            'This activity was added to your history. You can view it again in Transactions.',
+        style: const TextStyle(
+          fontSize: 13,
+          color: Color(0xFF4B5563),
+          height: 1.45,
+        ),
       ),
     );
   }

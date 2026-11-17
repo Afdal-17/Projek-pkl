@@ -8,6 +8,9 @@ import '../services/category_service.dart';
 import '../services/transaction_service.dart';
 import '../services/wallet_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/app_translator.dart';
+import '../utils/currency.dart';
+import '../utils/refresh_notifier.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_header.dart';
@@ -41,6 +44,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   List<String> _categories = [];
   List<String> _walletNames = [];
   bool _isLoading = true;
+  bool _isFetching = false;
 
   String _query = '';
   String? _category;
@@ -52,21 +56,53 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   @override
   void initState() {
     super.initState();
+    AppRefreshNotifier.refreshTick.addListener(_onAutoRefresh);
+    preferredCurrency.addListener(_onCurrencyChanged);
     _loadData();
+  }
+
+  void _onCurrencyChanged() {
+    if (mounted) {
+      _loadData(isRefresh: true);
+    }
+  }
+
+  void _onAutoRefresh() {
+    if (mounted) {
+      _loadData(isRefresh: true);
+    }
   }
 
   @override
   void dispose() {
+    AppRefreshNotifier.refreshTick.removeListener(_onAutoRefresh);
+    preferredCurrency.removeListener(_onCurrencyChanged);
     _searchCtrl.dispose();
     _scrollCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _loadData() async {
+  Future<void> _loadData({bool isRefresh = false}) async {
+    if (_isFetching) return;
+    _isFetching = true;
+
+    if (!isRefresh && _transactions.isEmpty) {
+      setState(() => _isLoading = true);
+    }
     try {
-      // 1. Fetch transactions
-      final txRes = await TransactionService.fetchTransactions();
-      List<TransactionItem> loadedTx = [];
+      // Panggil transaksi, kategori, dan dompet secara paralel
+      final results = await Future.wait([
+        TransactionService.fetchTransactions(perPage: 100),
+        CategoryService.fetchCategories(),
+        WalletService.fetchWallets(),
+      ]);
+      if (!mounted) return;
+
+      final txRes = results[0];
+      final catRes = results[1];
+      final wRes = results[2];
+
+      List<TransactionItem>? loadedTx;
       if (txRes.success && txRes.data != null) {
         dynamic rawTxList;
         if (txRes.data is Map && txRes.data['data'] != null) {
@@ -76,15 +112,16 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         }
 
         if (rawTxList is List) {
+          final list = <TransactionItem>[];
           for (final t in rawTxList) {
             final map = Map<String, dynamic>.from(t as Map);
-            loadedTx.add(_txFromJson(map));
+            list.add(_txFromJson(map));
           }
+          loadedTx = list;
         }
       }
 
-      // 2. Fetch categories for filter
-      final catRes = await CategoryService.fetchCategories();
+      // Kategori untuk filter
       final catSet = <String>{};
       if (catRes.success && catRes.data != null) {
         dynamic rawCat;
@@ -102,13 +139,13 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           }
         }
       }
-      for (final t in loadedTx) {
+      final activeTx = loadedTx ?? _transactions;
+      for (final t in activeTx) {
         catSet.add(t.category);
       }
 
-      // 3. Fetch wallets for filter
-      final wRes = await WalletService.fetchWallets();
-      final wList = <String>[];
+      // Dompet untuk filter
+      List<String>? newWList;
       if (wRes.success && wRes.data != null) {
         dynamic rawW;
         if (wRes.data is Map && wRes.data['data'] != null) {
@@ -117,33 +154,69 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           rawW = wRes.data;
         }
         if (rawW is List) {
+          final list = <String>[];
           for (final w in rawW) {
             final name = w['nama_dompet'] ?? w['nama'] ?? w['name'];
             if (name != null && name.toString().isNotEmpty) {
-              wList.add(name.toString());
+              list.add(name.toString());
             }
           }
+          newWList = list;
         }
       }
 
       if (mounted) {
         setState(() {
-          _transactions = loadedTx;
-          _categories = catSet.toList()..sort();
-          _walletNames = wList;
+          // Pertahankan transaksi yang sudah ada bila API sementara gagal
+          if (loadedTx != null) {
+            _transactions = loadedTx;
+          }
+          if (catSet.isNotEmpty) {
+            _categories = catSet.toList()..sort();
+          }
+          if (newWList != null) {
+            _walletNames = newWList;
+          }
           _isLoading = false;
         });
       }
     } catch (_) {
       if (mounted) setState(() => _isLoading = false);
+    } finally {
+      _isFetching = false;
     }
   }
 
   TransactionItem _txFromJson(Map<String, dynamic> json) {
     final title = json['name'] ?? json['title'] ?? json['keterangan'] ?? 'Transaction';
     final category = json['category'] ?? json['kategori'] ?? 'General';
-    final typeStr = (json['type'] ?? json['jenis'] ?? '').toString().toLowerCase();
-    final isIncome = typeStr == 'income';
+    final rawTitle = title.toString();
+    final lowerTitle = rawTitle.toLowerCase();
+    final rawCat = category.toString();
+    final jenisStr = (json['jenis'] ?? '').toString().toLowerCase();
+    final typeStr = (json['type'] ?? '').toString().toLowerCase();
+
+    final isTransfer = typeStr == 'transfer' ||
+        rawCat.toLowerCase() == 'transfer' ||
+        json['icon'] == 'transfer' ||
+        lowerTitle.contains('transfer');
+
+    bool isIncome = false;
+    if (jenisStr == 'pemasukan' || jenisStr == 'income') {
+      isIncome = true;
+    } else if (jenisStr == 'pengeluaran' || jenisStr == 'expense') {
+      isIncome = false;
+    } else if (typeStr == 'income') {
+      isIncome = true;
+    } else if (typeStr == 'expense') {
+      isIncome = false;
+    } else if (lowerTitle.startsWith('transfer dari') ||
+        lowerTitle.startsWith('transfer from') ||
+        lowerTitle.startsWith('terima transfer') ||
+        lowerTitle.startsWith('received transfer')) {
+      isIncome = true;
+    }
+
     final amtRaw = json['amount'] ?? json['nominal'] ?? 0;
     final amount = (amtRaw is num)
         ? amtRaw.toDouble()
@@ -164,21 +237,43 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       } catch (_) {}
     }
 
-    IconData icon = isIncome ? Icons.account_balance_rounded : Icons.shopping_bag_outlined;
+    IconData icon;
     final iconKey = json['icon']?.toString();
-    if (iconKey != null && categoryIcons.containsKey(iconKey)) {
+    if (isTransfer) {
+      icon = Icons.swap_horiz_rounded;
+    } else if (iconKey != null && categoryIcons.containsKey(iconKey)) {
       icon = categoryIcons[iconKey]!.icon;
+    } else if (isIncome) {
+      icon = Icons.account_balance_rounded;
+    } else {
+      icon = Icons.shopping_bag_outlined;
     }
 
+    final Color iconColor;
+    final Color iconBackground;
+    if (isTransfer) {
+      iconColor = AppColors.brand;
+      iconBackground = AppColors.brandSoft;
+    } else if (isIncome) {
+      iconColor = AppColors.income;
+      iconBackground = AppColors.incomeSoft;
+    } else {
+      iconColor = AppColors.expense;
+      iconBackground = AppColors.expenseSoft;
+    }
+
+    final displayTitle = AppTranslator.translateTransactionName(rawTitle);
+    final displayCategory = AppTranslator.translateCategory(rawCat);
+
     return TransactionItem(
-      title: title.toString(),
-      category: category.toString(),
+      title: displayTitle,
+      category: displayCategory,
       dateLabel: dateLabel,
       amount: DummyData.money(amount),
       type: isIncome ? TransactionType.income : TransactionType.expense,
       icon: icon,
-      iconColor: isIncome ? AppColors.income : AppColors.expense,
-      iconBackground: isIncome ? AppColors.incomeSoft : AppColors.expenseSoft,
+      iconColor: iconColor,
+      iconBackground: iconBackground,
       walletName: walletName?.toString(),
       value: isIncome ? amount : -amount,
       date: d,
@@ -186,7 +281,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   }
 
   Future<void> _handleRefresh() async {
-    await _loadData();
+    await _loadData(isRefresh: true);
   }
 
   bool get _hasFilter =>
@@ -260,14 +355,13 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               strokeWidth: 3.2,
               displacement: 40.0,
               onRefresh: _handleRefresh,
-              child: _isLoading
+              child: (_isLoading && _transactions.isEmpty)
                   ? const Center(child: CircularProgressIndicator(color: AppColors.brand))
                   : ListView(
                       controller: _scrollCtrl,
                       physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
                       children: [
-                        const SizedBox(height: 20),
                         const Text(
                           'Transactions',
                           style: TextStyle(
@@ -535,8 +629,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
     final widgets = <Widget>[];
     for (final entry in groups.entries) {
-      final total = entry.value.fold<double>(0, (s, t) => s + t.amount.displayAmount);
-      final totalSign = total < 0 ? '-' : '';
+      final totalBase = entry.value.fold<double>(
+        0,
+        (s, t) => s + (t.isIncome ? t.amount.baseAmount : -t.amount.baseAmount),
+      );
+      final totalSign = totalBase < 0 ? '-' : '';
+      final totalMoney = DummyData.money(totalBase.abs());
 
       widgets.add(
         AppCard(
@@ -559,7 +657,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       ),
                     ),
                     Text(
-                      '$totalSign${DummyData.money(total.abs()).text}',
+                      '$totalSign${totalMoney.text}',
                       style: const TextStyle(
                         fontSize: 14,
                         color: AppColors.muted,

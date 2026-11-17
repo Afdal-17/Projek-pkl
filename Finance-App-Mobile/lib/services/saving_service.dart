@@ -28,8 +28,8 @@ class SavingService {
     final body = <String, dynamic>{
       'id_dompet': int.tryParse(walletId.toString()) ?? walletId,
       'nama_target': name,
-      'nominal_target': targetAmount,
-      'initial_savings': initialAmount,
+      'nominal_target': double.parse(targetAmount.toStringAsFixed(2)),
+      'initial_savings': double.parse(initialAmount.toStringAsFixed(2)),
       if (description != null && description.isNotEmpty)
         'deskripsi': description,
     };

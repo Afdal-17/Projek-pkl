@@ -1,5 +1,7 @@
 import 'api_config.dart';
 import 'api_service.dart';
+import 'auth_service.dart';
+import '../utils/currency.dart';
 
 /// Service untuk pengelolaan transaksi melalui RESTful API backend Laravel
 class TransactionService {
@@ -7,8 +9,8 @@ class TransactionService {
 
   /// Mengambil daftar transaksi dari backend (`GET /api/transactions`)
   /// Response: paginated {data: [{id, name, type, category, wallet, to, amount, date, jenis, icon}]}
-  static Future<ApiResponse> fetchTransactions({int page = 1}) async {
-    return await ApiService.get('${ApiConfig.transactionsEndpoint}?page=$page');
+  static Future<ApiResponse> fetchTransactions({int page = 1, int perPage = 100}) async {
+    return await ApiService.get('${ApiConfig.transactionsEndpoint}?page=$page&per_page=$perPage');
   }
 
   /// Membuat transaksi baru (`POST /api/transactions`)
@@ -28,6 +30,11 @@ class TransactionService {
     required String date, // format: 'YYYY-MM-DD'
     String? note,
   }) async {
+    // Sinkronisasikan mata uang ke backend agar tidak terjadi perkalian kurs toBase()
+    try {
+      await AuthService.syncCurrencyToBackend(preferredCurrency.value);
+    } catch (_) {}
+
     final jenis = (type.toLowerCase() == 'income' || type.toLowerCase() == 'pemasukan')
         ? 'pemasukan'
         : 'pengeluaran';
@@ -36,7 +43,7 @@ class TransactionService {
       'id_dompet': int.tryParse(walletId.toString()) ?? walletId,
       'id_kategori': int.tryParse(categoryId.toString()) ?? categoryId,
       'nama_transaksi': name,
-      'jumlah': amount,
+      'jumlah': double.parse(amount.toStringAsFixed(2)),
       'jenis': jenis,
       'tanggal': date,
     };

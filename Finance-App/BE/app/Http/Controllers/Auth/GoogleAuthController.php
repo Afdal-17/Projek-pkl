@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Exceptions\OtpDeliveryException;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\OtpService;
@@ -9,6 +10,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -96,18 +98,25 @@ class GoogleAuthController extends Controller
                 'otp_verified_at' => now(),
             ])->save();
         } else {
-            // Jika akun sudah ada, perbarui google_id dan verifikasi jika belum
+            // Jika akun sudah ada, perbarui google_id jika belum terhubung
             if (! $user->google_id) {
                 $user->google_id = $googleId;
+                $user->save();
             }
-            if (! $user->email_verified_at) {
-                $user->email_verified_at = now();
-                $user->status = true;
+
+            // Jika akun belum diverifikasi OTP, arahkan ke verifikasi OTP
+            if (! $user->email_verified_at && ! $user->otp_verified_at) {
+                if (blank($user->otp_kode) || ! $user->otp_expires_at || $user->otp_expires_at->isPast()) {
+                    try {
+                        app(OtpService::class)->kirim($user);
+                    } catch (Throwable $e) {
+                        report($e);
+                    }
+                }
+                session()->put('otp_user_id', $user->id_user);
+
+                return redirect()->route('otp.show')->with('warning', 'Akun Anda belum diverifikasi. Silakan masukkan kode OTP yang dikirim ke email Anda.');
             }
-            if (! $user->otp_verified_at) {
-                $user->otp_verified_at = now();
-            }
-            $user->save();
         }
 
         // Akun yang diblokir (banned) oleh admin
@@ -181,29 +190,53 @@ class GoogleAuthController extends Controller
                 ], 404);
             }
 
-            // Mode REGISTER: buatkan akun baru otomatis (terverifikasi via Google).
-            $user = User::create([
-                'nama' => $nama,
-                'email' => $email,
-                'google_id' => $googleId,
-                'password' => Hash::make(Str::random(32)),
-                'role' => 'user',
-                'status' => true,
-                'email_verified_at' => now(),
-                'otp_verified_at' => now(),
-                'avatar_path' => $avatarPath,
-                'mata_uang' => 'USD',
-            ]);
+            // Mode REGISTER: buatkan akun baru dalam status BELUM TERVERIFIKASI
+            // dan kirimkan kode OTP ke Gmail user.
+            try {
+                $user = DB::transaction(function () use ($email, $googleId, $nama, $avatarPath) {
+                    $newUser = User::create([
+                        'nama' => $nama,
+                        'email' => $email,
+                        'google_id' => $googleId,
+                        'password' => Hash::make(Str::random(32)),
+                        'role' => 'user',
+                        'status' => false,
+                        'email_verified_at' => null,
+                        'otp_verified_at' => null,
+                        'avatar_path' => $avatarPath,
+                        'mata_uang' => 'USD',
+                    ]);
+
+                    app(OtpService::class)->kirim($newUser);
+
+                    return $newUser;
+                });
+            } catch (OtpDeliveryException $e) {
+                report($e);
+
+                return response()->json([
+                    'message' => 'Gagal mengirim kode OTP email. Silakan coba lagi nanti.',
+                ], 503);
+            } catch (Throwable $e) {
+                report($e);
+
+                return response()->json([
+                    'message' => 'Terjadi kesalahan saat memproses registrasi Google.',
+                ], 500);
+            }
+
+            return response()->json([
+                'message' => 'Registrasi Google berhasil. Silakan masukkan kode OTP yang dikirim ke email Anda.',
+                'requires_otp' => true,
+                'user_id' => $user->id_user,
+                'email' => $user->email,
+            ], 201);
         }
 
-        // Perbarui data jika belum sinkron
+        // Perbarui data jika belum sinkron (jangan ubah status verifikasi)
         $updates = [];
         if (! $user->google_id) {
             $updates['google_id'] = $googleId;
-        }
-        if (! $user->email_verified_at) {
-            $updates['email_verified_at'] = now();
-            $updates['status'] = true;
         }
         if ($avatarPath && ! $user->avatar_path) {
             $updates['avatar_path'] = $avatarPath;
@@ -228,19 +261,43 @@ class GoogleAuthController extends Controller
             }
         }
 
+        // Jika user belum diverifikasi OTP:
+        // JANGAN berikan token Sanctum. Arahkan kembali ke verifikasi OTP dan kirimkan ulang OTP jika diperlukan.
+        if (! $user->email_verified_at && ! $user->otp_verified_at) {
+            if (blank($user->otp_kode) || ! $user->otp_expires_at || $user->otp_expires_at->isPast()) {
+                try {
+                    app(OtpService::class)->kirim($user);
+                } catch (OtpDeliveryException $e) {
+                    report($e);
+
+                    return response()->json([
+                        'message' => 'Gagal mengirim kode OTP email. Silakan coba lagi nanti.',
+                    ], 503);
+                }
+            }
+
+            return response()->json([
+                'message' => 'Akun Google Anda belum diverifikasi. Silakan masukkan kode OTP yang dikirim ke email Anda.',
+                'requires_otp' => true,
+                'user_id' => $user->id_user,
+                'email' => $user->email,
+            ], 200);
+        }
+
+        // Jika user sudah terverifikasi tetapi akun dinonaktifkan
         if (! $user->status) {
             throw ValidationException::withMessages([
                 'email' => 'Akun Anda sedang tidak aktif. Silakan hubungi admin.',
             ]);
         }
 
-        // Buat Sanctum token untuk mobile
+        // User terverifikasi dan aktif: Buat Sanctum token untuk mobile
         $token = $user->createToken('mobile-google-token')->plainTextToken;
 
         return response()->json([
             'message' => 'Login Google berhasil',
             'token' => $token,
-            'user' => $user
+            'user' => $user,
         ]);
     }
 }

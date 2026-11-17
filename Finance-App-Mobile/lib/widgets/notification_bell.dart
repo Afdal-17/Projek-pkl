@@ -23,6 +23,7 @@ class _NotificationBellButtonState extends State<NotificationBellButton>
   @override
   void initState() {
     super.initState();
+    NotificationService.fetchNotifications();
     _pulseCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 900),

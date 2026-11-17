@@ -27,6 +27,7 @@ class User extends Authenticatable
      */
     protected $attributes = [
         'role' => 'user',
+        'mata_uang' => 'USD',
     ];
 
     /**
