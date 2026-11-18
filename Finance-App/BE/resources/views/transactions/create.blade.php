@@ -49,7 +49,7 @@
         },
 
         get amountInBase() {
-            // Input user dalam mata uang aktif, dikonversi ke IDR base
+            // Input user dalam mata uang aktif, dikonversi ke USD base
             return window.financeMoney.toBase(Number(this.amount) || 0);
         },
 

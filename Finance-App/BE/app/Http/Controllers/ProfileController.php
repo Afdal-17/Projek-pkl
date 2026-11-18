@@ -49,7 +49,7 @@ class ProfileController extends Controller
         $validated = $request->validated();
         $newCurrency = $validated['mata_uang'] ?? null;
 
-        // Mata uang hanya preferensi tampilan; nilai keuangan tetap tersimpan dalam IDR (base)
+        // Mata uang hanya preferensi tampilan; nilai keuangan tetap tersimpan dalam USD (base)
         if ($newCurrency && $newCurrency !== $user->mata_uang) {
             $currencyService->setUserCurrency($user, $newCurrency);
         }

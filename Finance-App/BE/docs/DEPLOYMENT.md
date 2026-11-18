@@ -34,6 +34,15 @@ php artisan view:cache
 
 - Migrasi mengubah default `mata_uang` untuk akun baru menjadi `USD`; preferensi
   yang sudah tersimpan pada akun lama tetap dipertahankan.
+- Migrasi `2026_11_18_000000_convert_financial_data_to_usd_base` mengubah data
+  finansial lama berbasis IDR menjadi USD memakai satu snapshot kurs USD/IDR,
+  lalu memperbesar presisi nominal menjadi 8 desimal. Backup database sebelum
+  menjalankannya. Jika migrasi pernah gagal setelah snapshot kurs dibuat, deploy
+  kode migrasi terbaru lalu jalankan `php artisan migrate --force` lagi; migrasi
+  akan mengenali snapshot tersebut dan tidak mengonversi nominal dua kali.
+  Jangan menghapus tabel `currency_base_migration_rates` secara manual. Periksa
+  `php artisan migrate:status`; migrasi yang berstatus `Ran` tidak perlu dijalankan
+  ulang.
 - **Docroot harus folder `public/`** — jangan pernah menaruh project root di web root
   (`index.php`, `.env`, `storage/` akan terekspos).
 - `chmod`/`chown` agar `storage/` dan `bootstrap/cache/` dapat ditulis user web server.
@@ -48,14 +57,39 @@ php artisan view:cache
 
 ## 4. Rotasi rahasia (repo GitHub publik: https://github.com/Afdal-17/Projek-pkl)
 
-`.env` tidak pernah ter-commit (sudah diverifikasi), tetapi **file `.env` lokal Anda
-berisi rahasia asli** — siapa pun yang pernah melihat layar/backup Anda bisa memilikinya.
-Rotasi semuanya sebelum / saat deploy:
+Nilai `GOOGLE_CLIENT_SECRET` dan `FONNTE_TOKEN` pernah terlihat saat konfigurasi
+dibagikan. Perlakukan keduanya sebagai terekspos dan rotasi meskipun `.env` tidak
+ter-commit. `GOOGLE_CLIENT_ID` biasanya bukan rahasia; yang wajib diganti adalah
+client secret. Jangan mengirim nilai pengganti melalui chat, issue, atau screenshot.
+
+Urutan rotasi:
+
+1. **Google OAuth:** buka project yang benar di Google Cloud Console → **APIs &
+   Services → Credentials**. Buat/generate secret baru untuk OAuth client yang
+   digunakan. Jika secret tidak dapat dirotasi pada client tersebut, buat OAuth
+   client pengganti dengan tipe dan authorized redirect URI/origin yang sama.
+   Perbarui `GOOGLE_CLIENT_SECRET` (dan `GOOGLE_CLIENT_ID` jika client baru dibuat)
+   di `.env`, uji login Google, lalu cabut/hapus secret atau client lama.
+2. **Fonnte:** buka dashboard Fonnte, buat/regenerate token API, ganti `FONNTE_TOKEN`
+   di `.env`, uji kirim OTP/pesan, lalu cabut token lama.
+3. Bersihkan cache konfigurasi dan bangun ulang cache production:
+
+   ```bash
+   php artisan config:clear
+   php artisan config:cache
+   ```
+
+   Restart proses PHP/queue worker yang berjalan agar memakai konfigurasi baru.
+4. Periksa aktivitas login/pengiriman pesan di provider. Jika ada penggunaan yang
+   tidak dikenal, hubungi dukungan provider dan lakukan tindakan pemulihan akun.
+
+Rotasi tambahan yang tetap disarankan:
 
 - [ ] Password app Gmail (app password) untuk `MAIL_PASSWORD`
-- [ ] `GOOGLE_CLIENT_SECRET` di Google Cloud Console
-- [ ] `FONNTE_TOKEN` (token Fonnte WhatsApp)
 - [ ] Password akun `admin@finance.test` / `user@finance.test` jika pernah dipakai di luar
+
+`GOOGLE_SSL_VERIFY` sebaiknya `true` agar koneksi HTTPS memvalidasi sertifikat
+server. Jangan menonaktifkannya untuk production.
 
 ## 5. Pemantauan pasca-deploy
 

@@ -7,6 +7,7 @@ use App\Models\Kategori;
 use App\Models\Notifikasi;
 use App\Models\TargetTabungan;
 use App\Models\User;
+use App\Services\CurrencyService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -90,7 +91,7 @@ class NotifikasiTest extends TestCase
             'id_user' => $user->id_user,
             'id_dompet' => $dompet->id_dompet,
             'nama_target' => 'Dana Darurat',
-            'nominal_target' => 100000,
+            'nominal_target' => CurrencyService::toBase(100000, 'IDR'),
             'nominal_terkumpul' => 0,
             'status' => 'belum_tercapai',
         ]);
@@ -131,8 +132,8 @@ class NotifikasiTest extends TestCase
         $wallet = Dompet::create([
             'id_user' => $user->id_user,
             'nama_dompet' => $walletName,
-            'saldo_awal' => $balance,
-            'saldo' => $balance,
+            'saldo_awal' => CurrencyService::toBase($balance, 'IDR'),
+            'saldo' => CurrencyService::toBase($balance, 'IDR'),
         ]);
 
         return [$user, $wallet];

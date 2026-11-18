@@ -8,12 +8,12 @@ class CurrencyService
 {
     /**
      * Mata uang penyimpanan (base currency). Seluruh nilai keuangan di database
-     * SELALU tersimpan dalam IDR. Konversi hanya dilakukan saat menampilkan
+     * SELALU tersimpan dalam USD. Konversi hanya dilakukan saat menampilkan
      * (display) dan saat menyimpan input user (toBase). Dengan demikian,
      * mengganti mata uang tidak pernah mengubah data tersimpan, sehingga
      * konversi selalu akurat dan dapat dikembalikan tanpa kehilangan presisi.
      */
-    public const BASE = 'IDR';
+    public const BASE = 'USD';
 
     /**
      * Memoisasi kurs per-request (konversi dipanggil berkali-kali per halaman).
@@ -42,7 +42,7 @@ class CurrencyService
     }
 
     /**
-     * Kurs relatif IDR (IDR = 1.0) dari sumber live (Frankfurter, di-cache)
+     * Kurs relatif USD (USD = 1.0) dari sumber live (Frankfurter, di-cache)
      * dengan fallback otomatis ke kurs cadangan bila internet tidak tersedia.
      */
     public static function rates(): array
@@ -59,7 +59,7 @@ class CurrencyService
     }
 
     /**
-     * Konversi nominal antar mata uang via base IDR.
+     * Rates represent units of each currency per 1 USD.
      */
     public static function convert(float|int $amount, string $from, string $to): float
     {
@@ -79,21 +79,21 @@ class CurrencyService
             return $amount;
         }
 
-        return $amount * ($dari / $ke);
+        return $amount * ($ke / $dari);
     }
 
     /**
-     * Konversi nilai input user (dalam mata uang aktif) ke IDR base untuk disimpan.
+     * Konversi nilai input user (dalam mata uang aktif) ke USD base untuk disimpan.
      */
     public static function toBase(float|int $amount, ?string $currency = null): float
     {
         $currency = self::normalize($currency ?? (auth()->user()->mata_uang ?? self::BASE));
 
-        return self::convert($amount, $currency, self::BASE);
+        return round(self::convert($amount, $currency, self::BASE), 8);
     }
 
     /**
-     * Konversi nilai IDR base ke mata uang aktif untuk ditampilkan.
+     * Konversi nilai USD base ke mata uang aktif untuk ditampilkan.
      */
     public static function fromBase(float|int $amount, ?string $currency = null): float
     {
@@ -103,7 +103,37 @@ class CurrencyService
     }
 
     /**
-     * Ubah preferensi mata uang user. Nilai keuangan tetap tersimpan dalam IDR
+     * Additive API representation for a base-currency amount and its display value.
+     *
+     * @return array{
+     *     base_amount: float,
+     *     base_currency: string,
+     *     display_amount: float,
+     *     display_currency: string,
+     *     rate: array{from: string, to: string, value: float}
+     * }
+     */
+    public static function moneyData(float|int $amount, ?string $currency = null): array
+    {
+        $currency = self::normalize($currency ?? (auth()->user()->mata_uang ?? self::BASE));
+        $displayDecimals = $currency === 'IDR' ? 0 : 2;
+        $rate = self::convert(1, self::BASE, $currency);
+
+        return [
+            'base_amount' => (float) $amount,
+            'base_currency' => self::BASE,
+            'display_amount' => round(self::fromBase($amount, $currency), $displayDecimals),
+            'display_currency' => $currency,
+            'rate' => [
+                'from' => self::BASE,
+                'to' => $currency,
+                'value' => $rate,
+            ],
+        ];
+    }
+
+    /**
+     * Ubah preferensi mata uang user. Nilai keuangan tetap tersimpan dalam USD
      * (base currency), sehingga perpindahan mata uang selalu akurat dan tidak
      * merusak saldo maupun riwayat transaksi.
      */

@@ -9,6 +9,16 @@ Dokumen ini menjelaskan rancangan tabel, tipe data, dan relasi antar tabel di da
 
 Sistem ini menggunakan basis data relasional MySQL dengan relasi kunci asing (*Foreign Key*) yang terstruktur untuk menjaga integritas data keuangan.
 
+### Mata uang dasar dan migrasi data
+
+Seluruh nominal finansial disimpan sebagai USD. Migrasi
+`2026_11_18_000000_convert_financial_data_to_usd_base` mengonversi data lama
+berbasis IDR memakai satu kurs USD/IDR yang dicatat di tabel
+`currency_base_migration_rates`, lalu menaikkan presisi kolom finansial menjadi
+`DECIMAL(26,8)`. Snapshot kurs dipertahankan untuk rollback dan sebagai penanda
+pemulihan jika migrasi gagal setelah konversi; jangan menghapusnya secara manual
+sebelum memastikan status migrasi dan data.
+
 | No | Nama Tabel | Fungsi Utama | Relasi Terkait |
 |----|------------|--------------|----------------|
 | 1 | `users` | Menyimpan data akun pengguna (user & admin) | Memiliki banyak `dompet`, `transaksi`, `target_tabungan`, `notifikasi` |

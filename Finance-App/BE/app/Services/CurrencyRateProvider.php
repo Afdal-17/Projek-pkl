@@ -10,14 +10,14 @@ use Throwable;
 class CurrencyRateProvider
 {
     /** Kurs segar (hasil fetch API), di-cache selama ttl_minutes. */
-    public const CACHE_KEY = 'currency.rates';
+    public const CACHE_KEY = 'currency.rates.usd';
 
     /** Kurs terakhir yang berhasil diambil — dipakai saat API sedang gagal. */
-    public const STALE_KEY = 'currency.rates.stale';
+    public const STALE_KEY = 'currency.rates.usd.stale';
 
     /**
-     * Kurs relatif terhadap IDR (IDR = 1.0).
-     * Contoh hasil: ['IDR' => 1.0, 'USD' => 17857.14, 'EUR' => 20000.0]
+     * Jumlah unit setiap mata uang per 1 USD.
+     * Contoh hasil: ['USD' => 1.0, 'IDR' => 16000.0, 'EUR' => 0.92]
      *
      * Prioritas: cache → API Frankfurter → cache lama (stale) → fallback statis.
      */
@@ -60,9 +60,8 @@ class CurrencyRateProvider
     /**
      * Ambil kurs segar dari Frankfurter.
      *
-     * Frankfurter memberi kurs dalam format "sejumlah X mata uang per 1 IDR"
-     * (mis. USD = 0.000056), sedangkan aplikasi memakai konvensi
-     * "IDR per 1 unit mata uang" (mis. USD = 17857) → nilainya dibalik.
+     * Frankfurter memberi jumlah unit target per 1 USD, sama dengan format
+     * rates yang dipakai aplikasi.
      */
     protected function fetch(array $supported): array
     {
@@ -88,13 +87,13 @@ class CurrencyRateProvider
         $result = [CurrencyService::BASE => 1.0];
 
         foreach ($targets as $code) {
-            $perIdr = isset($rates[$code]) ? (float) $rates[$code] : 0.0;
+            $perUsd = isset($rates[$code]) ? (float) $rates[$code] : 0.0;
 
-            if ($perIdr <= 0) {
+            if ($perUsd <= 0) {
                 throw new RuntimeException("Kurs {$code} tidak tersedia di respons API.");
             }
 
-            $result[$code] = 1.0 / $perIdr;
+            $result[$code] = $perUsd;
         }
 
         return $result;

@@ -324,7 +324,7 @@
                         x-on:click="
                             mode = 'edit';
                             editing = @js($w);
-                            /* balance dari backend (IDR base) dikonversi ke
+                            /* balance dari backend (USD base) dikonversi ke
                                mata uang aktif lalu difORMAT sebagai ANGKA
                                (bukan parse string) agar pemisah desimal benar */
                             editing.balance = window.financeMoney.fromBase(Number(editing.balance));

@@ -29,7 +29,7 @@ class Transaksi extends Model
     protected function casts(): array
     {
         return [
-            'jumlah' => 'decimal:2',
+            'jumlah' => 'decimal:8',
             'tanggal' => 'datetime',
         ];
     }

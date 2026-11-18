@@ -49,14 +49,30 @@ Sebelum menjalankan proyek, pastikan komputer Anda telah terinstal:
    ```
 
 6. **Jalankan Migrasi & Seeder Database**:
-   Perintah ini akan membuat seluruh tabel dan memasukkan akun demo secara otomatis:
+   Untuk database lokal baru/kosong, perintah ini membuat tabel dan memasukkan akun demo:
    ```bash
    php artisan migrate:fresh --seed
    ```
    Preferensi tampilan akun baru (termasuk akun demo) default-nya USD; seluruh
-   nominal keuangan tetap disimpan backend dalam IDR sebagai mata uang dasar.
+   nominal keuangan disimpan backend dalam USD sebagai mata uang dasar.
 
-7. **Jalankan Server Backend**:
+   > `migrate:fresh` menghapus seluruh tabel dan data. Jangan gunakan pada database
+   > yang sudah berisi data. Untuk database yang sudah ada, backup terlebih dahulu,
+   > lalu jalankan `php artisan migrate`. Migrasi konversi USD menganggap data lama
+   > masih IDR; jika pernah dikonversi manual ke USD, jangan jalankan sebelum
+   > memeriksa/memulihkan status data. Jika migrasi konversi gagal setelah membuat
+   > snapshot kurs, gunakan kode migrasi terbaru lalu ulangi `php artisan migrate`;
+   > jangan hapus tabel snapshot `currency_base_migration_rates` secara manual.
+
+7. **Konfigurasi kredensial eksternal (opsional)**:
+   Isi `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, dan `FONNTE_TOKEN` di `.env`
+   melalui Google Cloud Console dan dashboard Fonnte. Jangan masukkan secret/token
+   ke Git, screenshot, atau chat. Jika secret/token pernah dibagikan, cabut/ganti di
+   dashboard provider, perbarui `.env`, lalu jalankan `php artisan config:clear`.
+   Untuk OAuth, bila membuat client baru, daftarkan redirect URI yang digunakan
+   backend dan perbarui Client ID sekaligus secret.
+
+8. **Jalankan Server Backend**:
    ```bash
    php artisan serve --host=0.0.0.0 --port=8003
    ```

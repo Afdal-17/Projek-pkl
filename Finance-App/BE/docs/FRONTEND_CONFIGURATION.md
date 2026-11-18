@@ -28,14 +28,17 @@ Authorization: Bearer <sanctum_token>
 
 ## 2. Aturan Penting Konversi Mata Currency (Penting untuk Tim Mobile/Web)
 
-Backend Finance App **menyimpan seluruh data keuangan di database dalam bentuk Rupiah (IDR) murni** sebagai *base currency*. Preferensi tampilan mata uang akun baru secara default adalah USD; mata uang tersimpan milik akun lama tetap mengikuti preferensi masing-masing.
+Backend Finance App **menyimpan seluruh data keuangan dalam USD** sebagai *base currency*. Default akun baru adalah USD; preferensi tampilan akun yang sudah ada tetap mengikuti pengaturan masing-masing.
 
 1. **Backend Menangani Konversi Otomatis:**
-   * Backend otomatis membaca preferensi mata uang user (`mata_uang` di tabel `users`, pilihannya: `IDR`, `USD`, `EUR`).
-   * Setiap nilai yang dikirim oleh endpoint API (`/api/dompet`, `/api/dashboard/summary`, `/api/transaksi`, dll) **sudah dikonversi otomatis** oleh backend ke mata uang pilihan user tersebut.
+   * Nilai uang yang dikirim ke endpoint penulisan dinyatakan dalam preferensi akun (`mata_uang` di tabel `user`, pilihannya: `IDR`, `USD`, `EUR`); backend mengonversinya ke USD sebelum menyimpan.
+   * Field nominal API yang sudah ada tetap berisi angka dasar USD demi kompatibilitas. Response keuangan menambahkan objek seperti `amount_money`, `saldo_money`, `target_money`, atau `*_money`, dengan `base_amount`, `base_currency`, `display_amount`, `display_currency`, dan `rate`.
+   * Gunakan `*_money.display_amount` dan `display_currency` untuk tampilan sesuai preferensi akun. Nilai display dibulatkan ke digit minor mata uang (IDR 0 desimal; USD/EUR 2 desimal).
 2. **Aturan untuk Frontend (Flutter/Vue):**
-   * **JANGAN** melakukan perhitungan kurs / perkalian / pembagian kurs manual di aplikasi mobile atau web frontend.
-   * Frontend cukup **menerima angka mentah** dari JSON response backend, lalu memformatnya menggunakan formatter mata uang lokal (misal `NumberFormat.currency` di Flutter atau `Intl.NumberFormat` di Vue).
+   * Nilai dasar uang tersimpan dalam USD dengan presisi hingga 8 angka desimal.
+   * Jangan menganggap field nominal lama sebagai mata uang tampilan. Gunakan pasangan `*_money` jika tersedia; jangan hardcode kurs.
+   * `GET /api/currency/rates` tetap tersedia untuk informasi kurs (unit mata uang per 1 USD); response `*_money.rate` menunjukkan kurs yang digunakan untuk konversi item tersebut.
+   * Format angka hasil konversi menggunakan kode mata uang yang dipilih pengguna.
    * Untuk mengganti mata uang akun, frontend cukup memanggil:
      `PATCH /api/account/currency` dengan body `{ "mata_uang": "USD" }` (pilihan: `IDR`, `USD`, `EUR`).
 

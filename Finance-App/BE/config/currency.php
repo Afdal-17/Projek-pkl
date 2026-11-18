@@ -12,7 +12,7 @@ return [
     | dunia tidak pernah merusak data tersimpan.
     */
 
-    'base' => 'IDR',
+    'base' => 'USD',
 
     /*
     |--------------------------------------------------------------------------
@@ -21,13 +21,13 @@ return [
     | Daftar kode mata uang yang boleh dipilih user.
     */
 
-    'supported' => ['IDR', 'USD', 'EUR'],
+    'supported' => ['USD', 'IDR', 'EUR'],
 
     /*
     |--------------------------------------------------------------------------
-    | Kurs Real-Time
+    | Kurs Otomatis
     |--------------------------------------------------------------------------
-    | Jika true, kurs diambil dari internet (Frankfurter) lalu di-cache.
+    | Jika true, kurs harian terbaru diambil dari internet (Frankfurter) lalu di-cache.
     | Jika false (mis. test/offline), aplikasi memakai fallback_rates.
     */
 
@@ -35,7 +35,7 @@ return [
 
     /*
     | Sumber kurs: Frankfurter (https://frankfurter.dev) — gratis, tanpa API key,
-    | kurs resmi harian dari ECB dan bank sentral lainnya.
+    | kurs resmi harian dari ECB dan bank sentral lainnya; bukan kurs intraday.
     */
 
     'provider_url' => env('CURRENCY_PROVIDER_URL', 'https://api.frankfurter.app/latest'),
@@ -48,13 +48,12 @@ return [
     |--------------------------------------------------------------------------
     | Kurs Cadangan
     |--------------------------------------------------------------------------
-    | Dipakai saat internet/API tidak tersedia sama sekali.
+    | Jumlah unit mata uang per 1 USD. Dipakai saat internet/API tidak tersedia.
     */
 
     'fallback_rates' => [
-        'IDR' => 1.0,
-        'USD' => 16000.0,
-        'EUR' => 17500.0,
+        'IDR' => 16000.0,
+        'EUR' => 0.9142857143,
     ],
 
 ];

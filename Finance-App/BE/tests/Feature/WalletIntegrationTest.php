@@ -168,8 +168,8 @@ class WalletIntegrationTest extends TestCase
         ])->assertRedirect(route('dompet.index'));
 
         $wallet = Dompet::where('id_user', $user->id_user)->firstOrFail();
-        $this->assertSame('150000.00', (string) $wallet->saldo);
-        $this->assertSame('150000.00', (string) $wallet->saldo_awal);
+        $this->assertSame('150000.00000000', (string) $wallet->saldo);
+        $this->assertSame('150000.00000000', (string) $wallet->saldo_awal);
 
         $this->assertDatabaseHas('transaksi', [
             'id_dompet' => $wallet->id_dompet,
@@ -224,8 +224,8 @@ class WalletIntegrationTest extends TestCase
         ])->assertRedirect(route('dompet.index'));
 
         $wallet = Dompet::where('id_user', $user->id_user)->firstOrFail();
-        $this->assertSame('75000.00', (string) $wallet->saldo);
-        $this->assertSame('0.00', (string) $wallet->saldo_awal);
+        $this->assertSame('75000.00000000', (string) $wallet->saldo);
+        $this->assertSame('0.00000000', (string) $wallet->saldo_awal);
 
         $this->assertDatabaseMissing('transaksi', [
             'id_dompet' => $wallet->id_dompet,

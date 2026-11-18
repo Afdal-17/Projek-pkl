@@ -12,7 +12,7 @@ class NotifikasiService
     /**
      * Catat notifikasi transaksi.
      *
-     * $jumlah selalu dalam IDR base dan $pesanTemplate memakai placeholder
+     * $jumlah selalu dalam USD base dan $pesanTemplate memakai placeholder
      * {jumlah} — nominal dirender ulang saat ditampilkan sesuai mata uang
      * pemilik notifikasi saat ini (lihat Notifikasi::pesanTampil()). $pesan
      * (teks jadi) tetap disimpan untuk popup sesi dan fallback.

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Notifikasi;
+use App\Services\CurrencyService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -27,6 +28,9 @@ class NotifikasiController extends Controller
                 'title' => $notification->tipe === 'target' ? 'Savings goal reached' : (str_starts_with($notification->pesan, 'Transfer ')
                     || str_starts_with($notification->pesan, 'Anda di transfer oleh ') ? 'Transfer success!' : 'Transaction update'),
                 'text' => $notification->pesanTampil(),
+                'amount_money' => $notification->jumlah !== null
+                    ? CurrencyService::moneyData((float) $notification->jumlah)
+                    : null,
                 'scope' => $notification->tanggal->diffForHumans(),
                 'read' => $notification->sudah_dibaca,
             ]);

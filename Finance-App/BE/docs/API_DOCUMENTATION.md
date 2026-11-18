@@ -144,6 +144,7 @@ membalas `422`.
 | POST | `/api/reset-password/phone` | Ganti password dengan token pemulihan telepon |
 | GET | `/user` | Data user yang sedang login |
 | GET | `/account` | Profil akun + `avatar_url` |
+| GET | `/currency/rates` | Kurs harian terbaru/cached dengan USD sebagai basis |
 | PATCH | `/account` | Ubah profil (`nama`, `email`, `nomor_telepon`, `lokasi`, `mata_uang`) |
 | PATCH | `/account/currency` | Ganti mata uang tampilan (`IDR`/`USD`/`EUR`) |
 | POST | `/account/avatar` | Upload avatar (multipart `avatar`, jpg/png maks 2 MB) |
@@ -174,9 +175,32 @@ PATCH /api/account
 ```
 
 > Tidak ada field `password` di endpoint ini — ubah password lewat halaman web Breeze.
-> Preferensi tampilan akun baru secara default adalah USD; preferensi yang sudah
-> tersimpan tidak diubah. Nilai keuangan tetap disimpan dalam IDR sebagai mata
-> uang dasar.
+> Mata uang dasar aplikasi dan default akun baru adalah USD. Nominal yang
+> dikirim untuk penulisan (`jumlah`, `saldo`, atau nominal target) dinyatakan
+> dalam mata uang preferensi akun; backend mengonversinya ke USD sebelum
+> menyimpan. Field uang yang sudah ada pada response tetap bernilai USD demi
+> kompatibilitas. Response finansial juga menyertakan field `*_money` berisi
+> nilai dasar USD, nilai tampilan sesuai preferensi akun, kode mata uang, dan
+> kurs yang digunakan. Nilai `display_amount` dibulatkan ke digit minor mata uang
+> (IDR tanpa desimal; USD/EUR dua desimal).
+
+`GET /api/currency/rates` mengembalikan objek berkunci kode mata uang, misalnya
+`{ "USD": 1, "IDR": 16000, "EUR": 0.91 }`. Kurs menyatakan jumlah unit mata
+uang per 1 USD; kurs terbaru yang diterbitkan bersumber dari Frankfurter dan
+di-cache sesuai konfigurasi. Jika provider gagal, backend memakai kurs cache
+terakhir atau kurs cadangan.
+
+Contoh objek uang:
+
+```json
+{
+  "base_amount": 100,
+  "base_currency": "USD",
+  "display_amount": 91.43,
+  "display_currency": "EUR",
+  "rate": { "from": "USD", "to": "EUR", "value": 0.9142857143 }
+}
+```
 
 ---
 
@@ -190,15 +214,28 @@ PATCH /api/account
 200 OK
 {
   "periode": { "mulai": "2026-11-01", "selesai": "2026-11-30" },
-  "total_saldo": 1475000,
-  "total_pemasukan_bulan_ini": 1000000,
-  "total_pengeluaran_bulan_ini": 25000,
-  "pengeluaran_per_kategori": [ { "id_kategori": 2, "nama_kategori": "Makan", "total": 25000 } ],
+  "total_saldo": 100,
+  "total_saldo_money": {
+    "base_amount": 100, "base_currency": "USD",
+    "display_amount": 91.43, "display_currency": "EUR",
+    "rate": { "from": "USD", "to": "EUR", "value": 0.9142857143 }
+  },
+  "total_pemasukan_bulan_ini": 100,
+  "total_pemasukan_bulan_ini_money": { "...": "objek uang" },
+  "total_pengeluaran_bulan_ini": 25,
+  "total_pengeluaran_bulan_ini_money": { "...": "objek uang" },
+  "pengeluaran_per_kategori": [ {
+    "id_kategori": 2, "nama_kategori": "Makan", "total": 25,
+    "total_money": { "...": "objek uang" }
+  } ],
   "target_tabungan": [ { "id_target": 1, "nama_target": "...", "progress": 1.33, "tercapai": false } ]
 }
 ```
 
 Baris **transfer tidak dihitung** sebagai pemasukan/pengeluaran bulanan.
+Field nominal dashboard lainnya (`saldo_dompet`, `jumlah_terkumpul`, dan
+`nominal_target`) memiliki field pasangan berakhiran `_money`.
+Nilai `progress` adalah persentase 0–100 (contoh `1.33` berarti 1,33%).
 
 ---
 
@@ -222,7 +259,10 @@ dan **salah satu** dari `saldo` atau `saldo_awal`.
 ```
 
 **GET `/dompet`** membalas objek paginator Laravel — kunci `data[]`, `current_page`,
-`per_page`, `total`, `links[]`, dll. **Tidak ada key `meta`** (bukan API Resource).
+`per_page`, `total`, `links[]`, dll. Setiap dompet mempertahankan field nominal
+dasar USD dan menambahkan `saldo_money` serta `saldo_awal_money`. **Tidak ada key
+`meta`** (bukan API Resource). Response detail `/dompet/{id}` menggunakan format
+nominal uang yang sama.
 
 **PATCH `/dompet/{id}/manage`** mewajibkan `nama_dompet`, `jenis`, `warna`, `saldo`.
 
@@ -319,13 +359,19 @@ GET /api/transactions?page=1&per_page=2&jenis=pengeluaran
   "current_page": 1, "per_page": 2, "total": 4, "last_page": 2,
   "data": [
     { "id": 2, "name": "Makan Siang", "type": "expense", "category": "Makan",
-      "wallet": "Dompet Utama", "to": null, "amount": 25000,
+      "wallet": "Dompet Utama", "to": null, "amount": 25,
+      "amount_money": {
+        "base_amount": 25, "base_currency": "USD",
+        "display_amount": 22.86, "display_currency": "EUR",
+        "rate": { "from": "USD", "to": "EUR", "value": 0.9142857143 }
+      },
       "date": "2026-11-05", "jenis": "pengeluaran", "icon": "utensils" }
   ]
 }
 ```
 
 `type` = `income` / `expense` / `transfer`. `icon` = `transfer` | ikon kategori | fallback.
+`amount` tetap USD; gunakan `amount_money` untuk nilai USD dan nilai tampilan.
 
 ```json
 POST /api/transactions
@@ -383,7 +429,9 @@ GET /api/saving
 200 OK
 [
   { "id": 1, "name": "Beli Laptop", "note": "Upgrade", "wallet": "Dompet Tabungan",
-    "saved": 100000, "target": 20000000, "progress": 0.5, "achieved": false }
+    "saved": 100, "saved_money": { "...": "objek uang" },
+    "target": 200, "target_money": { "...": "objek uang" },
+    "progress": 50, "achieved": false }
 ]
 ```
 
@@ -408,7 +456,9 @@ GET /api/notifications?read=0
 200 OK
 [
   { "id": 101, "type": "saving", "title": "Savings goal reached",
-    "text": "Target Liburan telah tercapai.", "scope": "2 jam yang lalu", "read": false }
+    "text": "Target Liburan telah tercapai.",
+    "amount_money": { "...": "objek uang atau null bila tidak ada nominal" },
+    "scope": "2 jam yang lalu", "read": false }
 ]
 ```
 

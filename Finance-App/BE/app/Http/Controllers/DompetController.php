@@ -24,6 +24,12 @@ class DompetController extends Controller
         $dompet = Dompet::where('id_user', Auth::id())->latest()->paginate(10);
 
         if ($request->expectsJson()) {
+            $dompet->through(fn (Dompet $wallet): array => [
+                ...$wallet->toArray(),
+                'saldo_money' => CurrencyService::moneyData((float) $wallet->saldo),
+                'saldo_awal_money' => CurrencyService::moneyData((float) $wallet->saldo_awal),
+            ]);
+
             return response()->json($dompet);
         }
 
@@ -55,6 +61,7 @@ class DompetController extends Controller
                     ? 'Transfer'
                     : ($transaction->kategori?->nama_kategori ?? ($transaction->nama_transaksi === 'Saldo awal' ? 'Saldo awal' : 'Without category')),
                 'amount' => (float) $transaction->jumlah,
+                'amount_money' => CurrencyService::moneyData((float) $transaction->jumlah),
                 'jenis' => $transaction->jenis,
                 'icon' => $transaction->id_transfer !== null
                     ? 'transfer'
@@ -64,7 +71,11 @@ class DompetController extends Controller
 
         if ($request->expectsJson()) {
             return response()->json([
-                'dompet' => $dompet,
+                'dompet' => [
+                    ...$dompet->toArray(),
+                    'saldo_money' => CurrencyService::moneyData((float) $dompet->saldo),
+                    'saldo_awal_money' => CurrencyService::moneyData((float) $dompet->saldo_awal),
+                ],
                 'transactions' => $transactions,
             ]);
         }
@@ -164,7 +175,7 @@ class DompetController extends Controller
                 ->lockForUpdate()
                 ->firstOrFail();
             $oldBalance = (float) $wallet->saldo;
-            $delta = round($newBalance - $oldBalance, 2);
+            $delta = round($newBalance - $oldBalance, 8);
 
             $wallet->update([
                 'nama_dompet' => $data['nama_dompet'],

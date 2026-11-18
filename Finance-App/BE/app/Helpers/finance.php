@@ -3,10 +3,7 @@
 if (! function_exists('finance_money')) {
     /**
      * Format uang sesuai mata uang user. Nilai $amount tersimpan dalam
-     * IDR (base currency) dan dikonversi ke mata uang aktif saat menampilkan:
-     *   IDR -> "Rp 1.000.000"    (locale id-ID, tanpa desimal)
-     *   USD -> "$1,000.00"         (locale en-US)
-     *   EUR -> "1.000.000,00 €"    (locale de-DE)
+     * USD (base currency) dan dikonversi ke mata uang aktif saat menampilkan.
      */
     function finance_money($amount, ?string $currency = null): string
     {

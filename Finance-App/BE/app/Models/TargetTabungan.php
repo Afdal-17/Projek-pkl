@@ -31,9 +31,9 @@ class TargetTabungan extends Model
     protected function casts(): array
     {
         return [
-            'nominal_target' => 'decimal:2',
-            'nominal_terkumpul' => 'decimal:2',
-            'saldo_awal_dompet' => 'decimal:2',
+            'nominal_target' => 'decimal:8',
+            'nominal_terkumpul' => 'decimal:8',
+            'saldo_awal_dompet' => 'decimal:8',
         ];
     }
 

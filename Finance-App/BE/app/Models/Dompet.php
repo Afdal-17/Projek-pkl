@@ -29,8 +29,8 @@ class Dompet extends Model
     protected function casts(): array
     {
         return [
-            'saldo_awal' => 'decimal:2',
-            'saldo' => 'decimal:2',
+            'saldo_awal' => 'decimal:8',
+            'saldo' => 'decimal:8',
             'terima_transfer' => 'boolean',
         ];
     }

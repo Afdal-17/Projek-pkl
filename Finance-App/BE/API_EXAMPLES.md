@@ -54,6 +54,29 @@ POST /api/logout                       → 200
 OPTIONS (preflight CORS)               → 204 + Access-Control-Allow-Origin
 ```
 
+### Format nilai uang di API
+
+Database memakai USD sebagai mata uang dasar. Field nominal yang sudah ada,
+seperti `amount`, `saldo`, `total_saldo`, `saved`, dan `target`, tetap menyatakan
+nilai USD demi kompatibilitas. Response finansial menambahkan objek pasangan,
+misalnya `amount_money`, `saldo_money`, `total_saldo_money`, `saved_money`, atau
+`target_money`:
+
+```json
+{
+  "base_amount": 100,
+  "base_currency": "USD",
+  "display_amount": 91.43,
+  "display_currency": "EUR",
+  "rate": { "from": "USD", "to": "EUR", "value": 0.9142857143 }
+}
+```
+
+Gunakan `display_amount` untuk tampilan sesuai preferensi akun; nilai tampilan
+dibulatkan menurut digit minor mata uang. Input endpoint penulisan dinyatakan
+dalam mata uang preferensi akun dan backend mengonversinya ke USD. Lihat
+`docs/API_DOCUMENTATION.md` untuk pasangan field per endpoint.
+
 ---
 
 ## 1. Test cepat pakai curl

@@ -298,6 +298,7 @@ class TransaksiController extends Controller
                 ? $transaction->displayLawan()
                 : null,
             'amount' => (float) $transaction->jumlah,
+            'amount_money' => CurrencyService::moneyData((float) $transaction->jumlah),
             'date' => $transaction->tanggal->toDateString(),
             'jenis' => $transaction->jenis,
             'icon' => $transaction->id_transfer !== null

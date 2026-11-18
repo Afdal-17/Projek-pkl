@@ -37,8 +37,8 @@ class TransferTest extends TestCase
 
         $transfer = Transfer::firstOrFail();
         $this->assertSame($pengirim->id_user, $transfer->id_user);
-        $this->assertDatabaseHas('dompet', ['id_dompet' => $dompetAsal->id_dompet, 'saldo' => 75000]);
-        $this->assertDatabaseHas('dompet', ['id_dompet' => $dompetTujuan->id_dompet, 'saldo' => 35000]);
+        $this->assertDatabaseHas('dompet', ['id_dompet' => $dompetAsal->id_dompet, 'saldo' => 4.6875]);
+        $this->assertDatabaseHas('dompet', ['id_dompet' => $dompetTujuan->id_dompet, 'saldo' => 2.1875]);
         $this->assertSame(2, $transfer->transaksi()->count());
         $this->assertSame(1, Transaksi::where('id_transfer', $transfer->id_transfer)->where('jenis', 'pengeluaran')->count());
         $this->assertSame(1, Transaksi::where('id_transfer', $transfer->id_transfer)->where('jenis', 'pemasukan')->count());
@@ -61,7 +61,7 @@ class TransferTest extends TestCase
         ])->assertSessionHasErrors('jumlah');
 
         $this->assertSame(0, Transfer::count());
-        $this->assertDatabaseHas('dompet', ['id_dompet' => $dompetAsal->id_dompet, 'saldo' => 1000]);
+        $this->assertDatabaseHas('dompet', ['id_dompet' => $dompetAsal->id_dompet, 'saldo' => 0.0625]);
     }
 
     public function test_user_search_returns_matching_users_by_name(): void
@@ -214,7 +214,7 @@ class TransferTest extends TestCase
     public function test_transfer_from_eur_sender_to_idr_receiver_converts_correctly(): void
     {
         // Pengirim memakai EUR, penerima memakai IDR. Seluruh nilai di database
-        // disimpan dalam IDR (base), jadi transfer harus dikonversi dengan tepat.
+        // disimpan dalam USD (base), jadi transfer harus dikonversi dengan tepat.
         [$pengirim, $dompetAsal] = $this->userWithWallet('eu@example.com', 'Dompet EUR', 1000000, 'EUR');
         [$penerima, $dompetTujuan] = $this->userWithWallet('id@example.com', 'Dompet IDR', 50000, 'IDR');
 
@@ -222,10 +222,9 @@ class TransferTest extends TestCase
         $this->assertSame('IDR', $penerima->mata_uang);
 
         // Backend menerima "jumlah" dalam mata uang aktif pengirim (EUR) lalu
-        // mengonversinya ke IDR base. 50 EUR dengan rate EUR harus menjadi 50*rate.
-        $rateEur = CurrencyService::rates()['EUR'];
+        // mengonversinya ke USD base.
         $jumlahEur = 50.0;
-        $jumlahDalamIdr = $jumlahEur * $rateEur;
+        $jumlahDalamUsd = CurrencyService::toBase($jumlahEur, 'EUR');
 
         $this->actingAs($pengirim)->post(route('transfer.store'), [
             'id_dompet_asal' => $dompetAsal->id_dompet,
@@ -235,31 +234,30 @@ class TransferTest extends TestCase
         ])->assertRedirect(route('transfer.index'));
 
         $transfer = Transfer::firstOrFail();
-        // Nilai tersimpan dalam IDR, presisi 2 desimal
-        $this->assertEqualsWithDelta($jumlahDalamIdr, (float) $transfer->jumlah, 0.01);
+        // Nilai tersimpan dalam USD dengan presisi yang mempertahankan konversi.
+        $this->assertEqualsWithDelta($jumlahDalamUsd, (float) $transfer->jumlah, 0.00000001);
 
-        // Saldo kedua dompet (keduanya disimpan dalam IDR) berkurang & bertambah
-        // sebesar nilai yang sama dalam IDR — bukan sebesar "50" mentah.
+        // Saldo kedua dompet (keduanya disimpan dalam USD) berubah dengan nilai
+        // yang sama — bukan sebesar "50" mentah.
         $saldoAsal = (float) Dompet::findOrFail($dompetAsal->id_dompet)->saldo;
         $saldoTujuan = (float) Dompet::findOrFail($dompetTujuan->id_dompet)->saldo;
 
-        $this->assertEqualsWithDelta(1000000 - $jumlahDalamIdr, $saldoAsal, 0.01);
-        $this->assertEqualsWithDelta(50000 + $jumlahDalamIdr, $saldoTujuan, 0.01);
+        $this->assertEqualsWithDelta(CurrencyService::toBase(1000000, 'IDR') - $jumlahDalamUsd, $saldoAsal, 0.00000001);
+        $this->assertEqualsWithDelta(CurrencyService::toBase(50000, 'IDR') + $jumlahDalamUsd, $saldoTujuan, 0.00000001);
 
         // Total keseluruhan uang tetap terjaga (tidak ada nilai hilang/tambahan
         // akibat pembulatan antar mata uang).
-        $this->assertEqualsWithDelta(1050000, $saldoAsal + $saldoTujuan, 0.01);
+        $this->assertEqualsWithDelta(CurrencyService::toBase(1050000, 'IDR'), $saldoAsal + $saldoTujuan, 0.00000001);
     }
 
     public function test_transfer_rejects_amount_exceeding_source_balance_in_sender_currency(): void
     {
-        // Dompet asal berisi 1.000.000 IDR. Dalam EUR (rate 20000) itu hanya
-        // setara 50 EUR, jadi mengirim 60 EUR harus ditolak karena melebihi saldo.
+        // Dompet asal berisi 1.000.000 USD. Kirim nominal EUR yang dikonversi
+        // melebihi saldo USD agar request ditolak.
         [$pengirim, $dompetAsal] = $this->userWithWallet('eux@example.com', 'Dompet EUR Kecil', 1000000, 'EUR');
         [$penerima, $dompetTujuan] = $this->userWithWallet('idx@example.com', 'Dompet IDR Tujuan', 0, 'IDR');
 
-        $rateEur = CurrencyService::rates()['EUR'];
-        $melebihi = (1000000 / $rateEur) + 10; // jauh di atas saldo yang tersedia
+        $melebihi = CurrencyService::fromBase(CurrencyService::toBase(1000000, 'IDR'), 'EUR') + 10;
 
         $this->actingAs($pengirim)->post(route('transfer.store'), [
             'id_dompet_asal' => $dompetAsal->id_dompet,
@@ -270,7 +268,7 @@ class TransferTest extends TestCase
 
         $this->assertDatabaseCount('transfer', 0);
         // Saldo tidak berubah sama sekali
-        $this->assertEqualsWithDelta(1000000, (float) Dompet::findOrFail($dompetAsal->id_dompet)->saldo, 0.01);
+        $this->assertEqualsWithDelta(CurrencyService::toBase(1000000, 'IDR'), (float) Dompet::findOrFail($dompetAsal->id_dompet)->saldo, 0.00000001);
     }
 
     private function userWithWallet(string $email, string $walletName, int $balance, string $currency = 'IDR'): array
@@ -287,8 +285,8 @@ class TransferTest extends TestCase
         $wallet = Dompet::create([
             'id_user' => $user->id_user,
             'nama_dompet' => $walletName,
-            'saldo_awal' => $balance,
-            'saldo' => $balance,
+            'saldo_awal' => CurrencyService::toBase($balance, 'IDR'),
+            'saldo' => CurrencyService::toBase($balance, 'IDR'),
         ]);
 
         return [$user, $wallet];

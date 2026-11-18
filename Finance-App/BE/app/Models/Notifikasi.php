@@ -26,7 +26,7 @@ class Notifikasi extends Model
     protected function casts(): array
     {
         return [
-            'jumlah' => 'decimal:2',
+            'jumlah' => 'decimal:8',
             'sudah_dibaca' => 'boolean',
             'tanggal' => 'datetime',
         ];

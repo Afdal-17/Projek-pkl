@@ -37,7 +37,9 @@ class TargetTabunganController extends Controller
                 'note' => $target->deskripsi ?: $target->dompet->nama_dompet,
                 'wallet' => $target->dompet->nama_dompet,
                 'saved' => min((float) $target->jumlah_terkumpul, (float) $target->nominal_target),
+                'saved_money' => CurrencyService::moneyData(min((float) $target->jumlah_terkumpul, (float) $target->nominal_target)),
                 'target' => (float) $target->nominal_target,
+                'target_money' => CurrencyService::moneyData((float) $target->nominal_target),
                 // Accessor model TargetTabungan (0-100, dibulatkan 2 desimal)
                 'progress' => (float) $target->progress,
                 'achieved' => (bool) $target->tercapai,
@@ -109,7 +111,9 @@ class TargetTabunganController extends Controller
         try {
             $wallet = Dompet::where('id_user', Auth::id())->findOrFail($data['id_dompet']);
             $nominalTarget = CurrencyService::toBase((float) $data['nominal_target']);
-            $initialSavings = CurrencyService::toBase((float) ($data['initial_savings'] ?? $wallet->saldo));
+            $initialSavings = isset($data['initial_savings'])
+                ? CurrencyService::toBase((float) $data['initial_savings'])
+                : (float) $wallet->saldo;
 
             if ((float) $initialSavings > (float) $nominalTarget || (float) $initialSavings > (float) $wallet->saldo) {
                 throw ValidationException::withMessages([

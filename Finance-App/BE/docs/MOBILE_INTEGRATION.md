@@ -67,6 +67,11 @@ Authorization: Bearer <token>
 
 Format **harus persis**: kata `Bearer`, **satu spasi**, lalu token.
 
+`GOOGLE_CLIENT_SECRET` dan `FONNTE_TOKEN` hanya digunakan oleh backend; jangan
+menanamnya di aplikasi mobile. Jika kredensial pernah dibagikan, cabut/ganti di
+dashboard provider dan perbarui `.env` backend. Jangan bagikan nilai pengganti.
+Panduan rotasi ada di `docs/DEPLOYMENT.md`.
+
 | ❌ Salah | ✅ Benar |
 |---|---|
 | `Token: <token>` | `Bearer <token>` |
@@ -597,28 +602,39 @@ Buka tab **Network** (Chrome DevTools remote / Charles / Http Inspector) saat me
 ```json
 {
   "periode": { "mulai": "2026-11-01", "selesai": "2026-11-30" },
-  "total_saldo": 1475000,
-  "total_pemasukan_bulan_ini": 1000000,
-  "total_pengeluaran_bulan_ini": 25000,
+  "total_saldo": 100,
+  "total_saldo_money": {
+    "base_amount": 100, "base_currency": "USD",
+    "display_amount": 91.43, "display_currency": "EUR",
+    "rate": { "from": "USD", "to": "EUR", "value": 0.9142857143 }
+  },
+  "total_pemasukan_bulan_ini": 100,
+  "total_pemasukan_bulan_ini_money": { "...": "objek uang" },
+  "total_pengeluaran_bulan_ini": 25,
+  "total_pengeluaran_bulan_ini_money": { "...": "objek uang" },
   "pengeluaran_per_kategori": [
-    { "id_kategori": 2, "nama_kategori": "Makan", "total": 25000 }
+    { "id_kategori": 2, "nama_kategori": "Makan", "total": 25,
+      "total_money": { "...": "objek uang" } }
   ],
   "target_tabungan": [
     {
       "id_target": 1,
       "nama_target": "Beli Laptop Baru",
       "nama_dompet": "Dompet Tabungan",
-      "saldo_dompet": 100000,
-      "jumlah_terkumpul": 100000,
-      "nominal_target": 20000000,
-      "progress": 0.5,
+      "saldo_dompet": 100,
+      "saldo_dompet_money": { "...": "objek uang" },
+      "jumlah_terkumpul": 100,
+      "jumlah_terkumpul_money": { "...": "objek uang" },
+      "nominal_target": 200,
+      "nominal_target_money": { "...": "objek uang" },
+      "progress": 50,
       "tercapai": false
     }
   ]
 }
 ```
 
-> `progress` berupa **desimal 0–1** (0.5 = 50%). Kalau ingin persen, kalikan 100.
+> `progress` adalah **persen 0–100** (50 = 50%).
 
 ---
 
@@ -637,8 +653,10 @@ Buka tab **Network** (Chrome DevTools remote / Charles / Http Inspector) saat me
       "id_user": 3,
       "nama_dompet": "Dompet Utama",
       "deskripsi": "Dompet untuk kebutuhan sehari-hari",
-      "saldo_awal": "500000.00",
-      "saldo": "1375000.00",
+      "saldo_awal": "50.00000000",
+      "saldo_awal_money": { "...": "objek uang" },
+      "saldo": "100.00000000",
+      "saldo_money": { "...": "objek uang" },
       "jenis": "digital",
       "warna": "brand",
       "terima_transfer": true
@@ -649,7 +667,8 @@ Buka tab **Network** (Chrome DevTools remote / Charles / Http Inspector) saat me
 }
 ```
 
-> 🔎 `saldo` bertipe **string** (`"1375000.00"`) — konversi ke `double` di Dart.
+> 🔎 Field nominal yang sudah ada tetap berupa nilai USD dasar. Gunakan
+> `saldo_money.display_amount` untuk tampilan mata uang akun.
 
 #### `POST /api/dompet` — tambah
 
@@ -722,7 +741,12 @@ Buka tab **Network** (Chrome DevTools remote / Charles / Http Inspector) saat me
       "category": "Gaji",
       "wallet": "Dompet Utama",
       "to": null,
-      "amount": 1000000,
+      "amount": 100,
+      "amount_money": {
+        "base_amount": 100, "base_currency": "USD",
+        "display_amount": 91.43, "display_currency": "EUR",
+        "rate": { "from": "USD", "to": "EUR", "value": 0.9142857143 }
+      },
       "date": "2026-11-05",
       "jenis": "pemasukan",
       "icon": "landmark"
@@ -796,15 +820,17 @@ Buka tab **Network** (Chrome DevTools remote / Charles / Http Inspector) saat me
     "name": "Beli Laptop Baru",
     "note": "Upgrade",
     "wallet": "Dompet Tabungan",
-    "saved": 100000,
-    "target": 20000000,
-    "progress": 0.5,
+    "saved": 100,
+    "saved_money": { "...": "objek uang" },
+    "target": 200,
+    "target_money": { "...": "objek uang" },
+    "progress": 50,
     "achieved": false
   }
 ]
 ```
 
-- `progress` → desimal 0–1
+- `progress` → persen 0–100
 - `achieved` → `true` bila target tercapai
 
 #### `POST /api/saving`
@@ -892,9 +918,10 @@ Dengan begitu perilakunya deterministik dan tidak bergantung pada saldo dompet y
 [
   {
     "id": 12,
-    "type": "target",
+    "type": "saving",
     "title": "Savings goal reached",
     "text": "Target tabungan Anda telah tercapai",
+    "amount_money": null,
     "scope": "2 hours ago",
     "read": false
   }
@@ -968,7 +995,13 @@ Dengan begitu perilakunya deterministik dan tidak bergantung pada saldo dompet y
 
 **Mata uang yang didukung:** `IDR`, `USD`, `EUR` (cek `ProfileController::switchCurrency`).
 Default akun baru adalah `USD`. Akun yang sudah memiliki preferensi tersimpan
-tidak otomatis diubah; backend tetap menyimpan nominal keuangan dalam IDR.
+tidak otomatis diubah; backend menyimpan nominal keuangan dalam USD sebagai mata uang dasar.
+Nilai dasar seluruh uang adalah USD (hingga 8 angka desimal). Field nominal API
+yang sudah ada tetap USD; gunakan field pasangan `*_money` untuk mendapatkan
+`base_amount`/`base_currency`, `display_amount`/`display_currency`, dan kurs
+`rate` dalam satu objek. Input endpoint penulisan memakai preferensi mata uang
+akun dan backend mengonversinya ke USD. `GET /api/currency/rates` juga tersedia
+untuk melihat kurs (unit mata uang per 1 USD).
 
 > Upload avatar pakai **multipart**, BUKAN JSON:
 > ```dart
@@ -1030,9 +1063,9 @@ Jangan tertukar — memakai nama GET saat POST → **422 field required**.
 
 | Field | Tipe di response | Catatan |
 |---|---|---|
-| `saldo`, `saldo_awal` | **string** | `"1375000.00"` → parse ke double |
+| `saldo`, `saldo_awal` | **string** | `"100.00000000"` → parse as needed |
 | `amount`, `saved`, `target` | number | langsung |
-| `progress` | number | desimal 0–1 |
+| `progress` | number | persen 0–100 |
 | `tanggal` / `date` | string | format `YYYY-MM-DD` |
 | `email_verified_at` | string / null | ISO-8601 |
 

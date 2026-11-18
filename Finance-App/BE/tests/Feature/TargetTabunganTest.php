@@ -7,6 +7,7 @@ use App\Models\Notifikasi;
 use App\Models\TargetTabungan;
 use App\Models\Transaksi;
 use App\Models\User;
+use App\Services\CurrencyService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -119,5 +120,39 @@ class TargetTabunganTest extends TestCase
             'status' => 'tercapai',
         ]);
         $this->assertSame(1, Notifikasi::where('id_user', $user->id_user)->where('tipe', 'target')->count());
+    }
+
+    public function test_default_initial_savings_uses_the_wallet_usd_balance_without_reconverting(): void
+    {
+        $user = User::create([
+            'nama' => 'EUR Target User',
+            'email' => 'eur-target@example.com',
+            'password' => 'password',
+            'role' => 'user',
+            'status' => true,
+            'email_verified_at' => now(),
+            'mata_uang' => 'EUR',
+        ]);
+        $wallet = Dompet::create([
+            'id_user' => $user->id_user,
+            'nama_dompet' => 'USD wallet',
+            'saldo_awal' => 100,
+            'saldo' => 100,
+        ]);
+
+        $this->actingAs($user)->postJson(route('saving.store'), [
+            'id_dompet' => $wallet->id_dompet,
+            'nama_target' => 'EUR target',
+            'nominal_target' => 200,
+        ])->assertCreated();
+
+        $target = TargetTabungan::firstOrFail();
+        $this->assertEquals(100.0, (float) $target->nominal_terkumpul);
+        $this->assertEquals(100.0, (float) $target->saldo_awal_dompet);
+        $this->assertEqualsWithDelta(
+            CurrencyService::toBase(200, 'EUR'),
+            (float) $target->nominal_target,
+            0.00000001
+        );
     }
 }

@@ -1,10 +1,10 @@
 import './bootstrap';
 import Alpine from 'alpinejs';
 
-const currency = document.querySelector('meta[name="finance-currency"]')?.content ?? 'IDR';
+const currency = document.querySelector('meta[name="finance-currency"]')?.content ?? 'USD';
 /* Kurs live dari backend (meta finance-rates, sumber: Frankfurter + cache);
    fallback statis bila meta tidak tersedia */
-const FALLBACK_RATES = { IDR: 1, USD: 16000, EUR: 17500 };
+const FALLBACK_RATES = { USD: 1, IDR: 16000, EUR: 0.9142857143 };
 let RATES = FALLBACK_RATES;
 try {
 	const meta = document.querySelector('meta[name="finance-rates"]')?.content;
@@ -36,21 +36,21 @@ window.financeMoney = {
 	currency,
 	rate,
 	symbol: formatter.formatToParts(0).find((part) => part.type === 'currency')?.value ?? 'Rp',
-	/* Nilai tersimpan dalam IDR (base); konversi ke mata uang aktif saat menampilkan */
-	format(idrAmount) {
-		return formatter.format((Number(idrAmount) || 0) / rate);
+	/* Nilai tersimpan dalam USD (base); konversi ke mata uang aktif saat menampilkan */
+	format(usdAmount) {
+		return formatter.format((Number(usdAmount) || 0) * rate);
 	},
 	/* Format nilai yang sudah dalam mata uang aktif (input user) */
 	formatNative(displayAmount) {
 		return formatter.format(Number(displayAmount) || 0);
 	},
-	/* Konversi nilai input (mata uang aktif) ke IDR base */
+	/* Konversi nilai input (mata uang aktif) ke USD base */
 	toBase(displayAmount) {
-		return (Number(displayAmount) || 0) * rate;
+		return (Number(displayAmount) || 0) / rate;
 	},
-	/* Konversi nilai IDR base ke mata uang aktif */
-	fromBase(idrAmount) {
-		return (Number(idrAmount) || 0) / rate;
+	/* Konversi nilai USD base ke mata uang aktif */
+	fromBase(usdAmount) {
+		return (Number(usdAmount) || 0) * rate;
 	},
 	/* Format nilai NUMERIK menjadi teks tampilan berpemisah ribuan (tanpa
 	   simbol mata uang). Berbeda dari formatTyped/formatNative: fungsi ini

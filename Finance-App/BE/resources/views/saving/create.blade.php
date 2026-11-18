@@ -26,7 +26,7 @@
         },
 
         get walletBalanceDisplay() {
-            // Saldo wallet tersimpan dalam IDR base; konversi ke mata uang aktif
+            // Saldo wallet tersimpan dalam USD base; konversi ke mata uang aktif
             return window.financeMoney.fromBase(Number(this.selectedWallet.balance));
         },
 

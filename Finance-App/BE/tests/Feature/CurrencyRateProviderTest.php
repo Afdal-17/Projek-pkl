@@ -25,29 +25,30 @@ class CurrencyRateProviderTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_live_rates_are_fetched_and_inverted_to_idr_base(): void
+    public function test_live_rates_are_fetched_relative_to_usd_base(): void
     {
         config(['currency.live' => true]);
 
-        // Frankfurter memberi kurs "per 1 IDR": USD = 0.00005 → 1 USD = 20.000 IDR
+        // Frankfurter memberi jumlah unit target per 1 USD.
         Http::fake([
             '*' => Http::response([
                 'amount' => 1.0,
-                'base' => 'IDR',
+                'base' => 'USD',
                 'date' => '2026-10-12',
-                'rates' => ['USD' => 0.00005, 'EUR' => 0.00004],
+                'rates' => ['IDR' => 20000.0, 'EUR' => 0.8],
             ]),
         ]);
 
         $rates = CurrencyService::rates();
 
-        $this->assertSame(1.0, $rates['IDR']);
-        $this->assertEqualsWithDelta(20000.0, $rates['USD'], 0.01);
-        $this->assertEqualsWithDelta(25000.0, $rates['EUR'], 0.01);
+        $this->assertSame(1.0, $rates['USD']);
+        $this->assertEqualsWithDelta(20000.0, $rates['IDR'], 0.01);
+        $this->assertEqualsWithDelta(0.8, $rates['EUR'], 0.01);
 
         // Konversi memakai kurs live, bukan fallback statis
         $this->assertEqualsWithDelta(10.0, CurrencyService::convert(200000, 'IDR', 'USD'), 0.001);
         $this->assertEqualsWithDelta(200000.0, CurrencyService::convert(10, 'USD', 'IDR'), 0.001);
+        $this->assertEqualsWithDelta(80.0, CurrencyService::convert(100, 'USD', 'EUR'), 0.001);
     }
 
     public function test_provider_is_called_once_and_rates_are_cached(): void
@@ -55,7 +56,7 @@ class CurrencyRateProviderTest extends TestCase
         config(['currency.live' => true]);
 
         Http::fake([
-            '*' => Http::response(['rates' => ['USD' => 0.00005, 'EUR' => 0.00004]]),
+            '*' => Http::response(['rates' => ['IDR' => 20000.0, 'EUR' => 0.8]]),
         ]);
 
         CurrencyService::rates();
@@ -77,8 +78,9 @@ class CurrencyRateProviderTest extends TestCase
         $rates = CurrencyService::rates();
 
         // Kurs cadangan statis dipakai saat API gagal
-        $this->assertSame(16000.0, $rates['USD']);
-        $this->assertSame(17500.0, $rates['EUR']);
+        $this->assertSame(1.0, $rates['USD']);
+        $this->assertSame(16000.0, $rates['IDR']);
+        $this->assertEqualsWithDelta(0.9142857143, $rates['EUR'], 0.0000001);
         $this->assertEqualsWithDelta(10.0, CurrencyService::convert(160000, 'IDR', 'USD'), 0.001);
     }
 
@@ -87,9 +89,9 @@ class CurrencyRateProviderTest extends TestCase
         config(['currency.live' => true]);
 
         Cache::forever(CurrencyRateProvider::STALE_KEY, [
-            'IDR' => 1.0,
-            'USD' => 17000.0,
-            'EUR' => 18000.0,
+            'USD' => 1.0,
+            'IDR' => 17000.0,
+            'EUR' => 0.9,
         ]);
 
         Http::fake([
@@ -97,7 +99,7 @@ class CurrencyRateProviderTest extends TestCase
         ]);
 
         // Kurs terakhir yang berhasil diambil tetap dipakai sebelum fallback statis
-        $this->assertEqualsWithDelta(17000.0, CurrencyService::rates()['USD'], 0.01);
+        $this->assertEqualsWithDelta(17000.0, CurrencyService::rates()['IDR'], 0.01);
     }
 
     public function test_disabled_live_mode_uses_fallback_without_http(): void
@@ -109,9 +111,9 @@ class CurrencyRateProviderTest extends TestCase
 
         $rates = CurrencyService::rates();
 
-        $this->assertSame(1.0, $rates['IDR']);
-        $this->assertSame(16000.0, $rates['USD']);
-        $this->assertSame(17500.0, $rates['EUR']);
+        $this->assertSame(1.0, $rates['USD']);
+        $this->assertSame(16000.0, $rates['IDR']);
+        $this->assertEqualsWithDelta(0.9142857143, $rates['EUR'], 0.0000001);
 
         Http::assertNothingSent();
     }
@@ -119,9 +121,9 @@ class CurrencyRateProviderTest extends TestCase
     public function test_normalize_uses_supported_list_from_config(): void
     {
         $this->assertSame('USD', CurrencyService::normalize('usd'));
-        $this->assertSame('IDR', CurrencyService::normalize('JPY')); // tidak didukung → base
+        $this->assertSame('USD', CurrencyService::normalize('JPY')); // tidak didukung → base
         $this->assertFalse(CurrencyService::isSupported('JPY'));
         $this->assertTrue(CurrencyService::isSupported('eur'));
-        $this->assertSame(['IDR', 'USD', 'EUR'], CurrencyService::supported());
+        $this->assertSame(['USD', 'IDR', 'EUR'], CurrencyService::supported());
     }
 }

@@ -47,8 +47,8 @@ class NotificationCurrencyConversionTest extends TestCase
             $notifPengirim->pesan
         );
 
-        // Nilai tersimpan dalam IDR base (100 USD × 16.000)
-        $this->assertSame('1600000.00', (string) \App\Models\Transfer::firstOrFail()->jumlah);
+        // Nilai tersimpan dalam USD base.
+        $this->assertEquals(100.0, (float) \App\Models\Transfer::firstOrFail()->jumlah);
     }
 
     /**
