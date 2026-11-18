@@ -105,7 +105,8 @@ Untuk membuktikan bahwa seluruh sistem berjalan normal dan bebas bug, Anda dapat
 cd BE
 php artisan test
 ```
-*(Hasil yang diharapkan: 120 test sukses / Passed).*
+*(Hasil terverifikasi saat ini: 148 test sukses / Passed, 744 assertions; durasi
+bergantung pada mesin.)*
 
 ---
 

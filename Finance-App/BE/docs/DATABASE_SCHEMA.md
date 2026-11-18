@@ -53,7 +53,7 @@ Menyimpan daftar dompet keuangan user (Cash, Bank, E-Wallet, dll).
 * `user_id` (Foreign Key ke `users.id_user`)
 * `nama` (VARCHAR)
 * `kategori` (VARCHAR)
-* `saldo` (DECIMAL 15,2 - mendukung angka besar s.d kuadriliun)
+* `saldo_awal`, `saldo` (`DECIMAL(26,8)`, nominal USD dasar)
 * `terima_transfer` (BOOLEAN - status bisa menerima transfer dari user lain)
 
 ### C. Tabel `transaksi`
@@ -63,7 +63,7 @@ Mencatat seluruh arus kas masuk dan keluar.
 * `dompet_id` (Foreign Key ke `dompet`)
 * `kategori_id` (Foreign Key ke `kategori`, nullable)
 * `jenis` (ENUM: `pemasukan`, `pengeluaran`)
-* `jumlah` (DECIMAL 15,2)
+* `jumlah` (`DECIMAL(26,8)`, nominal USD dasar)
 * `tanggal` (DATE)
 * `catatan` (TEXT, nullable)
 
@@ -73,10 +73,13 @@ Mencatat impian atau target finansial user.
 * `user_id` (Foreign Key ke `users`)
 * `dompet_id` (Foreign Key ke `dompet`, opsional)
 * `nama_target` (VARCHAR)
-* `nominal_target` (DECIMAL 15,2)
-* `jumlah_terkumpul` (DECIMAL 15,2)
+* `nominal_target`, `nominal_terkumpul`, `saldo_awal_dompet` (`DECIMAL(26,8)`, nominal USD dasar)
 * `tanggal_target` (DATE)
 * `status` (ENUM: `aktif`, `tercapai`)
+
+### E. Tabel `transfer` dan `notifikasi`
+* `transfer.jumlah` (`DECIMAL(26,8)`, nominal USD dasar)
+* `notifikasi.jumlah` (`DECIMAL(26,8)`, nullable, nominal USD dasar)
 
 ---
 

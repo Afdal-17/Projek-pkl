@@ -1,8 +1,8 @@
 # 📱 Dokumentasi Integrasi Mobile (Flutter) → Backend Laravel
 
 > **Untuk:** Developer Mobile
-> **Versi dokumen:** 2026-11-12
-> **Jumlah endpoint API:** 50 route (`php artisan route:list --path=api`)
+> **Versi dokumen:** 2026-11-18
+> **Jumlah endpoint API:** 51 route (`php artisan route:list --path=api`)
 > **Autentikasi:** Laravel Sanctum (Bearer Token)
 
 ---
@@ -1355,7 +1355,7 @@ Sebelum laporan "sudah terhubung", pastikan semua tercentang:
 | Sebelumnya | Route `POST /api/auth/google` belum ada (404) | ✅ Sudah ada & teruji (200 + token) |
 | Sebelumnya | Validasi `prohibits` `saldo`/`saldo_awal` | ✅ Sesuai, mobile sudah benar |
 
-**Hasil regresi:** `php artisan test` → **120 passed (608 assertions)**.
+**Hasil regresi terakhir:** `php artisan test` → **148 passed (744 assertions)**.
 
 ---
 

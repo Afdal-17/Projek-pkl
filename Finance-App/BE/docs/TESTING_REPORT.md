@@ -15,7 +15,7 @@ Pengujian dilakukan menggunakan **Laravel Testing Suite** (mencakup *Feature Tes
 * **Total Test Suite:** 148 test cases
 * **Total Assertions (Pemeriksaan Logika):** 744 assertions
 * **Status Keseluruhan:** **100% LULUS (PASSED)** 🟢
-* **Durasi Eksekusi:** 28.15 detik
+* **Durasi Eksekusi:** 30.87 detik
 
 ---
 
