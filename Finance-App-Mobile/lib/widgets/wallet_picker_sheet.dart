@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../data/dummy_data.dart';
+
 import '../models/wallet.dart';
 import '../theme/app_colors.dart';
 
@@ -90,122 +90,123 @@ Future<Wallet?> showWalletPickerSheet({
               )
             else
               ConstrainedBox(
-              constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(context).size.height * 0.45,
-              ),
-              child: ListView.separated(
-                shrinkWrap: true,
-                itemCount: userWallets.length,
-                separatorBuilder: (context, index) => const SizedBox(height: 8),
-                itemBuilder: (ctx, index) {
-                  final wallet = userWallets[index];
-                  final isSelected = selectedWallet?.name == wallet.name;
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.45,
+                ),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: userWallets.length,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 8),
+                  itemBuilder: (ctx, index) {
+                    final wallet = userWallets[index];
+                    final isSelected = selectedWallet?.name == wallet.name;
 
-                  return Material(
-                    color: isSelected
-                        ? AppColors.brandSoft
-                        : const Color(0xFFF9FAFB),
-                    borderRadius: BorderRadius.circular(14),
-                    child: InkWell(
-                      onTap: () => Navigator.of(ctx).pop(wallet),
+                    return Material(
+                      color: isSelected
+                          ? AppColors.brandSoft
+                          : const Color(0xFFF9FAFB),
                       borderRadius: BorderRadius.circular(14),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: isSelected
-                                ? AppColors.brand
-                                : const Color(0xFFE5E7EB),
-                            width: isSelected ? 1.5 : 1,
+                      child: InkWell(
+                        onTap: () => Navigator.of(ctx).pop(wallet),
+                        borderRadius: BorderRadius.circular(14),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
                           ),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: wallet.background,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Icon(
-                                wallet.icon,
-                                color: wallet.color,
-                                size: 20,
-                              ),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: isSelected
+                                  ? AppColors.brand
+                                  : const Color(0xFFE5E7EB),
+                              width: isSelected ? 1.5 : 1,
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    wallet.name,
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: isSelected
-                                          ? FontWeight.w700
-                                          : FontWeight.w600,
-                                      color: AppColors.ink,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    wallet.type,
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: AppColors.muted,
-                                    ),
-                                  ),
-                                ],
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: wallet.background,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Icon(
+                                  wallet.icon,
+                                  color: wallet.color,
+                                  size: 20,
+                                ),
                               ),
-                            ),
-                            if (showBalance) ...[
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text(
-                                    DummyData.money(wallet.balanceIdr).text,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                      color: isSelected
-                                          ? AppColors.brand
-                                          : AppColors.ink,
-                                    ),
-                                  ),
-                                  if (wallet.isPrimary)
-                                    const Text(
-                                      'Primary',
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      wallet.name,
                                       style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w600,
-                                        color: AppColors.income,
+                                        fontSize: 15,
+                                        fontWeight: isSelected
+                                            ? FontWeight.w700
+                                            : FontWeight.w600,
+                                        color: AppColors.ink,
                                       ),
                                     ),
-                                ],
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      wallet.type,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.muted,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
+                              if (showBalance) ...[
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(
+                                      wallet.balance.text,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: isSelected
+                                            ? AppColors.brand
+                                            : AppColors.ink,
+                                      ),
+                                    ),
+                                    if (wallet.isPrimary)
+                                      const Text(
+                                        'Primary',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.income,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ],
+                              if (isSelected) ...[
+                                const SizedBox(width: 8),
+                                const Icon(
+                                  Icons.check_circle_rounded,
+                                  color: AppColors.brand,
+                                  size: 20,
+                                ),
+                              ],
                             ],
-                            if (isSelected) ...[
-                              const SizedBox(width: 8),
-                              const Icon(
-                                Icons.check_circle_rounded,
-                                color: AppColors.brand,
-                                size: 20,
-                              ),
-                            ],
-                          ],
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
-            ),
           ],
         ),
       ),
@@ -281,11 +282,7 @@ class WalletSelectorField extends StatelessWidget {
                         color: wallet.background,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Icon(
-                        wallet.icon,
-                        color: wallet.color,
-                        size: 16,
-                      ),
+                      child: Icon(wallet.icon, color: wallet.color, size: 16),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -305,7 +302,7 @@ class WalletSelectorField extends StatelessWidget {
                           if (showBalance) ...[
                             const SizedBox(width: 6),
                             Text(
-                              '(${DummyData.money(wallet.balanceIdr).text})',
+                              '(${wallet.balance.text})',
                               style: const TextStyle(
                                 fontSize: 13,
                                 color: AppColors.muted,
@@ -319,10 +316,7 @@ class WalletSelectorField extends StatelessWidget {
                     const Expanded(
                       child: Text(
                         'Select wallet',
-                        style: TextStyle(
-                          fontSize: 15,
-                          color: AppColors.muted,
-                        ),
+                        style: TextStyle(fontSize: 15, color: AppColors.muted),
                       ),
                     ),
                   ],
@@ -339,4 +333,3 @@ class WalletSelectorField extends StatelessWidget {
     );
   }
 }
-

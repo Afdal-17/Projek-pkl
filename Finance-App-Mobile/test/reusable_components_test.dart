@@ -4,7 +4,7 @@ import 'package:finance_app_mobile/widgets/app_button.dart';
 import 'package:finance_app_mobile/widgets/app_confirm_dialog.dart';
 import 'package:finance_app_mobile/widgets/amount_input_field.dart';
 import 'package:finance_app_mobile/widgets/wallet_picker_sheet.dart';
-import 'package:finance_app_mobile/data/dummy_data.dart';
+import 'package:finance_app_mobile/models/money.dart';
 import 'package:finance_app_mobile/models/wallet.dart';
 import 'package:finance_app_mobile/utils/currency.dart';
 
@@ -33,25 +33,28 @@ void main() {
       expect(tapped, isTrue);
     });
 
-    testWidgets('AppButton shows loading spinner and disables clicks when isLoading is true', (tester) async {
-      var tapped = false;
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: AppButton(
-              label: 'Save',
-              isLoading: true,
-              onPressed: () => tapped = true,
+    testWidgets(
+      'AppButton shows loading spinner and disables clicks when isLoading is true',
+      (tester) async {
+        var tapped = false;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: AppButton(
+                label: 'Save',
+                isLoading: true,
+                onPressed: () => tapped = true,
+              ),
             ),
           ),
-        ),
-      );
+        );
 
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
-      await tester.tap(find.byType(AppButton));
-      await tester.pump();
-      expect(tapped, isFalse);
-    });
+        expect(find.byType(CircularProgressIndicator), findsOneWidget);
+        await tester.tap(find.byType(AppButton));
+        await tester.pump();
+        expect(tapped, isFalse);
+      },
+    );
   });
 
   group('AppConfirmDialog Tests', () {
@@ -83,7 +86,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Delete Item'), findsOneWidget);
-      expect(find.text('Are you sure you want to delete this?'), findsOneWidget);
+      expect(
+        find.text('Are you sure you want to delete this?'),
+        findsOneWidget,
+      );
       expect(find.text('Yes, Delete'), findsOneWidget);
 
       await tester.tap(find.text('Yes, Delete'));
@@ -125,87 +131,104 @@ void main() {
   });
 
   group('AmountInputField Tests', () {
-    testWidgets('AmountInputField formats number and delivers numeric double accurately', (tester) async {
-      final ctrl = TextEditingController();
-      double received = 0;
+    testWidgets(
+      'AmountInputField formats number and delivers numeric double accurately',
+      (tester) async {
+        final ctrl = TextEditingController();
+        double received = 0;
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: AmountInputField(
-              controller: ctrl,
-              currencySymbol: r'$',
-              onAmountChanged: (amt) => received = amt,
-            ),
-          ),
-        ),
-      );
-
-      await tester.enterText(find.byType(TextField), '1250000');
-      await tester.pump();
-
-      expect(received, 1250000.0);
-    });
-  });
-
-  group('WalletPickerSheet Tests', () {
-    testWidgets('WalletPickerSheet displays only user wallets and allows selection', (tester) async {
-      Wallet? pickedWallet;
-      const testWallets = [
-        Wallet(
-          name: 'Cash',
-          type: 'Physical wallet',
-          balanceIdr: 100000,
-          isPrimary: true,
-          icon: Icons.account_balance_wallet_outlined,
-          color: Colors.green,
-          background: Colors.greenAccent,
-        ),
-        Wallet(
-          name: 'BCA',
-          type: 'Bank account',
-          balanceIdr: 500000,
-          isPrimary: false,
-          icon: Icons.account_balance_outlined,
-          color: Colors.blue,
-          background: Colors.lightBlueAccent,
-        ),
-      ];
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: Builder(
-              builder: (context) => ElevatedButton(
-                onPressed: () async {
-                  pickedWallet = await showWalletPickerSheet(
-                    context: context,
-                    wallets: testWallets,
-                    showBalance: true,
-                  );
-                },
-                child: const Text('Pick Wallet'),
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: AmountInputField(
+                controller: ctrl,
+                currencySymbol: r'$',
+                onAmountChanged: (amt) => received = amt,
               ),
             ),
           ),
-        ),
-      );
+        );
 
-      await tester.tap(find.text('Pick Wallet'));
-      await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextField), '1250000');
+        await tester.pump();
 
-      expect(find.text('Select Wallet'), findsOneWidget);
-      for (final w in testWallets) {
-        expect(find.text(w.name), findsOneWidget);
-      }
+        expect(received, 1250000.0);
+      },
+    );
+  });
 
-      // Tap on 'Cash'
-      await tester.tap(find.text('Cash'));
-      await tester.pumpAndSettle();
+  group('WalletPickerSheet Tests', () {
+    testWidgets(
+      'WalletPickerSheet displays only user wallets and allows selection',
+      (tester) async {
+        Wallet? pickedWallet;
+        const testWallets = [
+          Wallet(
+            name: 'Cash',
+            type: 'Physical wallet',
+            balance: Money(
+              baseAmount: 100000,
+              baseCurrency: 'USD',
+              displayAmount: 100000,
+              displayCurrency: 'USD',
+              rate: Rate(from: 'USD', to: 'USD', value: 1),
+            ),
+            isPrimary: true,
+            icon: Icons.account_balance_wallet_outlined,
+            color: Colors.green,
+            background: Colors.greenAccent,
+          ),
+          Wallet(
+            name: 'BCA',
+            type: 'Bank account',
+            balance: Money(
+              baseAmount: 500000,
+              baseCurrency: 'USD',
+              displayAmount: 500000,
+              displayCurrency: 'USD',
+              rate: Rate(from: 'USD', to: 'USD', value: 1),
+            ),
+            isPrimary: false,
+            icon: Icons.account_balance_outlined,
+            color: Colors.blue,
+            background: Colors.lightBlueAccent,
+          ),
+        ];
 
-      expect(pickedWallet, isNotNull);
-      expect(pickedWallet!.name, 'Cash');
-    });
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (context) => ElevatedButton(
+                  onPressed: () async {
+                    pickedWallet = await showWalletPickerSheet(
+                      context: context,
+                      wallets: testWallets,
+                      showBalance: true,
+                    );
+                  },
+                  child: const Text('Pick Wallet'),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        await tester.tap(find.text('Pick Wallet'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Select Wallet'), findsOneWidget);
+        for (final w in testWallets) {
+          expect(find.text(w.name), findsOneWidget);
+        }
+
+        // Tap on 'Cash'
+        await tester.tap(find.text('Cash'));
+        await tester.pumpAndSettle();
+
+        expect(pickedWallet, isNotNull);
+        expect(pickedWallet!.name, 'Cash');
+      },
+    );
   });
 }
-

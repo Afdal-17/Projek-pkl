@@ -1,5 +1,9 @@
+import 'package:flutter/foundation.dart';
+
+import '../utils/currency.dart';
 import 'api_config.dart';
 import 'api_service.dart';
+import 'auth_service.dart';
 
 /// Service untuk pengelolaan tabungan (Savings) melalui RESTful API backend Laravel
 class SavingService {
@@ -25,6 +29,19 @@ class SavingService {
     double initialAmount = 0,
     String? description,
   }) async {
+    // Sinkronisasi preferensi mata uang ke backend sebelum mengirim nominal target (best-effort)
+    try {
+      final synced = await AuthService.syncCurrencyToBackend(preferredCurrency.value);
+      if (!synced) {
+        debugPrint(
+          '[SavingService] Peringatan: Sinkronisasi mata uang ke backend gagal. Pembuatan target tabungan tetap dilanjutkan.',
+        );
+      }
+    } catch (e, st) {
+      debugPrint('[SavingService] Exception saat sinkronisasi mata uang: $e\n$st');
+      // Lanjutkan penyimpanan meskipun sinkronisasi mata uang gagal
+    }
+
     final body = <String, dynamic>{
       'id_dompet': int.tryParse(walletId.toString()) ?? walletId,
       'nama_target': name,

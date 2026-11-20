@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+
 import '../data/dummy_data.dart';
 import '../models/category_item.dart';
 import '../models/transaction_item.dart';
@@ -188,7 +189,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   }
 
   TransactionItem _txFromJson(Map<String, dynamic> json) {
-    final title = json['name'] ?? json['title'] ?? json['keterangan'] ?? 'Transaction';
+    final title =
+        json['name'] ?? json['title'] ?? json['keterangan'] ?? 'Transaction';
     final category = json['category'] ?? json['kategori'] ?? 'General';
     final rawTitle = title.toString();
     final lowerTitle = rawTitle.toLowerCase();
@@ -196,7 +198,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     final jenisStr = (json['jenis'] ?? '').toString().toLowerCase();
     final typeStr = (json['type'] ?? '').toString().toLowerCase();
 
-    final isTransfer = typeStr == 'transfer' ||
+    final isTransfer =
+        typeStr == 'transfer' ||
         rawCat.toLowerCase() == 'transfer' ||
         json['icon'] == 'transfer' ||
         lowerTitle.contains('transfer');
@@ -230,8 +233,18 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       try {
         d = DateTime.parse(dateStr.toString());
         final monthNames = [
-          'January', 'February', 'March', 'April', 'May', 'June',
-          'July', 'August', 'September', 'October', 'November', 'December'
+          'January',
+          'February',
+          'March',
+          'April',
+          'May',
+          'June',
+          'July',
+          'August',
+          'September',
+          'October',
+          'November',
+          'December',
         ];
         dateLabel = '${d.day} ${monthNames[d.month - 1]} ${d.year}';
       } catch (_) {}
@@ -269,7 +282,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       title: displayTitle,
       category: displayCategory,
       dateLabel: dateLabel,
-      amount: DummyData.money(amount),
+      amount: DummyData.money(amount, apiMoney: json['amount_money']),
       type: isIncome ? TransactionType.income : TransactionType.expense,
       icon: icon,
       iconColor: iconColor,
@@ -356,7 +369,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               displacement: 40.0,
               onRefresh: _handleRefresh,
               child: (_isLoading && _transactions.isEmpty)
-                  ? const Center(child: CircularProgressIndicator(color: AppColors.brand))
+                  ? const Center(
+                      child: CircularProgressIndicator(color: AppColors.brand),
+                    )
                   : ListView(
                       controller: _scrollCtrl,
                       physics: const AlwaysScrollableScrollPhysics(),
@@ -373,7 +388,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                         const SizedBox(height: 4),
                         const Text(
                           'Review every income and expense in one place.',
-                          style: TextStyle(fontSize: 14, color: AppColors.muted),
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: AppColors.muted,
+                          ),
                         ),
                         const SizedBox(height: 16),
                         Row(
@@ -382,11 +400,14 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                               child: _colorButton(
                                 label: 'Manage Category',
                                 color: _slate,
-                                onPressed: () => Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => const ManageCategoriesScreen(),
-                                  ),
-                                ).then((_) => _loadData()),
+                                onPressed: () => Navigator.of(context)
+                                    .push(
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            const ManageCategoriesScreen(),
+                                      ),
+                                    )
+                                    .then((_) => _loadData()),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -395,11 +416,13 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                 label: 'Transfer',
                                 color: AppColors.brand,
                                 icon: Icons.arrow_forward_rounded,
-                                onPressed: () => Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => const TransferScreen(),
-                                  ),
-                                ).then((_) => _loadData()),
+                                onPressed: () => Navigator.of(context)
+                                    .push(
+                                      MaterialPageRoute(
+                                        builder: (_) => const TransferScreen(),
+                                      ),
+                                    )
+                                    .then((_) => _loadData()),
                               ),
                             ),
                           ],
@@ -423,7 +446,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                           behavior: HitTestBehavior.translucent,
                           onHorizontalDragEnd: (details) {
                             final v = details.primaryVelocity ?? 0;
-                            if (v < -300 && page < totalPages - 1) _goToPage(page + 1);
+                            if (v < -300 && page < totalPages - 1)
+                              _goToPage(page + 1);
                             if (v > 300 && page > 0) _goToPage(page - 1);
                           },
                           child: Column(
@@ -516,8 +540,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 Icons.search_rounded,
                 color: AppColors.muted,
               ),
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 12,
+              ),
               border: _inputBorder(),
               enabledBorder: _inputBorder(),
               focusedBorder: _inputBorder(color: AppColors.brand, width: 2),
@@ -837,7 +863,7 @@ class _FilterDropdownState extends State<_FilterDropdown> {
             builder: (_) {
               final selected =
                   (o == widget.allLabel && widget.current == null) ||
-                      o == widget.current;
+                  o == widget.current;
               return MenuItemButton(
                 onPressed: () => widget.onSelected(o),
                 trailingIcon: selected
@@ -858,14 +884,11 @@ class _FilterDropdownState extends State<_FilterDropdown> {
                   padding: const WidgetStatePropertyAll(
                     EdgeInsets.symmetric(horizontal: 16),
                   ),
-                  shape: const WidgetStatePropertyAll(
-                    RoundedRectangleBorder(),
-                  ),
+                  shape: const WidgetStatePropertyAll(RoundedRectangleBorder()),
                   textStyle: WidgetStatePropertyAll(
                     TextStyle(
                       fontSize: 15,
-                      fontWeight:
-                          selected ? FontWeight.w600 : FontWeight.w400,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
                     ),
                   ),
                 ),
@@ -939,10 +962,7 @@ class _DateFilterState extends State<_DateFilter> {
 
     if (picked != null) {
       final day = DateTime(picked.year, picked.month, picked.day);
-      widget.onChanged(
-        isFrom ? day : widget.from,
-        isFrom ? widget.to : day,
-      );
+      widget.onChanged(isFrom ? day : widget.from, isFrom ? widget.to : day);
     }
 
     final c = _menuCtrl;
@@ -1051,9 +1071,7 @@ class _DateFilterState extends State<_DateFilter> {
     return MenuAnchor(
       alignmentOffset: Offset(_dx, 6),
       style: _popoverStyle(_width),
-      menuChildren: [
-        SizedBox(width: _width, child: _panel()),
-      ],
+      menuChildren: [SizedBox(width: _width, child: _panel())],
       builder: (context, controller, _) {
         return filterChip(
           key: _chipKey,

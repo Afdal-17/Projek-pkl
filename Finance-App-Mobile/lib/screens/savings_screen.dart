@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../data/dummy_data.dart';
 import '../models/saving_goal.dart';
 import '../services/saving_service.dart';
@@ -67,28 +68,56 @@ class _SavingsScreenState extends State<SavingsScreen> {
           for (final item in rawList) {
             final map = Map<String, dynamic>.from(item as Map);
             final id = map['id_tabungan'] ?? map['id'];
-            final rawName = (map['nama_target'] ?? map['name'] ?? 'Target').toString();
-            final rawDesc = (map['note'] ?? map['deskripsi'] ?? map['keterangan'] ?? map['description'] ?? '').toString();
+            final rawName = (map['nama_target'] ?? map['name'] ?? 'Target')
+                .toString();
+            final rawDesc =
+                (map['note'] ??
+                        map['deskripsi'] ??
+                        map['keterangan'] ??
+                        map['description'] ??
+                        '')
+                    .toString();
             final name = AppTranslator.translateTransactionName(rawName);
             final desc = AppTranslator.translateTransactionName(rawDesc);
             final wallet = map['nama_dompet'] ?? map['wallet'] ?? 'Cash';
-            final targetRaw = map['jumlah_target'] ?? map['target'] ?? 0;
-            final savedRaw = map['jumlah_terkumpul'] ?? map['saved'] ?? 0;
+            final targetRaw =
+                map['nominal_target'] ??
+                map['jumlah_target'] ??
+                map['target'] ??
+                0;
+            final savedRaw =
+                map['nominal_terkumpul'] ??
+                map['jumlah_terkumpul'] ??
+                map['saved'] ??
+                0;
             final target = (targetRaw is num)
                 ? targetRaw.toDouble()
                 : (double.tryParse(targetRaw.toString()) ?? 0.0);
             final saved = (savedRaw is num)
                 ? savedRaw.toDouble()
                 : (double.tryParse(savedRaw.toString()) ?? 0.0);
+            final targetMoney = DummyData.money(
+              target,
+              apiMoney: map['target_money'] ?? map['nominal_target_money'],
+            );
+            final savedMoney = DummyData.money(
+              saved,
+              apiMoney:
+                  map['saved_money'] ??
+                  map['jumlah_terkumpul_money'] ??
+                  map['nominal_terkumpul_money'],
+            );
 
-            list.add(SavingGoal(
-              id: id,
-              name: name.toString(),
-              description: desc.toString(),
-              walletName: wallet.toString(),
-              savedIdr: saved,
-              targetIdr: target,
-            ));
+            list.add(
+              SavingGoal(
+                id: id,
+                name: name.toString(),
+                description: desc.toString(),
+                walletName: wallet.toString(),
+                saved: savedMoney,
+                target: targetMoney,
+              ),
+            );
           }
           loaded = list;
         }
@@ -148,25 +177,31 @@ class _SavingsScreenState extends State<SavingsScreen> {
       valueListenable: preferredCurrency,
       builder: (context, currCode, _) {
         final goals = _goals;
-        final totalSavedIdr =
-            goals.fold<double>(0, (s, g) => s + g.savedIdr);
-        final totalTargetIdr =
-            goals.fold<double>(0, (s, g) => s + g.targetIdr);
-        final funded = totalTargetIdr == 0
+        final totalSavedUsd = goals.fold<double>(
+          0,
+          (s, g) => s + g.saved.baseAmount,
+        );
+        final totalTargetUsd = goals.fold<double>(
+          0,
+          (s, g) => s + g.target.baseAmount,
+        );
+        final funded = totalTargetUsd == 0
             ? 0
-            : (totalSavedIdr / totalTargetIdr * 100).round();
+            : (totalSavedUsd / totalTargetUsd * 100).round();
 
         // Find next incomplete milestone
         final incomplete = goals.where((g) => g.progress < 1).toList();
         final nextGoal = incomplete.isNotEmpty ? incomplete.first : null;
-        final nextSavedDisplay =
-            nextGoal != null ? DummyData.money(nextGoal.savedIdr).displayAmount : 0.0;
-        final nextTargetDisplay =
-            nextGoal != null ? DummyData.money(nextGoal.targetIdr).displayAmount : 0.0;
+        final nextSavedDisplay = nextGoal != null
+            ? nextGoal.saved.displayAmount
+            : 0.0;
+        final nextTargetDisplay = nextGoal != null
+            ? nextGoal.target.displayAmount
+            : 0.0;
         final nextRemaining = nextTargetDisplay - nextSavedDisplay;
 
-        final totalSaved = DummyData.money(totalSavedIdr).displayAmount;
-        final totalTarget = DummyData.money(totalTargetIdr).displayAmount;
+        final totalSaved = DummyData.money(totalSavedUsd).displayAmount;
+        final totalTarget = DummyData.money(totalTargetUsd).displayAmount;
 
         return Scaffold(
           backgroundColor: AppColors.page,
@@ -179,7 +214,11 @@ class _SavingsScreenState extends State<SavingsScreen> {
                   onRefresh: _handleRefresh,
                   color: AppColors.brand,
                   child: (_isLoading && _goals.isEmpty)
-                      ? const Center(child: CircularProgressIndicator(color: AppColors.brand))
+                      ? const Center(
+                          child: CircularProgressIndicator(
+                            color: AppColors.brand,
+                          ),
+                        )
                       : ListView(
                           physics: const AlwaysScrollableScrollPhysics(),
                           padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
@@ -196,7 +235,10 @@ class _SavingsScreenState extends State<SavingsScreen> {
                             const SizedBox(height: 4),
                             const Text(
                               'Set targets and follow your progress over time.',
-                              style: TextStyle(fontSize: 14, color: AppColors.muted),
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: AppColors.muted,
+                              ),
                             ),
                             const SizedBox(height: 16),
                             AppButton(
@@ -246,12 +288,20 @@ class _SavingsScreenState extends State<SavingsScreen> {
                             // Goal Cards
                             if (goals.isEmpty)
                               AppCard(
-                                padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 28,
+                                  horizontal: 16,
+                                ),
                                 child: Center(
                                   child: Column(
                                     children: [
-                                      Icon(Icons.track_changes_rounded,
-                                          size: 40, color: AppColors.muted.withValues(alpha: 0.6)),
+                                      Icon(
+                                        Icons.track_changes_rounded,
+                                        size: 40,
+                                        color: AppColors.muted.withValues(
+                                          alpha: 0.6,
+                                        ),
+                                      ),
                                       const SizedBox(height: 8),
                                       const Text(
                                         'No savings goals yet',
@@ -264,7 +314,10 @@ class _SavingsScreenState extends State<SavingsScreen> {
                                       const SizedBox(height: 4),
                                       const Text(
                                         'Tap "Add Saving Target" above to start saving.',
-                                        style: TextStyle(fontSize: 13, color: AppColors.muted),
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: AppColors.muted,
+                                        ),
                                         textAlign: TextAlign.center,
                                       ),
                                     ],
@@ -286,7 +339,9 @@ class _SavingsScreenState extends State<SavingsScreen> {
                               child: Text(
                                 '${goals.length} active targets',
                                 style: const TextStyle(
-                                    fontSize: 13, color: AppColors.muted),
+                                  fontSize: 13,
+                                  color: AppColors.muted,
+                                ),
                               ),
                             ),
                             const SizedBox(height: 20),
@@ -331,8 +386,7 @@ class _StatCard extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(
-                      fontSize: 13, color: AppColors.muted),
+                  style: const TextStyle(fontSize: 13, color: AppColors.muted),
                 ),
                 const SizedBox(height: 10),
                 Text(
@@ -349,7 +403,9 @@ class _StatCard extends StatelessWidget {
                   Text(
                     subtitle!,
                     style: const TextStyle(
-                        fontSize: 12, color: AppColors.muted),
+                      fontSize: 12,
+                      color: AppColors.muted,
+                    ),
                   ),
                 ],
               ],
@@ -385,8 +441,8 @@ class _SavingCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final percent = (goal.progress * 100).round();
     final done = goal.progress >= 1;
-    final savedDisplay = DummyData.money(goal.savedIdr).displayAmount;
-    final targetDisplay = DummyData.money(goal.targetIdr).displayAmount;
+    final savedDisplay = goal.saved.displayAmount;
+    final targetDisplay = goal.target.displayAmount;
 
     return AppCard(
       child: Column(
@@ -426,14 +482,18 @@ class _SavingCard extends StatelessWidget {
                       Text(
                         goal.description,
                         style: const TextStyle(
-                            fontSize: 13, color: AppColors.muted),
+                          fontSize: 13,
+                          color: AppColors.muted,
+                        ),
                       ),
                     ],
                     const SizedBox(height: 2),
                     Text(
                       'From wallet: ${goal.walletName}',
                       style: const TextStyle(
-                          fontSize: 13, color: AppColors.ink),
+                        fontSize: 13,
+                        color: AppColors.ink,
+                      ),
                     ),
                   ],
                 ),
@@ -465,8 +525,7 @@ class _SavingCard extends StatelessWidget {
               ),
               Text(
                 'of ${formatCurrency(targetDisplay, currCode)}',
-                style: const TextStyle(
-                    fontSize: 13, color: AppColors.muted),
+                style: const TextStyle(fontSize: 13, color: AppColors.muted),
               ),
             ],
           ),
@@ -489,13 +548,14 @@ class _SavingCard extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12,
                   color: done ? AppColors.income : AppColors.muted,
-                  fontWeight:
-                      done ? FontWeight.w600 : FontWeight.w400,
+                  fontWeight: done ? FontWeight.w600 : FontWeight.w400,
                 ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 4),
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: done ? AppColors.incomeSoft : AppColors.brandSoft,
                   borderRadius: BorderRadius.circular(999),
@@ -518,10 +578,7 @@ class _SavingCard extends StatelessWidget {
 }
 
 class _DeleteDialog extends StatelessWidget {
-  const _DeleteDialog({
-    required this.goalName,
-    required this.onConfirm,
-  });
+  const _DeleteDialog({required this.goalName, required this.onConfirm});
 
   final String goalName;
   final VoidCallback onConfirm;
@@ -584,10 +641,12 @@ class _DeleteDialog extends StatelessWidget {
             RichText(
               text: TextSpan(
                 style: const TextStyle(
-                    fontSize: 14, color: AppColors.muted, height: 1.5),
+                  fontSize: 14,
+                  color: AppColors.muted,
+                  height: 1.5,
+                ),
                 children: [
-                  const TextSpan(
-                      text: 'Are you sure you want to delete the '),
+                  const TextSpan(text: 'Are you sure you want to delete the '),
                   TextSpan(
                     text: goalName,
                     style: const TextStyle(
@@ -596,8 +655,8 @@ class _DeleteDialog extends StatelessWidget {
                     ),
                   ),
                   const TextSpan(
-                      text:
-                          ' target? This action cannot be undone.'),
+                    text: ' target? This action cannot be undone.',
+                  ),
                 ],
               ),
             ),
@@ -616,8 +675,7 @@ class _DeleteDialog extends StatelessWidget {
                 ),
                 child: const Text(
                   'Delete',
-                  style: TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.w700),
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                 ),
               ),
             ),
@@ -636,8 +694,7 @@ class _DeleteDialog extends StatelessWidget {
                 ),
                 child: const Text(
                   'Cancel',
-                  style: TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.w700),
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                 ),
               ),
             ),

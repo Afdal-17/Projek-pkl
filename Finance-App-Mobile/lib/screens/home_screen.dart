@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../data/dummy_data.dart';
 import '../models/wallet.dart';
 import '../models/wallet_transaction.dart';
@@ -68,7 +69,9 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     try {
       // Ambil kurs secara asynchronous tanpa memblokir pemuatan dompet & transaksi
-      DummyData.fetchLiveRates().catchError((_) {});
+      DummyData.fetchLiveRates().then((_) {
+        if (mounted) setState(() {});
+      });
 
       // Panggil API dompet dan transaksi secara paralel untuk mempercepat loading
       final results = await Future.wait([
@@ -121,7 +124,9 @@ class _HomeScreenState extends State<HomeScreen> {
           final currentYear = now.year;
           final currentMonth = now.month;
 
-          final myWalletNames = activeWallets.map((w) => w.name.trim().toLowerCase()).toSet();
+          final myWalletNames = activeWallets
+              .map((w) => w.name.trim().toLowerCase())
+              .toSet();
 
           for (final t in rawTxList) {
             if (t is! Map) continue;
@@ -138,7 +143,8 @@ class _HomeScreenState extends State<HomeScreen> {
             if (dateStr != null && dateStr.isNotEmpty) {
               final parsed = DateTime.tryParse(dateStr);
               if (parsed != null) {
-                if (parsed.year != currentYear || parsed.month != currentMonth) {
+                if (parsed.year != currentYear ||
+                    parsed.month != currentMonth) {
                   continue; // Lewati transaksi bulan sebelumnya
                 }
               }
@@ -151,13 +157,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
             final type = (t['type'] ?? '').toString().toLowerCase();
             final jenis = (t['jenis'] ?? '').toString().toLowerCase();
-            final category = (t['category'] ?? t['kategori'] ?? '').toString().toLowerCase();
+            final category = (t['category'] ?? t['kategori'] ?? '')
+                .toString()
+                .toLowerCase();
 
             final isTransfer = type == 'transfer' || category == 'transfer';
 
             if (isTransfer) {
               final to = (t['to'] ?? '').toString().trim().toLowerCase();
-              final wallet = (t['wallet'] ?? '').toString().trim().toLowerCase();
+              final wallet = (t['wallet'] ?? '')
+                  .toString()
+                  .trim()
+                  .toLowerCase();
 
               final isToMyWallet = myWalletNames.contains(to);
               final isFromMyWallet = myWalletNames.contains(wallet);
@@ -171,7 +182,8 @@ class _HomeScreenState extends State<HomeScreen> {
               // Sumber adalah dompet user, tujuan bukan dompet user
               if (jenis == 'pengeluaran' || (!isToMyWallet && isFromMyWallet)) {
                 exp += amt;
-              } else if (jenis == 'pemasukan' || (isToMyWallet && !isFromMyWallet)) {
+              } else if (jenis == 'pemasukan' ||
+                  (isToMyWallet && !isFromMyWallet)) {
                 // Transfer masuk dari pengguna lain (pemasukan)
                 inc += amt;
               }
@@ -228,8 +240,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Wallet _walletFromJson(Map<String, dynamic> json) {
     final id = json['id_dompet'] ?? json['id'];
-    final name = (json['nama_dompet'] ?? json['nama'] ?? json['name'] ?? 'Wallet').toString();
-    final rawJenis = (json['jenis'] ?? json['kategori'] ?? json['type'] ?? 'physical').toString().toLowerCase();
+    final name =
+        (json['nama_dompet'] ?? json['nama'] ?? json['name'] ?? 'Wallet')
+            .toString();
+    final rawJenis =
+        (json['jenis'] ?? json['kategori'] ?? json['type'] ?? 'physical')
+            .toString()
+            .toLowerCase();
 
     String type = 'Physical wallet';
     if (rawJenis.contains('bank')) {
@@ -243,7 +260,8 @@ class _HomeScreenState extends State<HomeScreen> {
         ? saldoRaw.toDouble()
         : (double.tryParse(saldoRaw.toString()) ?? 0.0);
 
-    final isPrimary = json['is_primary'] == true ||
+    final isPrimary =
+        json['is_primary'] == true ||
         json['is_primary'] == 1 ||
         json['terima_transfer'] == true ||
         json['terima_transfer'] == 1;
@@ -253,7 +271,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final warnaRaw = json['warna']?.toString();
     if (warnaRaw != null && warnaRaw.isNotEmpty) {
-      if (warnaRaw.startsWith('#') && (warnaRaw.length == 7 || warnaRaw.length == 9)) {
+      if (warnaRaw.startsWith('#') &&
+          (warnaRaw.length == 7 || warnaRaw.length == 9)) {
         try {
           color = Color(int.parse(warnaRaw.replaceFirst('#', '0xFF')));
         } catch (_) {}
@@ -270,11 +289,13 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
 
+    final balance = DummyData.money(saldo, apiMoney: json['saldo_money']);
+
     return Wallet(
       id: id,
       name: name,
       type: type,
-      balanceIdr: saldo,
+      balance: balance,
       isPrimary: isPrimary,
       icon: icon,
       color: color,
@@ -322,10 +343,15 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _openForm({Wallet? wallet}) async {
+    final mediaQuery = MediaQuery.of(context);
+    final maxSheetHeight =
+        (mediaQuery.size.height - mediaQuery.padding.top) * 0.84;
+
     final result = await showModalBottomSheet<WalletFormResult>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
+      constraints: BoxConstraints(maxHeight: maxSheetHeight),
       builder: (_) => WalletFormSheet(
         wallet: wallet,
         onDelete: wallet == null ? null : () => _confirmDelete(wallet),
@@ -376,9 +402,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _confirmDelete(Wallet wallet) async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => _DeleteWalletDialog(
-        walletName: wallet.name,
-      ),
+      builder: (ctx) => _DeleteWalletDialog(walletName: wallet.name),
     );
 
     if (ok == true) {
@@ -396,7 +420,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final totalIdr = _wallets.fold<double>(0, (sum, w) => sum + w.balanceIdr);
+    final totalUsd = _wallets.fold<double>(0, (sum, w) => sum + w.balanceUsd);
 
     return Scaffold(
       backgroundColor: AppColors.page,
@@ -430,7 +454,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         const SizedBox(height: 4),
                         const Text(
                           'Overall summary of your finances and assets.',
-                          style: TextStyle(fontSize: 14, color: AppColors.muted),
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: AppColors.muted,
+                          ),
                         ),
                         const SizedBox(height: 16),
                         AppButton(
@@ -439,7 +466,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           onPressed: () => _openForm(),
                         ),
                         const SizedBox(height: 16),
-                        _totalCard(_wallets.length, totalIdr),
+                        _totalCard(_wallets.length, totalUsd),
                         const SizedBox(height: 20),
                         const Text(
                           'Your wallets',
@@ -452,12 +479,20 @@ class _HomeScreenState extends State<HomeScreen> {
                         const SizedBox(height: 12),
                         if (_wallets.isEmpty)
                           AppCard(
-                            padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 28,
+                              horizontal: 16,
+                            ),
                             child: Center(
                               child: Column(
                                 children: [
-                                  Icon(Icons.account_balance_wallet_outlined,
-                                      size: 40, color: AppColors.muted.withValues(alpha: 0.6)),
+                                  Icon(
+                                    Icons.account_balance_wallet_outlined,
+                                    size: 40,
+                                    color: AppColors.muted.withValues(
+                                      alpha: 0.6,
+                                    ),
+                                  ),
                                   const SizedBox(height: 8),
                                   const Text(
                                     'No wallets yet',
@@ -470,7 +505,10 @@ class _HomeScreenState extends State<HomeScreen> {
                                   const SizedBox(height: 4),
                                   const Text(
                                     'Tap "Add Wallet" above to create your first wallet.',
-                                    style: TextStyle(fontSize: 13, color: AppColors.muted),
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: AppColors.muted,
+                                    ),
                                     textAlign: TextAlign.center,
                                   ),
                                 ],
@@ -483,12 +521,13 @@ class _HomeScreenState extends State<HomeScreen> {
                             child: ListView.separated(
                               scrollDirection: Axis.horizontal,
                               itemCount: _wallets.length,
-                              separatorBuilder: (_, _) => const SizedBox(width: 12),
+                              separatorBuilder: (_, _) =>
+                                  const SizedBox(width: 12),
                               itemBuilder: (context, i) {
                                 final wallet = _wallets[i];
                                 return WalletCard(
                                   wallet: wallet,
-                                  balance: DummyData.money(wallet.balanceIdr),
+                                  balance: wallet.balance,
                                   isPrimary: wallet.name == _primaryName,
                                   onEdit: () => _openForm(wallet: wallet),
                                   onDelete: () => _confirmDelete(wallet),
@@ -497,7 +536,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                     MaterialPageRoute(
                                       builder: (_) => WalletHistoryScreen(
                                         wallet: wallet,
-                                        transactions: const <WalletTransaction>[],
+                                        transactions:
+                                            const <WalletTransaction>[],
                                       ),
                                     ),
                                   ),
@@ -518,7 +558,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _totalCard(int activeWallets, double totalIdr) {
+  Widget _totalCard(int activeWallets, double totalUsd) {
     final income = DummyData.money(_monthlyIncome);
     final expense = DummyData.money(_monthlyExpense);
 
@@ -554,13 +594,19 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(height: 2),
                     Text(
                       _lastUpdatedText,
-                      style: const TextStyle(fontSize: 12, color: AppColors.muted),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.muted,
+                      ),
                     ),
                   ],
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.brandSoft,
                   borderRadius: BorderRadius.circular(999),
@@ -581,7 +627,7 @@ class _HomeScreenState extends State<HomeScreen> {
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
             child: Text(
-              DummyData.money(totalIdr).text,
+              DummyData.money(totalUsd).text,
               style: const TextStyle(
                 fontSize: 30,
                 fontWeight: FontWeight.w800,
@@ -633,9 +679,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
 // ─── Delete Wallet Confirmation Dialog ────────────────────────
 class _DeleteWalletDialog extends StatelessWidget {
-  const _DeleteWalletDialog({
-    required this.walletName,
-  });
+  const _DeleteWalletDialog({required this.walletName});
 
   final String walletName;
 
@@ -733,10 +777,7 @@ class _DeleteWalletDialog extends StatelessWidget {
                 ),
                 child: const Text(
                   'Delete',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                 ),
               ),
             ),
@@ -755,10 +796,7 @@ class _DeleteWalletDialog extends StatelessWidget {
                 ),
                 child: const Text(
                   'Cancel',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                 ),
               ),
             ),

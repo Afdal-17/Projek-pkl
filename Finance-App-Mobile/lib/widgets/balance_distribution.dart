@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../models/wallet.dart';
 import '../theme/app_colors.dart';
 import 'app_card.dart';
@@ -11,12 +12,13 @@ class BalanceDistribution extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final total = wallets.fold<double>(0, (sum, w) => sum + w.balanceIdr);
+    final total = wallets.fold<double>(0, (sum, w) => sum + w.balanceUsd);
     final sorted = [...wallets]
-      ..sort((a, b) => b.balanceIdr.compareTo(a.balanceIdr));
+      ..sort((a, b) => b.balanceUsd.compareTo(a.balanceUsd));
     final top = sorted.isEmpty ? null : sorted.first;
-    final topShare =
-        (top == null || total == 0) ? 0 : (top.balanceIdr / total * 100).round();
+    final topShare = (top == null || total == 0)
+        ? 0
+        : (top.balanceUsd / total * 100).round();
 
     return AppCard(
       child: Column(
@@ -51,7 +53,10 @@ class BalanceDistribution extends StatelessWidget {
                     Expanded(
                       flex: total == 0
                           ? 1
-                          : ((w.balanceIdr / total) * 1000).round().clamp(1, 1000).toInt(),
+                          : ((w.balanceUsd / total) * 1000)
+                                .round()
+                                .clamp(1, 1000)
+                                .toInt(),
                       child: Container(color: w.color),
                     ),
                 ],

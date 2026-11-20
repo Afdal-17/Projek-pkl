@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+
 import '../data/dummy_data.dart';
+import '../models/money.dart';
 import '../models/wallet.dart';
 import '../models/wallet_transaction.dart';
 import '../services/wallet_service.dart';
@@ -77,8 +79,18 @@ class _WalletHistoryScreenState extends State<WalletHistoryScreen> {
             try {
               final d = DateTime.parse(rawDate);
               const monthNames = [
-                'January', 'February', 'March', 'April', 'May', 'June',
-                'July', 'August', 'September', 'October', 'November', 'December'
+                'January',
+                'February',
+                'March',
+                'April',
+                'May',
+                'June',
+                'July',
+                'August',
+                'September',
+                'October',
+                'November',
+                'December',
               ];
               date = '${d.day} ${monthNames[d.month - 1]} ${d.year}';
             } catch (_) {}
@@ -90,6 +102,9 @@ class _WalletHistoryScreenState extends State<WalletHistoryScreen> {
           final isTransfer = item['type'] == 'transfer';
           final amount = isIncome ? rawAmt : -rawAmt;
 
+          // Gunakan amount_money dari backend jika tersedia (berisi kurs & display currency)
+          final apiMoney = Money.tryParse(item['amount_money']);
+
           IconData icon = Icons.receipt_long_outlined;
           if (isTransfer) {
             icon = Icons.swap_horiz_rounded;
@@ -99,14 +114,17 @@ class _WalletHistoryScreenState extends State<WalletHistoryScreen> {
             icon = Icons.shopping_bag_outlined;
           }
 
-          list.add(WalletTransaction(
-            title: title,
-            category: category,
-            date: date,
-            amount: amount,
-            icon: icon,
-            isTransfer: isTransfer,
-          ));
+          list.add(
+            WalletTransaction(
+              title: title,
+              category: category,
+              date: date,
+              amount: amount,
+              icon: icon,
+              isTransfer: isTransfer,
+              money: apiMoney,
+            ),
+          );
         }
 
         setState(() {
@@ -166,8 +184,11 @@ class _WalletHistoryScreenState extends State<WalletHistoryScreen> {
                       padding: EdgeInsets.symmetric(vertical: 8),
                       child: Row(
                         children: [
-                          Icon(Icons.arrow_back_rounded,
-                              size: 18, color: AppColors.muted),
+                          Icon(
+                            Icons.arrow_back_rounded,
+                            size: 18,
+                            color: AppColors.muted,
+                          ),
                           SizedBox(width: 8),
                           Text(
                             'Back',
@@ -193,94 +214,109 @@ class _WalletHistoryScreenState extends State<WalletHistoryScreen> {
                   const SizedBox(height: 4),
                   const Text(
                     'Wallet balance history',
-                style: TextStyle(fontSize: 14, color: AppColors.muted),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Current balance',
-                style: TextStyle(fontSize: 13, color: AppColors.muted),
-              ),
-              const SizedBox(height: 2),
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  DummyData.money(widget.wallet.balanceIdr).text,
-                  style: const TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.ink,
+                    style: TextStyle(fontSize: 14, color: AppColors.muted),
                   ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              if (_isLoading && _transactions.isEmpty)
-                const Center(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: CircularProgressIndicator(color: AppColors.brand),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Current balance',
+                    style: TextStyle(fontSize: 13, color: AppColors.muted),
                   ),
-                )
-              else if (_errorMessage != null && _transactions.isEmpty)
-                AppCard(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.cloud_off_rounded, size: 36, color: AppColors.muted),
-                        const SizedBox(height: 8),
-                        Text(
-                          _errorMessage!,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 14, color: AppColors.muted),
-                        ),
-                        const SizedBox(height: 12),
-                        OutlinedButton.icon(
-                          onPressed: _loadHistory,
-                          icon: const Icon(Icons.refresh_rounded, size: 16),
-                          label: const Text('Retry'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.brand,
-                            side: const BorderSide(color: AppColors.brand),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              else if (_transactions.isEmpty)
-                const AppCard(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Center(
-                      child: Text(
-                        'No transactions for this wallet yet.',
-                        style: TextStyle(fontSize: 14, color: AppColors.muted),
+                  const SizedBox(height: 2),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      widget.wallet.balance.text,
+                      style: const TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.ink,
                       ),
                     ),
                   ),
-                )
-              else
-                AppCard(
-                  padding: EdgeInsets.zero,
-                  child: Column(
-                    children: [
-                      for (int i = 0; i < _transactions.length; i++) ...[
-                        _TransactionRow(item: _transactions[i]),
-                        if (i < _transactions.length - 1)
-                          const Divider(height: 1, color: AppColors.line),
-                      ],
-                    ],
-                  ),
-                ),
-            ],
+                  const SizedBox(height: 20),
+                  if (_isLoading && _transactions.isEmpty)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 24),
+                        child: CircularProgressIndicator(
+                          color: AppColors.brand,
+                        ),
+                      ),
+                    )
+                  else if (_errorMessage != null && _transactions.isEmpty)
+                    AppCard(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 20,
+                          horizontal: 16,
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.cloud_off_rounded,
+                              size: 36,
+                              color: AppColors.muted,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _errorMessage!,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: AppColors.muted,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            OutlinedButton.icon(
+                              onPressed: _loadHistory,
+                              icon: const Icon(Icons.refresh_rounded, size: 16),
+                              label: const Text('Retry'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.brand,
+                                side: const BorderSide(color: AppColors.brand),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else if (_transactions.isEmpty)
+                    const AppCard(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 24),
+                        child: Center(
+                          child: Text(
+                            'No transactions for this wallet yet.',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: AppColors.muted,
+                            ),
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    AppCard(
+                      padding: EdgeInsets.zero,
+                      child: Column(
+                        children: [
+                          for (int i = 0; i < _transactions.length; i++) ...[
+                            _TransactionRow(item: _transactions[i]),
+                            if (i < _transactions.length - 1)
+                              const Divider(height: 1, color: AppColors.line),
+                          ],
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
-  },
-);
   }
 }
 
@@ -294,8 +330,9 @@ class _TransactionRow extends StatelessWidget {
     final isIncome = item.amount >= 0;
     final amountColor = isIncome ? AppColors.income : AppColors.expense;
     final sign = isIncome ? '+' : '-';
-    final amountText =
-        '$sign ${DummyData.money(item.amount.abs()).text}';
+    // Gunakan money dari backend jika tersedia, fallback ke konversi lokal
+    final resolvedMoney = item.money ?? DummyData.money(item.amount.abs());
+    final amountText = '$sign ${resolvedMoney.text}';
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -305,7 +342,9 @@ class _TransactionRow extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: item.isTransfer ? AppColors.brandSoft : AppColors.expenseSoft,
+              color: item.isTransfer
+                  ? AppColors.brandSoft
+                  : AppColors.expenseSoft,
               borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(

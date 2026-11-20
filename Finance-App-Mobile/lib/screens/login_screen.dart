@@ -120,22 +120,29 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (success) {
         widget.onLoginSuccess();
-      } else if (AuthService.lastGoogleRequiresOtp && AuthService.lastGoogleUserId != null) {
-        final userId = AuthService.lastGoogleUserId!;
-        final email = AuthService.lastGoogleEmail ?? '';
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => OtpVerificationScreen(
-              userId: userId,
-              targetEmail: email,
-              isWhatsApp: false,
-              onVerificationSuccess: () {
-                Navigator.of(context).pop();
-                widget.onLoginSuccess();
-              },
+      } else if (AuthService.lastGoogleRequiresOtp) {
+        if (AuthService.lastGoogleUserId != null) {
+          final userId = AuthService.lastGoogleUserId!;
+          final email = AuthService.lastGoogleEmail ?? '';
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => OtpVerificationScreen(
+                userId: userId,
+                targetEmail: email,
+                isWhatsApp: false,
+                onVerificationSuccess: () {
+                  Navigator.of(context).pop();
+                  widget.onLoginSuccess();
+                },
+              ),
             ),
-          ),
-        );
+          );
+        } else {
+          setState(() {
+            _errorMessage = AuthService.lastLoginError ??
+                'Verification required, but user ID was missing from server response.';
+          });
+        }
       } else {
         final err = AuthService.lastLoginError ?? 'Google sign-in failed.';
         final googleAcc = AuthService.lastGoogleAccount;
@@ -263,22 +270,29 @@ class _LoginScreenState extends State<LoginScreen> {
                         setState(() => _isLoading = false);
                         if (regSuccess) {
                           widget.onLoginSuccess();
-                        } else if (AuthService.lastGoogleRequiresOtp && AuthService.lastGoogleUserId != null) {
-                          final userId = AuthService.lastGoogleUserId!;
-                          final email = AuthService.lastGoogleEmail ?? '';
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => OtpVerificationScreen(
-                                userId: userId,
-                                targetEmail: email,
-                                isWhatsApp: false,
-                                onVerificationSuccess: () {
-                                  Navigator.of(context).pop();
-                                  widget.onLoginSuccess();
-                                },
+                        } else if (AuthService.lastGoogleRequiresOtp) {
+                          if (AuthService.lastGoogleUserId != null) {
+                            final userId = AuthService.lastGoogleUserId!;
+                            final email = AuthService.lastGoogleEmail ?? '';
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => OtpVerificationScreen(
+                                  userId: userId,
+                                  targetEmail: email,
+                                  isWhatsApp: false,
+                                  onVerificationSuccess: () {
+                                    Navigator.of(context).pop();
+                                    widget.onLoginSuccess();
+                                  },
+                                ),
                               ),
-                            ),
-                          );
+                            );
+                          } else {
+                            setState(() {
+                              _errorMessage = AuthService.lastLoginError ??
+                                  'Verification required, but user ID was missing from server response.';
+                            });
+                          }
                         } else {
                           setState(() {
                             _errorMessage = AuthService.lastLoginError ??
@@ -1910,22 +1924,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       if (success) {
         widget.onRegisterSuccess();
-      } else if (AuthService.lastGoogleRequiresOtp && AuthService.lastGoogleUserId != null) {
-        final userId = AuthService.lastGoogleUserId!;
-        final email = AuthService.lastGoogleEmail ?? '';
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => OtpVerificationScreen(
-              userId: userId,
-              targetEmail: email,
-              isWhatsApp: false,
-              onVerificationSuccess: () {
-                Navigator.of(context).pop();
-                widget.onRegisterSuccess();
-              },
+      } else if (AuthService.lastGoogleRequiresOtp) {
+        if (AuthService.lastGoogleUserId != null) {
+          final userId = AuthService.lastGoogleUserId!;
+          final email = AuthService.lastGoogleEmail ?? '';
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => OtpVerificationScreen(
+                userId: userId,
+                targetEmail: email,
+                isWhatsApp: false,
+                onVerificationSuccess: () {
+                  Navigator.of(context).pop();
+                  widget.onRegisterSuccess();
+                },
+              ),
             ),
-          ),
-        );
+          );
+        } else {
+          setState(() {
+            _errorMessage = AuthService.lastLoginError ??
+                'Verification required, but user ID was missing from server response.';
+          });
+        }
       } else {
         final err = AuthService.lastLoginError ?? 'Google sign-up failed.';
         setState(() => _errorMessage = err);

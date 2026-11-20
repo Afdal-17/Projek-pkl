@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../data/dummy_data.dart';
 import '../models/transfer_user.dart';
 import '../models/wallet.dart';
@@ -65,13 +66,15 @@ class _TransferScreenState extends State<TransferScreen> {
           loaded = rawW.map((item) {
             final map = Map<String, dynamic>.from(item as Map);
             final id = map['id_dompet'] ?? map['id'];
-            final name = map['nama_dompet'] ?? map['nama'] ?? map['name'] ?? 'Wallet';
+            final name =
+                map['nama_dompet'] ?? map['nama'] ?? map['name'] ?? 'Wallet';
             final type = map['kategori'] ?? map['type'] ?? 'Physical wallet';
             final saldoRaw = map['saldo'] ?? map['balance'] ?? 0;
             final saldo = (saldoRaw is num)
                 ? saldoRaw.toDouble()
                 : (double.tryParse(saldoRaw.toString()) ?? 0.0);
-            final isPrimary = map['is_primary'] == true || map['is_primary'] == 1;
+            final isPrimary =
+                map['is_primary'] == true || map['is_primary'] == 1;
 
             IconData icon = Icons.payments_outlined;
             Color color = AppColors.income;
@@ -84,7 +87,7 @@ class _TransferScreenState extends State<TransferScreen> {
               id: id,
               name: name.toString(),
               type: type.toString(),
-              balanceIdr: saldo,
+              balance: DummyData.money(saldo, apiMoney: map['saldo_money']),
               isPrimary: isPrimary,
               icon: icon,
               color: color,
@@ -135,9 +138,7 @@ class _TransferScreenState extends State<TransferScreen> {
 
   void _toggleMode() {
     _switchMode(
-      _mode == _TransferMode.wallet
-          ? _TransferMode.user
-          : _TransferMode.wallet,
+      _mode == _TransferMode.wallet ? _TransferMode.user : _TransferMode.wallet,
     );
   }
 
@@ -175,8 +176,8 @@ class _TransferScreenState extends State<TransferScreen> {
     final firstWallet = walletsList.isNotEmpty ? walletsList.first : null;
     final firstWalletId = firstWallet != null
         ? (firstWallet['id'] is int
-            ? firstWallet['id'] as int
-            : int.tryParse(firstWallet['id'].toString()))
+              ? firstWallet['id'] as int
+              : int.tryParse(firstWallet['id'].toString()))
         : user.targetWalletId;
     final firstWalletName = firstWallet != null
         ? firstWallet['name']?.toString()
@@ -190,7 +191,7 @@ class _TransferScreenState extends State<TransferScreen> {
       _toRecipientWallets = walletsList.isNotEmpty
           ? walletsList
           : [
-              {'id': firstWalletId ?? 1, 'name': firstWalletName ?? 'Wallet'}
+              {'id': firstWalletId ?? 1, 'name': firstWalletName ?? 'Wallet'},
             ];
       _isRecipientWalletDropdownOpen = false;
       _searchResults = [];
@@ -277,12 +278,11 @@ class _TransferScreenState extends State<TransferScreen> {
       return;
     }
 
-    final availableDisplayBalance =
-        DummyData.money(fromWalletObj.balanceIdr).displayAmount;
+    final availableDisplayBalance = fromWalletObj.balance.displayAmount;
     if (_amount > availableDisplayBalance) {
       showAppPopup(
         context,
-        'Insufficient balance in $_fromWallet (Available: ${DummyData.money(fromWalletObj.balanceIdr).text}).',
+        'Insufficient balance in $_fromWallet (Available: ${fromWalletObj.balance.text}).',
         title: 'Insufficient Balance',
         type: PopupType.warning,
       );
@@ -313,7 +313,8 @@ class _TransferScreenState extends State<TransferScreen> {
       NotificationService.notifyTransfer(
         context: context,
         title: 'Transfer success!',
-        message: 'Transfer of $amtStr from $_fromWallet to $destDisplayName completed.',
+        message:
+            'Transfer of $amtStr from $_fromWallet to $destDisplayName completed.',
       );
       showAppPopup(
         context,
@@ -327,7 +328,8 @@ class _TransferScreenState extends State<TransferScreen> {
     } else {
       showAppPopup(
         context,
-        res.message ?? 'Transfer failed. Please check your balance or recipient details.',
+        res.message ??
+            'Transfer failed. Please check your balance or recipient details.',
         title: 'Transfer Failed',
         type: PopupType.error,
       );
@@ -384,7 +386,9 @@ class _TransferScreenState extends State<TransferScreen> {
                 _summaryCard(),
 
                 SizedBox(
-                  height: MediaQuery.of(context).viewInsets.bottom > 0 ? 200 : 0,
+                  height: MediaQuery.of(context).viewInsets.bottom > 0
+                      ? 200
+                      : 0,
                 ),
               ],
             ),
@@ -397,9 +401,7 @@ class _TransferScreenState extends State<TransferScreen> {
   /// Card utama yang berisi Form (meniru x-card transfer.blade.php)
   Widget _mainFormCard() {
     final fromWalletObj = _findWallet(_fromWallet);
-    final balanceText = fromWalletObj != null
-        ? DummyData.money(fromWalletObj.balanceIdr).text
-        : '';
+    final balanceText = fromWalletObj != null ? fromWalletObj.balance.text : '';
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -684,7 +686,7 @@ class _TransferScreenState extends State<TransferScreen> {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            DummyData.money(w.balanceIdr).text,
+                            w.balance.text,
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: isSelected
@@ -772,7 +774,10 @@ class _TransferScreenState extends State<TransferScreen> {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFDCFCE7),
                     borderRadius: BorderRadius.circular(999),
@@ -823,7 +828,8 @@ class _TransferScreenState extends State<TransferScreen> {
               onTap: () {
                 if (_toRecipientWallets.length > 1) {
                   setState(() {
-                    _isRecipientWalletDropdownOpen = !_isRecipientWalletDropdownOpen;
+                    _isRecipientWalletDropdownOpen =
+                        !_isRecipientWalletDropdownOpen;
                   });
                 }
               },
@@ -873,7 +879,8 @@ class _TransferScreenState extends State<TransferScreen> {
             ),
 
             // Dropdown Popup List (Matches Screenshot 2)
-            if (_isRecipientWalletDropdownOpen && _toRecipientWallets.isNotEmpty) ...[
+            if (_isRecipientWalletDropdownOpen &&
+                _toRecipientWallets.isNotEmpty) ...[
               const SizedBox(height: 6),
               Container(
                 decoration: BoxDecoration(
@@ -890,7 +897,9 @@ class _TransferScreenState extends State<TransferScreen> {
                 ),
                 child: Column(
                   children: _toRecipientWallets.map((w) {
-                    final id = w['id'] is int ? w['id'] as int : int.tryParse(w['id'].toString());
+                    final id = w['id'] is int
+                        ? w['id'] as int
+                        : int.tryParse(w['id'].toString());
                     final name = (w['name'] ?? 'Wallet').toString();
                     final isSelected = id == _toWalletId;
 
@@ -904,9 +913,14 @@ class _TransferScreenState extends State<TransferScreen> {
                       },
                       borderRadius: BorderRadius.circular(8),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
                         decoration: BoxDecoration(
-                          color: isSelected ? const Color(0xFFEEF2FF) : Colors.transparent,
+                          color: isSelected
+                              ? const Color(0xFFEEF2FF)
+                              : Colors.transparent,
                         ),
                         child: Row(
                           children: [
@@ -914,8 +928,12 @@ class _TransferScreenState extends State<TransferScreen> {
                               name,
                               style: TextStyle(
                                 fontSize: 14,
-                                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                                color: isSelected ? AppColors.brand : AppColors.ink,
+                                fontWeight: isSelected
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                                color: isSelected
+                                    ? AppColors.brand
+                                    : AppColors.ink,
                               ),
                             ),
                             const Spacer(),
@@ -950,7 +968,9 @@ class _TransferScreenState extends State<TransferScreen> {
               color: _searchResults.isNotEmpty || _searchCtrl.text.isNotEmpty
                   ? AppColors.brand
                   : const Color(0xFFCBD5E1),
-              width: _searchResults.isNotEmpty || _searchCtrl.text.isNotEmpty ? 1.5 : 1.0,
+              width: _searchResults.isNotEmpty || _searchCtrl.text.isNotEmpty
+                  ? 1.5
+                  : 1.0,
             ),
             boxShadow: _searchResults.isNotEmpty || _searchCtrl.text.isNotEmpty
                 ? [
@@ -968,7 +988,10 @@ class _TransferScreenState extends State<TransferScreen> {
             style: const TextStyle(fontSize: 14, color: AppColors.ink),
             decoration: InputDecoration(
               hintText: 'Search username or email',
-              hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+              hintStyle: const TextStyle(
+                color: Color(0xFF94A3B8),
+                fontSize: 13,
+              ),
               prefixIcon: const Icon(
                 Icons.person_outline_rounded,
                 color: AppColors.brand,
@@ -1039,12 +1062,19 @@ class _TransferScreenState extends State<TransferScreen> {
             ),
             child: Row(
               children: [
-                const Icon(Icons.info_outline_rounded, size: 18, color: AppColors.muted),
+                const Icon(
+                  Icons.info_outline_rounded,
+                  size: 18,
+                  color: AppColors.muted,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'No recipient found for "${_searchCtrl.text.trim()}".',
-                    style: const TextStyle(fontSize: 13, color: AppColors.muted),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.muted,
+                    ),
                   ),
                 ),
               ],
@@ -1137,7 +1167,10 @@ class _TransferScreenState extends State<TransferScreen> {
               const SizedBox(width: 8),
               // Pill status / wallet di sebelah kanan (Matches Screenshot 1)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: canTransfer
                       ? const Color(0xFFF1F5F9)
@@ -1145,7 +1178,8 @@ class _TransferScreenState extends State<TransferScreen> {
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
-                  user.statusText ?? (canTransfer ? user.walletName! : "Don't have a wallet"),
+                  user.statusText ??
+                      (canTransfer ? user.walletName! : "Don't have a wallet"),
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
@@ -1202,9 +1236,7 @@ class _TransferScreenState extends State<TransferScreen> {
         const SizedBox(height: 8),
         TextField(
           controller: _amountCtrl,
-          keyboardType: const TextInputType.numberWithOptions(
-            decimal: true,
-          ),
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
           inputFormatters: [AmountInputFormatter()],
           textAlignVertical: TextAlignVertical.center,
           style: const TextStyle(
@@ -1256,10 +1288,7 @@ class _TransferScreenState extends State<TransferScreen> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(
-                color: AppColors.brand,
-                width: 1.5,
-              ),
+              borderSide: const BorderSide(color: AppColors.brand, width: 1.5),
             ),
           ),
           onChanged: (val) {
@@ -1452,9 +1481,9 @@ class _TransferScreenState extends State<TransferScreen> {
                   _mode == _TransferMode.wallet
                       ? (_toWallet ?? '-')
                       : (_toUserName ??
-                          (_searchCtrl.text.isNotEmpty
-                              ? _searchCtrl.text
-                              : '-')),
+                            (_searchCtrl.text.isNotEmpty
+                                ? _searchCtrl.text
+                                : '-')),
                   style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,

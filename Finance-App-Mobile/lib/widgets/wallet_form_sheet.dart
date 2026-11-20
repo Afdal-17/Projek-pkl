@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../models/wallet.dart';
 import '../theme/app_colors.dart';
 import '../utils/amount_format.dart';
@@ -51,7 +52,7 @@ class _WalletFormSheetState extends State<WalletFormSheet> {
     final w = widget.wallet;
     _nameCtrl = TextEditingController(text: w?.name ?? '');
     _currentCtrl = TextEditingController(
-      text: w == null ? '' : AmountFormat.fromDouble(w.balanceIdr),
+      text: w == null ? '' : AmountFormat.fromDouble(w.balance.displayAmount),
     );
     _initialCtrl = TextEditingController();
     _type = (w != null && _walletTypes.contains(w.type))
@@ -117,178 +118,195 @@ class _WalletFormSheetState extends State<WalletFormSheet> {
   }
 
   Widget _label(String text) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Text(
-          text,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: AppColors.ink,
-          ),
-        ),
-      );
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text(
+      text,
+      style: const TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+        color: AppColors.ink,
+      ),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    // Batasi tinggi maksimum modal agar tidak menutupi seluruh layar (ada jarak di atas seperti Add Category)
+    final maxSheetHeight =
+        (mediaQuery.size.height - mediaQuery.padding.top) * 0.84;
+
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-      child: Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: SafeArea(
-          top: false,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        _isEdit ? 'Edit Wallet' : 'Add Wallet',
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
+      padding: EdgeInsets.only(bottom: mediaQuery.viewInsets.bottom),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxSheetHeight),
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: SafeArea(
+            top: false,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _isEdit ? 'Edit Wallet' : 'Add Wallet',
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.ink,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(
+                          Icons.close_rounded,
                           color: AppColors.ink,
                         ),
                       ),
+                    ],
+                  ),
+                  Text(
+                    _isEdit
+                        ? 'Update the details for this wallet.'
+                        : 'Create a new wallet to track your money.',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.muted,
                     ),
-                    IconButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.close_rounded, color: AppColors.ink),
-                    ),
-                  ],
-                ),
-                Text(
-                  _isEdit
-                      ? 'Update the details for this wallet.'
-                      : 'Create a new wallet to track your money.',
-                  style: const TextStyle(fontSize: 13, color: AppColors.muted),
-                ),
-                const SizedBox(height: 20),
+                  ),
+                  const SizedBox(height: 20),
 
-                _label('Wallet name'),
-                TextField(
-                  controller: _nameCtrl,
-                  onChanged: (_) {
-                    if (_error != null) setState(() => _error = null);
-                  },
-                  decoration: _dec(hint: 'e.g. BCA'),
-                ),
-                const SizedBox(height: 16),
-
-                _label('Wallet type'),
-                WalletTypeField(
-                  value: _type,
-                  options: _walletTypes,
-                  onChanged: (v) => setState(() => _type = v),
-                ),
-                const SizedBox(height: 16),
-
-                _label('Current Balance'),
-                TextField(
-                  controller: _currentCtrl,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  inputFormatters: [AmountInputFormatter()],
-                  decoration: _dec(hint: '0'),
-                ),
-
-                // Hanya saat tambah dompet, sama seperti di web
-                if (!_isEdit) ...[
-                  const SizedBox(height: 16),
-                  _label('Initial Balance (Optional)'),
+                  _label('Wallet name'),
                   TextField(
-                    controller: _initialCtrl,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
+                    controller: _nameCtrl,
+                    onChanged: (_) {
+                      if (_error != null) setState(() => _error = null);
+                    },
+                    decoration: _dec(hint: 'e.g. BCA'),
+                  ),
+                  const SizedBox(height: 16),
+
+                  _label('Wallet type'),
+                  WalletTypeField(
+                    value: _type,
+                    options: _walletTypes,
+                    onChanged: (v) => setState(() => _type = v),
+                  ),
+                  const SizedBox(height: 16),
+
+                  _label('Current Balance'),
+                  TextField(
+                    controller: _currentCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                     inputFormatters: [AmountInputFormatter()],
                     decoration: _dec(hint: '0'),
                   ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'Only fill if this is a new wallet with an initial balance.',
-                    style: TextStyle(fontSize: 12, color: AppColors.muted),
-                  ),
-                ],
-                const SizedBox(height: 16),
 
-                _label('Wallet color'),
-                ColorPickerField(
-                  color: _color,
-                  onChanged: (c) => setState(() => _color = c),
-                ),
-
-                if (_error != null) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    _error!,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: AppColors.expense,
-                    ),
-                  ),
-                ],
-
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: SizedBox(
-                        height: 48,
-                        child: OutlinedButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.ink,
-                            side: const BorderSide(color: AppColors.line),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                          ),
-                          child: const Text('Cancel'),
-                        ),
+                  // Hanya saat tambah dompet, sama seperti di web
+                  if (!_isEdit) ...[
+                    const SizedBox(height: 16),
+                    _label('Initial Balance (Optional)'),
+                    TextField(
+                      controller: _initialCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
                       ),
+                      inputFormatters: [AmountInputFormatter()],
+                      decoration: _dec(hint: '0'),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: AppButton(
-                        label: _isEdit ? 'Save changes' : 'Add Wallet',
-                        onPressed: _save,
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Only fill if this is a new wallet with an initial balance.',
+                      style: TextStyle(fontSize: 12, color: AppColors.muted),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+
+                  _label('Wallet color'),
+                  ColorPickerField(
+                    color: _color,
+                    onChanged: (c) => setState(() => _color = c),
+                  ),
+
+                  if (_error != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      _error!,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: AppColors.expense,
                       ),
                     ),
                   ],
-                ),
 
-                // Delete hanya tampil saat edit, seperti di web
-                if (_isEdit) ...[
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    height: 48,
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _delete,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.expense,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: SizedBox(
+                          height: 48,
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.ink,
+                              side: const BorderSide(color: AppColors.line),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            child: const Text('Cancel'),
+                          ),
                         ),
                       ),
-                      child: const Text(
-                        'Delete',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: AppButton(
+                          label: _isEdit ? 'Save changes' : 'Add Wallet',
+                          onPressed: _save,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  // Delete hanya tampil saat edit, seperti di web
+                  if (_isEdit) ...[
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      height: 48,
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _delete,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.expense,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: const Text(
+                          'Delete',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ),
-                  ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),

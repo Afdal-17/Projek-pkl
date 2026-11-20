@@ -1,5 +1,9 @@
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+
 import '../data/admin_dummy_data.dart';
 import '../data/dummy_data.dart';
 import '../utils/currency.dart';
@@ -46,11 +50,87 @@ class AuthService {
   static String? lastGoogleEmail;
 
   static final GoogleSignIn _googleSignIn = GoogleSignIn(
-    scopes: <String>[
-      'email',
-      'profile',
-    ],
+    serverClientId: ApiConfig.googleServerClientId,
+    scopes: <String>['email', 'profile'],
   );
+
+  /// Diagnostik sementara untuk validasi struktur & klaim ID Token secara aman
+  /// TANPA mencetak nilai token, client secret, atau kredensial sensitif.
+  static Map<String, dynamic> verifyIdTokenClaims(String? idToken) {
+    if (idToken == null || idToken.isEmpty) {
+      return {
+        'available': false,
+        'format_valid': false,
+        'aud_valid': false,
+        'iss_valid': false,
+        'exp_valid': false,
+        'email_verified': false,
+      };
+    }
+
+    try {
+      final parts = idToken.split('.');
+      if (parts.length != 3) {
+        return {
+          'available': true,
+          'format_valid': false,
+          'aud_valid': false,
+          'iss_valid': false,
+          'exp_valid': false,
+          'email_verified': false,
+        };
+      }
+
+      final normalized = base64Url.normalize(parts[1]);
+      final payloadString = utf8.decode(base64Url.decode(normalized));
+      final dynamic decodedJson = jsonDecode(payloadString);
+      if (decodedJson is! Map) {
+        return {
+          'available': true,
+          'format_valid': false,
+          'aud_valid': false,
+          'iss_valid': false,
+          'exp_valid': false,
+          'email_verified': false,
+        };
+      }
+
+      final aud = decodedJson['aud']?.toString();
+      final iss = decodedJson['iss']?.toString();
+      final exp = decodedJson['exp'];
+      final emailVerified = decodedJson['email_verified'];
+
+      const expectedAud = ApiConfig.googleServerClientId;
+      final bool isAudValid = aud == expectedAud;
+      final bool isIssValid =
+          iss == 'accounts.google.com' || iss == 'https://accounts.google.com';
+      final bool isExpValid =
+          exp is int &&
+          DateTime.fromMillisecondsSinceEpoch(exp * 1000)
+              .isAfter(DateTime.now());
+      final bool isEmailVerified =
+          emailVerified == true ||
+          emailVerified?.toString().toLowerCase() == 'true';
+
+      return {
+        'available': true,
+        'format_valid': true,
+        'aud_valid': isAudValid,
+        'iss_valid': isIssValid,
+        'exp_valid': isExpValid,
+        'email_verified': isEmailVerified,
+      };
+    } catch (_) {
+      return {
+        'available': true,
+        'format_valid': false,
+        'aud_valid': false,
+        'iss_valid': false,
+        'exp_valid': false,
+        'email_verified': false,
+      };
+    }
+  }
 
   /// Alur Google Sign-In: mengambil profil Google dan verifikasi ke Laravel Backend (/api/auth/google)
   /// [mode]: 'login' (untuk halaman Sign In) atau 'register' (untuk halaman Sign Up)
@@ -59,6 +139,8 @@ class AuthService {
       lastGoogleRequiresOtp = false;
       lastGoogleUserId = null;
       lastGoogleEmail = null;
+      lastGoogleAccount = null;
+      lastLoginError = null;
 
       final GoogleSignInAccount? account = await _googleSignIn.signIn();
       if (account == null) {
@@ -70,7 +152,34 @@ class AuthService {
       final email = account.email;
       final idToken = auth.idToken;
 
-      // 1. Kirim data profil & Google ID ke endpoint API Laravel Backend (/api/auth/google)
+      // Diagnostik aman klaim ID Token (hanya boolean/status, tanpa mencetak token/secret)
+      final tokenDiag = verifyIdTokenClaims(idToken);
+      debugPrint(
+        '[GoogleAuth Diagnostic] ID Token Available: ${tokenDiag['available']}',
+      );
+      if (tokenDiag['available'] == true) {
+        debugPrint(
+          '[GoogleAuth Diagnostic] Audience Valid: ${tokenDiag['aud_valid']}',
+        );
+        debugPrint(
+          '[GoogleAuth Diagnostic] Issuer Valid: ${tokenDiag['iss_valid']}',
+        );
+        debugPrint(
+          '[GoogleAuth Diagnostic] Expiry Valid: ${tokenDiag['exp_valid']}',
+        );
+        debugPrint(
+          '[GoogleAuth Diagnostic] Email Verified: ${tokenDiag['email_verified']}',
+        );
+      }
+
+      // 1. Validasi ID Token sebelum dikirim ke Backend
+      if (idToken == null || idToken.trim().isEmpty) {
+        lastLoginError =
+            'Gagal memperoleh Google ID Token dari perangkat. Pastikan Google Play Services aktif dan coba lagi.';
+        return null;
+      }
+
+      // 2. Kirim data profil & Google ID ke endpoint API Laravel Backend (/api/auth/google)
       //    untuk ditukar dengan Sanctum Bearer Token resmi
       try {
         final payload = {
@@ -79,7 +188,7 @@ class AuthService {
           'mode': mode,
           'nama': account.displayName ?? 'Google User',
           'avatar_path': account.photoUrl,
-          if (idToken != null && idToken.isNotEmpty) 'id_token': idToken,
+          'id_token': idToken,
         };
 
         final res = await ApiService.post(
@@ -91,16 +200,46 @@ class AuthService {
         if (res.success && res.data is Map) {
           final dataMap = res.data as Map;
 
-          if (dataMap['requires_otp'] == true) {
+          // 1. Periksa apakah autentikasi membutuhkan verifikasi OTP
+          // Mendukung boolean true, string "true", dan integer 1
+          final reqOtpRaw = dataMap['requires_otp'];
+          final bool requiresOtp =
+              reqOtpRaw == true ||
+              reqOtpRaw == 1 ||
+              reqOtpRaw?.toString().trim().toLowerCase() == 'true' ||
+              reqOtpRaw?.toString().trim() == '1';
+
+          if (requiresOtp) {
             lastGoogleRequiresOtp = true;
-            final rawUserId = dataMap['user_id'];
+
+            // 2. Ekstraksi user ID mendukung user_id, id_user, user.id_user, dan user.id
+            final userObj = dataMap['user'];
+            final rawUserId =
+                dataMap['user_id'] ??
+                dataMap['id_user'] ??
+                (userObj is Map ? (userObj['id_user'] ?? userObj['id']) : null);
+
             if (rawUserId != null) {
               lastGoogleUserId = (rawUserId is num)
                   ? rawUserId.toInt()
-                  : int.tryParse(rawUserId.toString());
+                  : int.tryParse(rawUserId.toString().trim());
             }
-            lastGoogleEmail = dataMap['email']?.toString() ?? email;
-            lastLoginError = null;
+
+            // 3. Email dari backend dengan fallback ke email akun Google
+            final backendEmail =
+                dataMap['email']?.toString() ??
+                (userObj is Map ? userObj['email']?.toString() : null);
+            lastGoogleEmail = (backendEmail != null && backendEmail.isNotEmpty)
+                ? backendEmail
+                : email;
+
+            if (lastGoogleUserId != null) {
+              lastLoginError = null;
+            } else {
+              lastLoginError = 'Verification required, but user ID was missing from server response.';
+            }
+
+            // 4. Pastikan token TIDAK disimpan ke secure storage jika OTP masih wajib
             return null;
           }
 
@@ -114,13 +253,17 @@ class AuthService {
               value: (user is Map ? user['email']?.toString() : null) ?? email,
             );
 
-            final userName = (user is Map ? (user['nama'] ?? user['name'])?.toString() : null) ??
+            final userName =
+                (user is Map
+                    ? (user['nama'] ?? user['name'])?.toString()
+                    : null) ??
                 account.displayName;
             if (userName != null) {
               await _storage.write(key: _userNameKey, value: userName);
             }
 
-            final role = (user is Map ? user['role']?.toString() : null) ?? 'user';
+            final role =
+                (user is Map ? user['role']?.toString() : null) ?? 'user';
             await _storage.write(key: _roleKey, value: role);
 
             if (user is Map && user['mata_uang'] != null) {
@@ -139,9 +282,11 @@ class AuthService {
               raw.toLowerCase().contains('registrasi terlebih dahulu') ||
               raw.toLowerCase().contains('belum terdaftar') ||
               raw.toLowerCase().contains('not found')) {
-            lastLoginError = 'No account found for this Google email. Please sign up first.';
+            lastLoginError =
+                'No account found for this Google email. Please sign up first.';
           } else {
-            lastLoginError = res.message ?? 'Google authentication failed on server.';
+            lastLoginError =
+                res.message ?? 'Google authentication failed on server.';
           }
           return null;
         }
@@ -185,12 +330,9 @@ class AuthService {
     final cleanId = identifier.trim().toLowerCase();
 
     try {
-      final body = <String, dynamic>{
-        'password': password,
-      };
+      final body = <String, dynamic>{'password': password};
       if (isPhone) {
         body['phone'] = identifier.trim();
-        body['email'] = identifier.trim();
       } else {
         body['email'] = identifier.trim();
       }
@@ -212,10 +354,13 @@ class AuthService {
           await _storage.write(key: _tokenKey, value: token);
           await _storage.write(
             key: _userKey,
-            value: (user is Map ? user['email']?.toString() : null) ?? identifier,
+            value:
+                (user is Map ? user['email']?.toString() : null) ?? identifier,
           );
 
-          final userName = (user is Map ? (user['nama'] ?? user['name'])?.toString() : null);
+          final userName = (user is Map
+              ? (user['nama'] ?? user['name'])?.toString()
+              : null);
           if (userName != null) {
             await _storage.write(key: _userNameKey, value: userName);
           }
@@ -224,8 +369,12 @@ class AuthService {
             await _storage.write(key: _phoneKey, value: identifier);
           }
 
-          final role = (user is Map ? user['role']?.toString() : null) ??
-              ((cleanId == 'admin@finance.test' || cleanId == 'admin@finance.app') ? 'admin' : 'user');
+          final role =
+              (user is Map ? user['role']?.toString() : null) ??
+              ((cleanId == 'admin@finance.test' ||
+                      cleanId == 'admin@finance.app')
+                  ? 'admin'
+                  : 'user');
           await _storage.write(key: _roleKey, value: role);
 
           if (user is Map && user['mata_uang'] != null) {
@@ -239,7 +388,8 @@ class AuthService {
         }
       }
 
-      final isNetworkFailure = res.message != null && res.message!.startsWith('Connection failed:');
+      final isNetworkFailure =
+          res.message != null && res.message!.startsWith('Connection failed:');
       if (!isNetworkFailure) {
         final raw = res.message ?? '';
         if (raw.toLowerCase().contains('tidak ditemukan') ||
@@ -316,7 +466,8 @@ class AuthService {
         return true;
       }
 
-      lastForgotPasswordError = res.message ?? 'Failed to send reset link. Please try again.';
+      lastForgotPasswordError =
+          res.message ?? 'Failed to send reset link. Please try again.';
       return false;
     } catch (e) {
       lastForgotPasswordError = 'Connection failed: ${e.toString()}';
@@ -368,7 +519,8 @@ class AuthService {
         return true;
       }
 
-      lastResetPasswordError = res.message ?? 'Failed to reset password. Please check your token.';
+      lastResetPasswordError =
+          res.message ?? 'Failed to reset password. Please check your token.';
       return false;
     } catch (e) {
       lastResetPasswordError = 'Connection failed: ${e.toString()}';
@@ -383,7 +535,8 @@ class AuthService {
     final digits = cleanPhone.replaceAll(RegExp(r'\D'), '');
 
     if (cleanPhone.isEmpty || digits.length < 8 || digits.length > 15) {
-      lastForgotPasswordPhoneError = 'Please enter a valid phone number (8-15 digits).';
+      lastForgotPasswordPhoneError =
+          'Please enter a valid phone number (8-15 digits).';
       return false;
     }
 
@@ -401,7 +554,8 @@ class AuthService {
       if (res.message != null && res.message!.isNotEmpty) {
         lastForgotPasswordPhoneError = res.message;
       } else {
-        lastForgotPasswordPhoneError = 'Failed to send recovery OTP. Please try again.';
+        lastForgotPasswordPhoneError =
+            'Failed to send recovery OTP. Please try again.';
       }
       return false;
     } catch (e) {
@@ -412,7 +566,10 @@ class AuthService {
 
   /// Verifikasi kode OTP 6-digit untuk pemulihan password via WhatsApp (/api/forgot-password/phone/verify).
   /// Mengembalikan reset_token (String) jika verifikasi berhasil, atau null jika gagal.
-  static Future<String?> verifyPhonePasswordResetOtp(String phone, String code) async {
+  static Future<String?> verifyPhonePasswordResetOtp(
+    String phone,
+    String code,
+  ) async {
     lastForgotPasswordPhoneError = null;
     final cleanPhone = phone.trim();
     final cleanCode = code.trim();
@@ -422,17 +579,15 @@ class AuthService {
       return null;
     }
     if (cleanCode.length != 6 || int.tryParse(cleanCode) == null) {
-      lastForgotPasswordPhoneError = 'Please enter a valid 6-digit verification code.';
+      lastForgotPasswordPhoneError =
+          'Please enter a valid 6-digit verification code.';
       return null;
     }
 
     try {
       final res = await ApiService.post(
         ApiConfig.forgotPasswordPhoneVerifyEndpoint,
-        body: {
-          'phone': cleanPhone,
-          'code': cleanCode,
-        },
+        body: {'phone': cleanPhone, 'code': cleanCode},
         requiresAuth: false,
       );
 
@@ -445,8 +600,10 @@ class AuthService {
       }
 
       if (res.message != null && res.message!.isNotEmpty) {
-        if (res.message!.contains('tidak valid') || res.message!.contains('kedaluwarsa')) {
-          lastForgotPasswordPhoneError = 'Recovery code is invalid or has expired.';
+        if (res.message!.contains('tidak valid') ||
+            res.message!.contains('kedaluwarsa')) {
+          lastForgotPasswordPhoneError =
+              'Recovery code is invalid or has expired.';
         } else {
           lastForgotPasswordPhoneError = res.message;
         }
@@ -505,13 +662,16 @@ class AuthService {
       }
 
       if (res.message != null && res.message!.isNotEmpty) {
-        if (res.message!.contains('tidak valid') || res.message!.contains('kedaluwarsa')) {
-          lastResetPasswordPhoneError = 'Recovery token is invalid or has expired. Please try again.';
+        if (res.message!.contains('tidak valid') ||
+            res.message!.contains('kedaluwarsa')) {
+          lastResetPasswordPhoneError =
+              'Recovery token is invalid or has expired. Please try again.';
         } else {
           lastResetPasswordPhoneError = res.message;
         }
       } else {
-        lastResetPasswordPhoneError = 'Failed to reset password. Please try again.';
+        lastResetPasswordPhoneError =
+            'Failed to reset password. Please try again.';
       }
       return false;
     } catch (e) {
@@ -596,13 +756,13 @@ class AuthService {
         final raw = res.message!;
         if (raw.toLowerCase().contains('target class') ||
             raw.toLowerCase().contains('does not exist')) {
-          lastRegisterError =
-              'Server error: Registration controller is not configured on backend. Please report to the backend developer.';
+          lastRegisterError = 'Server error: Registration controller is not configured on backend. Please report to the backend developer.';
         } else {
           lastRegisterError = raw;
         }
       } else {
-        lastRegisterError = 'Registration failed. Please check your data and try again.';
+        lastRegisterError =
+            'Registration failed. Please check your data and try again.';
       }
       return null;
     } catch (e) {
@@ -629,10 +789,7 @@ class AuthService {
     try {
       final res = await ApiService.post(
         ApiConfig.registerVerifyOtpEndpoint,
-        body: {
-          'user_id': userId,
-          'kode': cleanCode,
-        },
+        body: {'user_id': userId, 'kode': cleanCode},
         requiresAuth: false,
       );
 
@@ -649,11 +806,14 @@ class AuthService {
           if (userEmail != null) {
             await _storage.write(key: _userKey, value: userEmail);
           }
-          final userName = (user is Map ? (user['nama'] ?? user['name'])?.toString() : null);
+          final userName = (user is Map
+              ? (user['nama'] ?? user['name'])?.toString()
+              : null);
           if (userName != null) {
             await _storage.write(key: _userNameKey, value: userName);
           }
-          final role = (user is Map ? user['role']?.toString() : null) ?? 'user';
+          final role =
+              (user is Map ? user['role']?.toString() : null) ?? 'user';
           await _storage.write(key: _roleKey, value: role);
 
           if (user is Map && user['mata_uang'] != null) {
@@ -670,7 +830,8 @@ class AuthService {
       if (res.message != null && res.message!.isNotEmpty) {
         lastRegisterError = res.message;
       } else {
-        lastRegisterError = 'Invalid verification code. Please check and try again.';
+        lastRegisterError =
+            'Invalid verification code. Please check and try again.';
       }
       return false;
     } catch (e) {
@@ -707,7 +868,10 @@ class AuthService {
   }
 
   /// Simpan sesi user lokal (fallback offline testing)
-  static Future<void> saveLocalUser({required String name, required String email}) async {
+  static Future<void> saveLocalUser({
+    required String name,
+    required String email,
+  }) async {
     await _storage.write(key: _tokenKey, value: _dummyToken);
     await _storage.write(key: _userKey, value: email);
     await _storage.write(key: _userNameKey, value: name);
@@ -721,7 +885,11 @@ class AuthService {
     String email,
     String password,
   ) async {
-    final userId = await registerUser(name: name, email: email, password: password);
+    final userId = await registerUser(
+      name: name,
+      email: email,
+      password: password,
+    );
     if (userId != null) {
       AdminDummyData.registerUser(name: name, email: email);
       return true;

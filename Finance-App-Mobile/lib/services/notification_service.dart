@@ -56,18 +56,6 @@ class NotificationService {
             Color iconColor = AppColors.income;
             Color iconBg = AppColors.incomeSoft;
 
-            SavingGoal? goal;
-            if (map['goal'] is Map) {
-              final g = Map<String, dynamic>.from(map['goal'] as Map);
-              goal = SavingGoal(
-                name: g['name']?.toString() ?? 'Savings Goal',
-                description: g['note']?.toString() ?? g['description']?.toString() ?? 'Target tabungan',
-                walletName: g['wallet']?.toString() ?? 'Wallet',
-                savedIdr: (double.tryParse(g['saved']?.toString() ?? '0') ?? 0) * 19500.0,
-                targetIdr: (double.tryParse(g['target']?.toString() ?? '0') ?? 0) * 19500.0,
-              );
-            }
-
             if (type == 'saving' || type == 'target' || title.toLowerCase().contains('goal')) {
               category = 'Goal';
               icon = Icons.track_changes_rounded;
@@ -92,7 +80,6 @@ class NotificationService {
                 icon: icon,
                 iconBg: iconBg,
                 iconColor: iconColor,
-                goal: goal,
                 activityDetail:
                     'This activity was added to your history. You can view it again in Transactions.',
               ),

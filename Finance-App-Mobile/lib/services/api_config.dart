@@ -9,6 +9,10 @@ class ApiConfig {
   static const String ngrokHeaderKey = 'ngrok-skip-browser-warning';
   static const String ngrokHeaderValue = 'true';
 
+  /// Web Client ID resmi Google OAuth Backend (Google Cloud Console)
+  static const String googleServerClientId =
+      '247859906027-4bcrj4ec74evugic0ccb6brl775s56ft.apps.googleusercontent.com';
+
   // ─── Endpoints ───────────────────────────────────────────────
   // Autentikasi & Akun
   static const String loginEndpoint = '$baseUrl/login';

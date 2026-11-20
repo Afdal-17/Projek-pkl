@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 // ignore: unused_import
 import '../theme/app_colors.dart';
+import 'money.dart';
 
 class WalletTransaction {
   const WalletTransaction({
@@ -10,6 +11,7 @@ class WalletTransaction {
     required this.amount,
     required this.icon,
     this.isTransfer = false,
+    this.money,
   });
 
   final String title;
@@ -20,6 +22,9 @@ class WalletTransaction {
   final double amount;
   final IconData icon;
   final bool isTransfer;
+
+  /// Data mata uang dari backend (`amount_money`), jika tersedia.
+  final Money? money;
 }
 
 /// Data contoh sementara. Nanti diganti dengan data dari dummy_data.dart

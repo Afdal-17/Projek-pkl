@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:finance_app_mobile/utils/currency.dart';
+import 'package:finance_app_mobile/models/money.dart';
 import 'package:finance_app_mobile/utils/app_translator.dart';
 import 'package:finance_app_mobile/utils/amount_format.dart';
 import 'package:finance_app_mobile/utils/refresh_notifier.dart';
@@ -25,12 +26,30 @@ void main() {
     expect(preferredCurrency.value, 'USD');
   });
 
-  test('mengubah preferredCurrency memicu AppRefreshNotifier secara otomatis', () {
-    final initialTick = AppRefreshNotifier.refreshTick.value;
-    preferredCurrency.value = 'EUR';
-    expect(AppRefreshNotifier.refreshTick.value, greaterThan(initialTick));
-    preferredCurrency.value = 'IDR';
+  test('Money memakai nilai display dan kurs dari response backend', () {
+    final money = Money.tryParse({
+      'base_amount': '25.00000000',
+      'base_currency': 'USD',
+      'display_amount': 22.86,
+      'display_currency': 'EUR',
+      'rate': {'from': 'USD', 'to': 'EUR', 'value': '0.9142857143'},
+    });
+
+    expect(money, isNotNull);
+    expect(money!.baseAmount, 25);
+    expect(money.displayAmount, 22.86);
+    expect(money.text, '€22,86');
   });
+
+  test(
+    'mengubah preferredCurrency memicu AppRefreshNotifier secara otomatis',
+    () {
+      final initialTick = AppRefreshNotifier.refreshTick.value;
+      preferredCurrency.value = 'EUR';
+      expect(AppRefreshNotifier.refreshTick.value, greaterThan(initialTick));
+      preferredCurrency.value = 'IDR';
+    },
+  );
 
   test('AppTranslator translates transfer transaction names into English', () {
     expect(
@@ -61,18 +80,27 @@ void main() {
     expect(AppTranslator.translateCategory('Transportasi'), 'Transportation');
   });
 
-  test('AppTranslator translates transfer notification with dot-separated numbers', () {
-    expect(
-      AppTranslator.translateNotification('Anda di transfer oleh Afdal Firmansyah of Rp 444.'),
-      'You received a transfer of Rp 444 from Afdal Firmansyah.',
-    );
-    expect(
-      AppTranslator.translateNotification('Anda di transfer oleh Afout Gang 5 of Rp 12.345.'),
-      'You received a transfer of Rp 12.345 from Afout Gang 5.',
-    );
-    expect(
-      AppTranslator.translateNotification('Anda di transfer oleh Afout Gang 5 sebesar Rp 20.000.000.'),
-      'You received a transfer of Rp 20.000.000 from Afout Gang 5.',
-    );
-  });
+  test(
+    'AppTranslator translates transfer notification with dot-separated numbers',
+    () {
+      expect(
+        AppTranslator.translateNotification(
+          'Anda di transfer oleh Afdal Firmansyah of Rp 444.',
+        ),
+        'You received a transfer of Rp 444 from Afdal Firmansyah.',
+      );
+      expect(
+        AppTranslator.translateNotification(
+          'Anda di transfer oleh Afout Gang 5 of Rp 12.345.',
+        ),
+        'You received a transfer of Rp 12.345 from Afout Gang 5.',
+      );
+      expect(
+        AppTranslator.translateNotification(
+          'Anda di transfer oleh Afout Gang 5 sebesar Rp 20.000.000.',
+        ),
+        'You received a transfer of Rp 20.000.000 from Afout Gang 5.',
+      );
+    },
+  );
 }

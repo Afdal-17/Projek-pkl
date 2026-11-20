@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+
 import '../data/dummy_data.dart';
-import '../models/saving_goal.dart';
 import '../models/wallet.dart';
 import '../services/notification_service.dart';
 import '../services/saving_service.dart';
@@ -58,13 +58,15 @@ class _AddSavingTargetScreenState extends State<AddSavingTargetScreen> {
           loaded = rawW.map((item) {
             final map = Map<String, dynamic>.from(item as Map);
             final id = map['id_dompet'] ?? map['id'];
-            final name = map['nama_dompet'] ?? map['nama'] ?? map['name'] ?? 'Wallet';
+            final name =
+                map['nama_dompet'] ?? map['nama'] ?? map['name'] ?? 'Wallet';
             final type = map['kategori'] ?? map['type'] ?? 'Physical wallet';
             final saldoRaw = map['saldo'] ?? map['balance'] ?? 0;
             final saldo = (saldoRaw is num)
                 ? saldoRaw.toDouble()
                 : (double.tryParse(saldoRaw.toString()) ?? 0.0);
-            final isPrimary = map['is_primary'] == true || map['is_primary'] == 1;
+            final isPrimary =
+                map['is_primary'] == true || map['is_primary'] == 1;
 
             IconData icon = Icons.payments_outlined;
             Color color = AppColors.income;
@@ -77,7 +79,7 @@ class _AddSavingTargetScreenState extends State<AddSavingTargetScreen> {
               id: id,
               name: name.toString(),
               type: type.toString(),
-              balanceIdr: saldo,
+              balance: DummyData.money(saldo, apiMoney: map['saldo_money']),
               isPrimary: isPrimary,
               icon: icon,
               color: color,
@@ -139,7 +141,9 @@ class _AddSavingTargetScreenState extends State<AddSavingTargetScreen> {
     // Backend TargetTabunganController sudah otomatis memanggil CurrencyService::toBase()
     // berdasarkan preferensi mata uang user yang sudah disinkronkan di atas.
     final cleanTarget = double.parse(_targetAmount.toStringAsFixed(2));
-    final cleanInitial = double.parse(_initialAmount.clamp(0, _targetAmount).toStringAsFixed(2));
+    final cleanInitial = double.parse(
+      _initialAmount.clamp(0, _targetAmount).toStringAsFixed(2),
+    );
 
     final res = await SavingService.createSaving(
       walletId: _selectedWallet!.id ?? 1,
@@ -153,19 +157,10 @@ class _AddSavingTargetScreenState extends State<AddSavingTargetScreen> {
     setState(() => _isSubmitting = false);
 
     if (res.success) {
-      final newGoal = SavingGoal(
-        name: name,
-        description: _descCtrl.text.trim(),
-        walletName: _selectedWallet!.name,
-        savedIdr: cleanInitial,
-        targetIdr: cleanTarget,
-      );
-
       NotificationService.notifySavingGoal(
         context: context,
         name: name,
         message: 'Savings goal "$name" has been created.',
-        goal: newGoal,
       );
 
       AppRefreshNotifier.notifyDataChanged();
@@ -192,9 +187,13 @@ class _AddSavingTargetScreenState extends State<AddSavingTargetScreen> {
     return ValueListenableBuilder<String>(
       valueListenable: preferredCurrency,
       builder: (context, currCode, _) {
-        final symbol = currCode == 'USD' ? r'$' : currCode == 'EUR' ? '€' : 'Rp ';
+        final symbol = currCode == 'USD'
+            ? r'$'
+            : currCode == 'EUR'
+            ? '€'
+            : 'Rp ';
         final walletBalance = _selectedWallet != null
-            ? DummyData.money(_selectedWallet!.balanceIdr).displayAmount
+            ? _selectedWallet!.balance.displayAmount
             : 0.0;
         final walletBalanceStr = formatCurrency(walletBalance, currCode);
 
@@ -262,12 +261,18 @@ class _AddSavingTargetScreenState extends State<AddSavingTargetScreen> {
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(color: const Color(0xFFE5E7EB)),
                           ),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
                           child: TextField(
                             controller: _descCtrl,
                             maxLines: 3,
                             minLines: 3,
-                            style: const TextStyle(fontSize: 15, color: AppColors.ink),
+                            style: const TextStyle(
+                              fontSize: 15,
+                              color: AppColors.ink,
+                            ),
                             decoration: const InputDecoration(
                               hintText: 'e.g. Work equipment',
                               hintStyle: TextStyle(color: AppColors.muted),
@@ -328,7 +333,10 @@ class _AddSavingTargetScreenState extends State<AddSavingTargetScreen> {
                                     ),
                                   ),
                                 ] else ...[
-                                  const Text('Select wallet', style: TextStyle(color: AppColors.muted)),
+                                  const Text(
+                                    'Select wallet',
+                                    style: TextStyle(color: AppColors.muted),
+                                  ),
                                 ],
                                 const SizedBox(width: 6),
                                 Icon(
@@ -347,7 +355,9 @@ class _AddSavingTargetScreenState extends State<AddSavingTargetScreen> {
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: const Color(0xFFE5E7EB)),
+                              border: Border.all(
+                                color: const Color(0xFFE5E7EB),
+                              ),
                               boxShadow: [
                                 BoxShadow(
                                   color: Colors.black.withValues(alpha: 0.06),
@@ -360,76 +370,91 @@ class _AddSavingTargetScreenState extends State<AddSavingTargetScreen> {
                               children: _wallets.isEmpty
                                   ? [
                                       const Padding(
-                                        padding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: 14,
+                                          vertical: 14,
+                                        ),
                                         child: Text(
                                           'No wallets available. Please create a wallet first.',
-                                          style: TextStyle(fontSize: 13, color: AppColors.muted),
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: AppColors.muted,
+                                          ),
                                         ),
                                       ),
                                     ]
                                   : _wallets.map((w) {
-                                final isSelected = _selectedWallet?.name == w.name;
-                                final bal = DummyData.money(w.balanceIdr).displayAmount;
-                                final balStr = formatCurrency(bal, currCode);
-                                return InkWell(
-                                  onTap: () => setState(() {
-                                    _selectedWallet = w;
-                                    _isWalletDropdownOpen = false;
-                                  }),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 14, vertical: 12),
-                                    decoration: BoxDecoration(
-                                      color: isSelected
-                                          ? AppColors.brandSoft
-                                          : Colors.transparent,
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Icon(w.icon,
-                                            size: 18,
+                                      final isSelected =
+                                          _selectedWallet?.name == w.name;
+                                      final bal = w.balance.displayAmount;
+                                      final balStr = formatCurrency(
+                                        bal,
+                                        currCode,
+                                      );
+                                      return InkWell(
+                                        onTap: () => setState(() {
+                                          _selectedWallet = w;
+                                          _isWalletDropdownOpen = false;
+                                        }),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 14,
+                                            vertical: 12,
+                                          ),
+                                          decoration: BoxDecoration(
                                             color: isSelected
-                                                ? AppColors.brand
-                                                : w.color),
-                                        const SizedBox(width: 10),
-                                        Expanded(
-                                          child: Text(
-                                            w.name,
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              fontWeight: isSelected
-                                                ? FontWeight.w700
-                                                : FontWeight.w500,
-                                              color: isSelected
-                                                  ? AppColors.brand
-                                                  : AppColors.ink,
-                                            ),
-                                            overflow: TextOverflow.ellipsis,
+                                                ? AppColors.brandSoft
+                                                : Colors.transparent,
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Icon(
+                                                w.icon,
+                                                size: 18,
+                                                color: isSelected
+                                                    ? AppColors.brand
+                                                    : w.color,
+                                              ),
+                                              const SizedBox(width: 10),
+                                              Expanded(
+                                                child: Text(
+                                                  w.name,
+                                                  style: TextStyle(
+                                                    fontSize: 14,
+                                                    fontWeight: isSelected
+                                                        ? FontWeight.w700
+                                                        : FontWeight.w500,
+                                                    color: isSelected
+                                                        ? AppColors.brand
+                                                        : AppColors.ink,
+                                                  ),
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                balStr,
+                                                style: TextStyle(
+                                                  fontSize: 13,
+                                                  color: isSelected
+                                                      ? AppColors.brand
+                                                      : AppColors.muted,
+                                                ),
+                                              ),
+                                              if (isSelected) ...[
+                                                const SizedBox(width: 8),
+                                                const Icon(
+                                                  Icons.check_rounded,
+                                                  size: 18,
+                                                  color: AppColors.brand,
+                                                ),
+                                              ],
+                                            ],
                                           ),
                                         ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          balStr,
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            color: isSelected
-                                                ? AppColors.brand
-                                                : AppColors.muted,
-                                          ),
-                                        ),
-                                        if (isSelected) ...[
-                                          const SizedBox(width: 8),
-                                          const Icon(
-                                            Icons.check_rounded,
-                                            size: 18,
-                                            color: AppColors.brand,
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              }).toList(),
+                                      );
+                                    }).toList(),
                             ),
                           ),
                         ],
@@ -448,8 +473,9 @@ class _AddSavingTargetScreenState extends State<AddSavingTargetScreen> {
                         _amountField(
                           controller: _targetCtrl,
                           symbol: symbol.trim(),
-                          onChanged: (v) =>
-                              setState(() => _targetAmount = AmountFormat.parse(v)),
+                          onChanged: (v) => setState(
+                            () => _targetAmount = AmountFormat.parse(v),
+                          ),
                         ),
                         const SizedBox(height: 16),
 
@@ -485,8 +511,9 @@ class _AddSavingTargetScreenState extends State<AddSavingTargetScreen> {
                         _amountField(
                           controller: _initialCtrl,
                           symbol: symbol.trim(),
-                          onChanged: (v) =>
-                              setState(() => _initialAmount = AmountFormat.parse(v)),
+                          onChanged: (v) => setState(
+                            () => _initialAmount = AmountFormat.parse(v),
+                          ),
                         ),
                         const SizedBox(height: 24),
 
@@ -501,7 +528,8 @@ class _AddSavingTargetScreenState extends State<AddSavingTargetScreen> {
                                   style: OutlinedButton.styleFrom(
                                     foregroundColor: AppColors.ink,
                                     side: const BorderSide(
-                                        color: Color(0xFFE5E7EB)),
+                                      color: Color(0xFFE5E7EB),
+                                    ),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(12),
                                     ),
@@ -582,7 +610,9 @@ class _AddSavingTargetScreenState extends State<AddSavingTargetScreen> {
                           trailing: _nameCtrl.text.trim().isEmpty
                               ? Container(
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 10, vertical: 4),
+                                    horizontal: 10,
+                                    vertical: 4,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: AppColors.expenseSoft,
                                     borderRadius: BorderRadius.circular(999),
@@ -610,7 +640,9 @@ class _AddSavingTargetScreenState extends State<AddSavingTargetScreen> {
                           label: 'Wallet',
                           trailing: Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 4),
+                              horizontal: 12,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: AppColors.expenseSoft,
                               borderRadius: BorderRadius.circular(999),
@@ -717,8 +749,9 @@ class _AddSavingTargetScreenState extends State<AddSavingTargetScreen> {
           Expanded(
             child: TextField(
               controller: controller,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               inputFormatters: [AmountInputFormatter()],
               onChanged: onChanged,
               style: const TextStyle(
@@ -751,10 +784,7 @@ class _AddSavingTargetScreenState extends State<AddSavingTargetScreen> {
         ),
         const SizedBox(width: 12),
         Flexible(
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: trailing,
-          ),
+          child: Align(alignment: Alignment.centerRight, child: trailing),
         ),
       ],
     );
