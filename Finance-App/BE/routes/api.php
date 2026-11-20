@@ -35,7 +35,8 @@ Route::post('/register/verify-otp', [RegisteredUserController::class, 'apiVerify
     ->middleware('throttle:10,1');
 Route::post('/register/resend-otp', [RegisteredUserController::class, 'apiResendOtp'])
     ->middleware('throttle:10,1');
-Route::post('/auth/google', [GoogleAuthController::class, 'apiGoogleLogin']);
+Route::post('/auth/google', [GoogleAuthController::class, 'apiGoogleLogin'])
+    ->middleware('throttle:10,1');
 Route::post('/forgot-password', [PasswordResetLinkController::class, 'apiStore']);
 Route::post('/reset-password', [NewPasswordController::class, 'apiStore']);
 Route::post('/forgot-password/phone', [PhonePasswordResetController::class, 'requestCode'])

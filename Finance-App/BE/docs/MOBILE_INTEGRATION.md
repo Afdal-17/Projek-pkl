@@ -169,9 +169,10 @@ Jika kode belum diterima, kirim ulang menggunakan `POST /api/register/resend-otp
 dengan body `{ "user_id": 12 }`. Endpoint dibatasi per akun dan per IP. Jika
 provider email/WhatsApp gagal atau WhatsApp belum dikonfigurasi, registrasi atau
 pengiriman ulang mengembalikan `503`; klien tidak boleh menganggap OTP terkirim.
-Registrasi yang gagal mengirim OTP tidak menyimpan akun sehingga pengguna dapat
-mencoba mendaftar kembali. OTP berlaku 10 menit dan maksimal 5 percobaan; endpoint
-verifikasi maksimal 10 request/menit per IP, sementara kirim ulang maksimal 10
+Registrasi email/password yang gagal mengirim OTP tidak menyimpan akun. Pada
+registrasi Google, akun pending tetap tersimpan; respons `503` menyertakan
+`user_id` agar OTP dapat diminta ulang. OTP berlaku 10 menit dan maksimal 5 percobaan;
+endpoint verifikasi maksimal 10 request/menit per IP, sementara kirim ulang maksimal 10
 request/menit per IP dan 6 kali/15 menit per akun. Jangan menyimpan token sampai
 endpoint verifikasi membalas `200`.
 
@@ -238,16 +239,18 @@ Accept: application/json
 
 ### 3e. Login / Register Google (untuk tombol *Sign in with Google* native)
 
+Atur `serverClientId` Flutter menggunakan **Web Client ID** dari Google Cloud
+Project yang sama dengan OAuth Client Android. Web Client ID tersebut juga menjadi
+nilai `GOOGLE_CLIENT_ID` backend. Jangan mengirim Android Client ID sebagai
+`serverClientId`.
+
 ```http
 POST /api/auth/google
 Content-Type: application/json
 Accept: application/json
 
 {
-  "email": "user@gmail.com",
-  "google_id": "1029384756...",
-  "nama": "Nama User",
-  "avatar_path": "https://lh3.googleusercontent.com/...",
+  "id_token": "<Google ID token>",
   "mode": "login"
 }
 ```
@@ -256,24 +259,25 @@ Accept: application/json
 
 | Field | Wajib | Keterangan |
 |---|---|---|
-| `email` | ✅ | Email Google user |
-| `google_id` | ✅ | ID unik dari Google (sub) |
+| `id_token` | ✅ | ID token Google yang diperoleh dari proses Sign-In Flutter |
 | `mode` | ✅ | `login` (halaman Login) atau `register` (halaman Sign Up) |
-| `nama` | ❌ | Dipakai saat `mode=register`, default `"Google Sign-In User"` |
-| `avatar_path` | ❌ | URL foto profil Google |
 
-> ⚠️ `google_id` dan `mode` **wajib**. Jika tidak dikirim, API mengembalikan **422**.
+Backend memverifikasi tanda tangan token, issuer, audience, masa berlaku, dan
+status verifikasi email. Identitas dan profil diambil dari klaim token; field
+`email`, `google_id`, `nama`, atau `avatar_path` yang dikirim terpisah tidak
+dipakai sebagai bukti identitas.
 
 **Perilaku `mode`:**
 
 | `mode` | Akun belum ada di DB | Akun sudah ada |
 |---|---|---|
 | `login` | **404** `"Akun tidak ditemukan. Silakan melakukan registrasi terlebih dahulu."` | Login → 200 + token |
-| `register` | Akun baru dibuat otomatis → 200 + token | Login → 200 + token |
+| `register` | Akun dibuat nonaktif; OTP dikirim → 201 (`user_id`, `email`) | Jika akun aktif dan terhubung ke Google yang sama, login → 200 + token |
 
-> 🔑 **Penting untuk tim mobile:** kirim `mode: "login"` dari **halaman Login** dan
-> `mode: "register"` dari **halaman Sign Up**. Akun yang sudah dihapus admin akan
-> ditolak di `mode=login` (404), tetapi tetap bisa didaftarkan ulang lewat `mode=register`.
+Jika akun sudah terhubung ke Google ID berbeda, API mengembalikan **409** dan
+tidak mengganti tautan akun. Akun yang belum menyelesaikan OTP mengembalikan
+**409** dengan `user_id` dan `email`; lanjutkan melalui endpoint verifikasi atau
+kirim ulang OTP.
 
 **Sukses → 200**
 
@@ -289,10 +293,38 @@ Accept: application/json
     "role": "user",
     "status": true,
     "email_verified_at": "2026-11-09T03:44:06.000000Z",
+    "avatar_path": "https://lh3.googleusercontent.com/...",
     "mata_uang": "IDR"
   }
 }
 ```
+
+**Registrasi baru → 201**
+
+```json
+{
+  "message": "Registrasi berhasil. Kode verifikasi telah dikirim ke email Anda.",
+  "user_id": 8,
+  "email": "user@gmail.com"
+}
+```
+
+Setelah OTP terverifikasi melalui `POST /api/register/verify-otp`, pengguna dapat
+masuk kembali dengan `mode: "login"`. Jika pengiriman OTP gagal, API membalas
+**503** dengan `user_id`; akun pending tetap tersimpan dan kode dapat diminta
+kembali melalui `POST /api/register/resend-otp`.
+
+**Respons lain:**
+
+| Status | Arti |
+|---|---|
+| 401 | ID token tidak valid atau kedaluwarsa |
+| 403 | Akun diblokir atau tidak aktif |
+| 404 | Akun belum terdaftar dalam mode `login` |
+| 409 | Tautan Google bertentangan atau verifikasi OTP belum selesai |
+| 422 | Request tidak valid, termasuk `id_token` atau `mode` yang hilang |
+| 503 | Kunci Google atau layanan verifikasi/OTP sementara tidak tersedia |
+| 429 | Batas request tercapai (maksimal 10 request per menit per IP) |
 
 **Akun dibanned → 403**
 
@@ -306,8 +338,6 @@ Accept: application/json
 { "message": "Akun Anda sedang tidak aktif. Silakan hubungi admin." }
 ```
 
-> 🔎 **Perilaku:** user ditemukan dulu berdasarkan `google_id`, lalu fallback ke `email`. Bila keduanya tidak ada, user baru dibuat dengan `role=user`, `status=true`, dan `email_verified_at=now()`.
-
 ---
 
 ### 3f. Simpan & Pakai Token
@@ -320,7 +350,8 @@ Login sukses
    └──► setiap request berikutnya:
           Authorization: Bearer <token>
    │
-   ├── 200 / 201 → sukses
+   ├── 200       → login sukses, simpan token
+   ├── 201       → registrasi pending, lanjut OTP; jangan simpan token
    ├── 401       → token hilang/kedaluwarsa → HAPUS token → paksa login ulang
    ├── 403       → akun dibanned / tidak aktif → tampilkan pesan
    └── 422       → validasi gagal → tampilkan errors
@@ -1188,18 +1219,12 @@ mulai countdown sukses), serta `429` sebagai batas permintaan yang tercapai.
 
 ```dart
 Future<void> googleAuth({
-  required String email,
-  required String googleId,
+  required String idToken,
   required String mode, // 'login' dari halaman Login, 'register' dari halaman Sign Up
-  String? nama,
-  String? avatarPath,
 }) async {
   final res = await api.post('/auth/google', {
-    'email': email,
-    'google_id': googleId,
+    'id_token': idToken,
     'mode': mode,
-    if (nama != null) 'nama': nama,
-    if (avatarPath != null) 'avatar_path': avatarPath,
   });
 
   if (res.statusCode == 200) {
@@ -1211,13 +1236,23 @@ Future<void> googleAuth({
     await prefs.setString('user', jsonEncode(body['user']));
 
     // lanjut ke Home
+  } else if (res.statusCode == 201) {
+    final body = jsonDecode(res.body);
+    // lanjutkan OTP dengan body['user_id']; jangan simpan token dulu
   } else if (res.statusCode == 404) {
     // mode=login & akun tidak ada (mis. sudah dihapus admin)
     // → tampilkan body['message'], arahkan user ke halaman Register
+  } else if (res.statusCode == 409) {
+    // akun perlu verifikasi OTP atau sudah tertaut ke Google lain
+    // → tampilkan body['message']; bila ada user_id, lanjutkan alur OTP
   } else if (res.statusCode == 403) {
     // akun dibanned / tidak aktif → tampilkan body['message']
+  } else if (res.statusCode == 401) {
+    // ID token tidak valid/kedaluwarsa → minta pengguna mencoba Google Sign-In lagi
+  } else if (res.statusCode == 503) {
+    // layanan verifikasi Google atau pengiriman OTP sementara tidak tersedia
   } else {
-    // 422 → jsonDecode(res.body)['errors']
+    // 422 → validasi request; 429 → tunggu sebelum mencoba kembali
   }
 }
 ```
@@ -1316,7 +1351,11 @@ Sebelum laporan "sudah terhubung", pastikan semua tercentang:
 - [ ] Google OAuth memakai domain **ngrok HTTPS**, bukan IP mentah
 
 ### Autentikasi
-- [ ] `POST /api/auth/google` → **200** dan ada field `token`
+- [ ] Flutter memakai Web Client ID yang sama dengan `GOOGLE_CLIENT_ID` backend sebagai `serverClientId`
+- [ ] `POST /api/auth/google` mengirim `id_token` dan `mode`, bukan profil mentah
+- [ ] Login Google akun aktif → **200** dan ada field `token`
+- [ ] Registrasi Google baru → **201**, lanjut OTP; jangan simpan token sebelum OTP tervalidasi
+- [ ] ID token invalid/expired → **401**; akun pending/konflik tautan → **409**
 - [ ] Token **disimpan** ke penyimpanan persisten
 - [ ] Token **dibaca ulang** saat request berikutnya
 - [ ] Header `Authorization: Bearer <token>` benar-benar terkirim
@@ -1338,8 +1377,10 @@ Sebelum laporan "sudah terhubung", pastikan semua tercentang:
 - [ ] `GET /api/transfer/recipients/search?query=<nama>` → 200
 
 ### Penanganan Error
-- [ ] `401` → hapus token, paksa login ulang
+- [ ] `401` pada endpoint terproteksi → hapus Sanctum token dan paksa login ulang
+- [ ] `401` pada `/api/auth/google` → ulangi Google Sign-In; jangan menganggap ini token Sanctum
 - [ ] `403` → tampilkan pesan banned / non-aktif
+- [ ] `409` pada `/api/auth/google` → lanjutkan OTP atau tampilkan konflik tautan Google
 - [ ] `422` → tampilkan isi `errors`
 - [ ] `429` → batasi pengiriman ulang dan minta pengguna menunggu sebelum mencoba lagi
 - [ ] `500` → laporkan ke backend (kemungkinan bug)
@@ -1363,10 +1404,12 @@ Sebelum laporan "sudah terhubung", pastikan semua tercentang:
 
 | Gejala | Penyebab paling mungkin | Tindakan |
 |---|---|---|
-| **401** di semua endpoint | Token tidak terkirim / stale | Login ulang, cek header `Authorization` |
+| **401** pada endpoint terproteksi | Sanctum token tidak terkirim / stale | Login ulang, cek header `Authorization` |
 | **419** | Base URL tanpa `/api` atau cookie session | Tambah `/api`, pakai token bukan session |
-| **404** di `/api/auth/google` | Base URL salah **atau** `mode=login` tetapi akun tidak ada (sudah dihapus) | Cek base URL berakhiran `/api`; jika akun terhapus, daftar ulang via `mode=register` |
-| **422** `google_id` | Field tidak dikirim | Sertakan `google_id` |
+| **401** di `/api/auth/google` | ID token invalid/kedaluwarsa atau audience salah | Ulangi Google Sign-In dan pastikan `serverClientId` memakai Web Client ID dari project yang benar |
+| **404** di `/api/auth/google` | `mode=login` tetapi akun belum terdaftar | Arahkan pengguna ke registrasi |
+| **409** di `/api/auth/google` | OTP belum selesai atau akun tertaut ke Google ID lain | Lanjutkan verifikasi OTP atau minta bantuan untuk penautan akun |
+| **422** `id_token` | ID token tidak dikirim | Ambil ID token dari Google Sign-In dan kirim sebagai `id_token` |
 | **422** `mode` | Field `mode` tidak dikirim / salah nilai | Sertakan `mode` (`login` atau `register`) |
 | **422** `prohibits` | Kirim `saldo` **dan** `saldo_awal` | Kirim salah satu saja |
 | **422** `initial_savings` | Default = saldo dompet, melebihi target | Kirim `initial_savings` eksplisit |

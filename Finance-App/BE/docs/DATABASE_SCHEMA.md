@@ -43,7 +43,7 @@ Menyimpan informasi profil, kredensial, role, dan status keamanan pengguna.
 * `role` (ENUM: `user`, `admin`)
 * `status` (BOOLEAN: aktif / non-aktif)
 * `email_verified_at` (TIMESTAMP, nullable)
-* `google_id` (VARCHAR, nullable - untuk login Google)
+* `google_id` (VARCHAR, nullable, unique - untuk login Google)
 * `mata_uang` (VARCHAR, default: `USD`; migration baru tidak mengubah preferensi user yang sudah tersimpan)
 * `banned_at`, `ban_reason` (untuk fitur hukuman banned admin)
 

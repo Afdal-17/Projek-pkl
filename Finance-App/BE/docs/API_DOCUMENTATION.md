@@ -136,7 +136,7 @@ membalas `422`.
 | POST | `/api/register` | Registrasi via email (OTP email) atau nomor telepon (OTP WhatsApp) |
 | POST | `/api/register/verify-otp` | Verifikasi 6 digit kode OTP (mengaktifkan akun & mengembalikan token) |
 | POST | `/api/register/resend-otp` | Kirim ulang OTP registrasi (body: `user_id`; batas 6 per 15 menit per akun dan 10 per menit per IP) |
-| POST | `/api/auth/google` | Login / Register via Google (wajib field `mode`: `login`\|`register`) |
+| POST | `/api/auth/google` | Login / Register Google (wajib `id_token` dan `mode`; Web Client ID sebagai audience) |
 | POST | `/api/forgot-password` | Kirim token/link reset password ke email |
 | POST | `/api/reset-password` | Ganti password baru menggunakan token reset |
 | POST | `/api/forgot-password/phone` | Minta kode OTP pemulihan lewat WhatsApp |

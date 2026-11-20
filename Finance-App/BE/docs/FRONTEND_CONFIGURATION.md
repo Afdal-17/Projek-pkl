@@ -220,4 +220,5 @@ Future<void> verifyOtp(int userId, String kode) async {
 - [ ] Tidak melakukan kalkulasi kurs manual di sisi client (frontend).
 - [ ] Menggunakan endpoint `/api/register` → `/api/register/verify-otp`; token hanya disimpan setelah verifikasi sukses.
 - [ ] Menyediakan pengiriman ulang OTP melalui `/api/register/resend-otp` dan menampilkan pesan error jika API membalas `503`.
-- [ ] Menggunakan endpoint `/api/auth/google` untuk login Google native, dengan field `mode` (`login` dari halaman Login, `register` dari halaman Sign Up).
+- [ ] Menggunakan Web Client ID yang sama dengan backend sebagai Flutter `serverClientId`; kirim `id_token` dan `mode` ke `/api/auth/google` (bukan profil mentah).
+- [ ] Registrasi Google menyelesaikan OTP sebelum token Sanctum disimpan.
